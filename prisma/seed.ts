@@ -334,6 +334,25 @@ async function main() {
     data: { userId: adminUser.id, roleId: (await role("admin")).id },
   });
 
+  const consultantRoleSlugs = ["consultant", "counsellor", "consultant_master"];
+  const consultantsWithLegacyUni = await prisma.user.findMany({
+    where: {
+      universityId: { not: null },
+      roles: { some: { role: { slug: { in: consultantRoleSlugs } } } },
+    },
+    select: { id: true, universityId: true },
+  });
+  for (const u of consultantsWithLegacyUni) {
+    if (!u.universityId) continue;
+    await prisma.consultantUniversity.upsert({
+      where: {
+        userId_universityId: { userId: u.id, universityId: u.universityId },
+      },
+      create: { userId: u.id, universityId: u.universityId },
+      update: {},
+    });
+  }
+
   console.log("\n=== Seed OK ===");
   console.log("Universities:", uni1.code, "(" + uni1.name + ")", "|", uni2.code, "(" + uni2.name + ")");
   console.log(

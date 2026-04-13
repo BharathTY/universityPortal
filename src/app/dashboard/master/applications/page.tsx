@@ -31,11 +31,19 @@ export default async function MasterApplicationsPage(props: SearchProps) {
         admissionReview: true,
         paymentStatus: true,
         createdAt: true,
-        user: { select: { name: true, email: true, phone: true } },
+        user: {
+          select: {
+            name: true,
+            email: true,
+            phone: true,
+            studentOf: { select: { name: true, email: true } },
+          },
+        },
         university: { select: { name: true, code: true } },
         lead: {
           select: {
             stream: { select: { name: true } },
+            createdBy: { select: { name: true, email: true } },
           },
         },
       },
@@ -60,6 +68,7 @@ export default async function MasterApplicationsPage(props: SearchProps) {
             <tr>
               <th className="px-3 py-2">Application ID</th>
               <th className="px-3 py-2">Student</th>
+              <th className="px-3 py-2">Consultant</th>
               <th className="px-3 py-2">University</th>
               <th className="px-3 py-2">Course</th>
               <th className="px-3 py-2">Pipeline</th>
@@ -74,6 +83,14 @@ export default async function MasterApplicationsPage(props: SearchProps) {
                 <td className="px-3 py-2">
                   <div className="font-medium">{a.user.name ?? "—"}</div>
                   <div className="text-xs text-[var(--foreground-muted)]">{a.user.email}</div>
+                </td>
+                <td className="px-3 py-2">
+                  <div className="font-medium">{a.lead?.createdBy?.name ?? a.user.studentOf?.name ?? "—"}</div>
+                  {a.lead?.createdBy?.email || a.user.studentOf?.email ? (
+                    <div className="text-xs text-[var(--foreground-muted)]">
+                      {a.lead?.createdBy?.email ?? a.user.studentOf?.email}
+                    </div>
+                  ) : null}
                 </td>
                 <td className="px-3 py-2">{a.university?.name ?? "—"}</td>
                 <td className="px-3 py-2">{a.lead?.stream.name ?? "—"}</td>

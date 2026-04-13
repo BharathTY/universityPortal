@@ -1,4 +1,4 @@
-/** Right-hand marketing panel — vibrant blue, matches QSP Edu reference. */
+/** Right-hand marketing panel — vibrant blue brand panel. */
 export function AuthMarketingPanel() {
   return (
     <div className="relative hidden min-h-screen flex-col justify-center overflow-hidden bg-[#1e6fe6] px-10 py-16 lg:flex lg:px-14">
@@ -15,7 +15,7 @@ export function AuthMarketingPanel() {
       <div className="relative z-10 mx-auto w-full max-w-lg">
         <p className="text-lg font-medium text-white/95">Welcome to</p>
         <h2 className="mt-2 text-3xl font-bold leading-tight text-white sm:text-4xl">
-          QSP Edu Student Portal
+          Eduversity
         </h2>
         <p className="mt-5 text-base leading-relaxed text-white/90">
           Access your learning journey, track progress, and manage your courses—all in one

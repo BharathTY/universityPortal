@@ -26,12 +26,21 @@ export async function GET(req: Request) {
         admissionReview: true,
         paymentStatus: true,
         createdAt: true,
-        user: { select: { id: true, name: true, email: true, phone: true } },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            studentOf: { select: { name: true, email: true } },
+          },
+        },
         university: { select: { id: true, name: true, code: true } },
         batch: { select: { title: true, code: true } },
         lead: {
           select: {
             stream: { select: { name: true } },
+            createdBy: { select: { name: true, email: true } },
           },
         },
       },

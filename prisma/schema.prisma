@@ -26,6 +26,19 @@ model University {
   academicYears AcademicYear[]
   streams       Stream[]
   admissionLeads AdmissionLead[]
+  consultantAssignments ConsultantUniversity[]
+}
+
+/// Many-to-many: a consultant user may work with multiple universities.
+model ConsultantUniversity {
+  userId       String
+  universityId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([userId, universityId])
+  @@index([universityId])
 }
 
 enum UserAccountStatus {
@@ -159,6 +172,7 @@ model User {
   batches       Batch[]
   applications  Application[]
   leadsCreated  AdmissionLead[] @relation("LeadCreator")
+  consultantUniversities ConsultantUniversity[]
 
   @@index([universityId])
   @@index([studentOfId])

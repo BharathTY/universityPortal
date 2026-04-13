@@ -17,7 +17,6 @@ const createSchema = z.object({
   name: z.string().min(2).max(200).trim(),
   email: z.string().email().max(254).trim(),
   phone: phoneSchema,
-  password: z.union([z.string().min(8).max(128), z.literal("")]).optional(),
 });
 
 export async function POST(req: Request) {
@@ -37,8 +36,7 @@ export async function POST(req: Request) {
   }
 
   const email = parsed.data.email.toLowerCase();
-  const plainPassword =
-    parsed.data.password && parsed.data.password.length > 0 ? parsed.data.password : generateRandomPassword();
+  const plainPassword = generateRandomPassword();
   const passwordHash = await hashPassword(plainPassword);
 
   const [emailUser, emailUni] = await Promise.all([

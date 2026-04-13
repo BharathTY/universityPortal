@@ -22,6 +22,9 @@ export default async function MasterConsultantsListPage() {
     orderBy: { email: "asc" },
     include: {
       university: { select: { id: true, name: true, code: true } },
+      consultantUniversities: {
+        include: { university: { select: { id: true, name: true, code: true } } },
+      },
       roles: { include: { role: true } },
     },
   });
@@ -51,7 +54,7 @@ export default async function MasterConsultantsListPage() {
                 <th className="px-4 py-3 font-semibold">Name</th>
                 <th className="px-4 py-3 font-semibold">Email</th>
                 <th className="px-4 py-3 font-semibold">Phone</th>
-                <th className="px-4 py-3 font-semibold">Assigned university</th>
+                <th className="px-4 py-3 font-semibold">Universities</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
                 <th className="px-4 py-3 font-semibold">Actions</th>
               </tr>
@@ -63,7 +66,19 @@ export default async function MasterConsultantsListPage() {
                   <td className="px-4 py-3 text-[var(--foreground-muted)]">{u.email}</td>
                   <td className="px-4 py-3 text-[var(--foreground-muted)]">{u.phone ?? "—"}</td>
                   <td className="px-4 py-3 text-[var(--foreground-muted)]">
-                    {u.university ? (
+                    {u.consultantUniversities.length > 0 ? (
+                      <span className="leading-relaxed">
+                        {[...u.consultantUniversities]
+                          .sort((a, b) => a.university.name.localeCompare(b.university.name))
+                          .map((c, i) => (
+                          <span key={c.universityId}>
+                            {i > 0 ? ", " : null}
+                            {c.university.name}{" "}
+                            <span className="text-xs text-[var(--foreground-muted)]">({c.university.code})</span>
+                          </span>
+                        ))}
+                      </span>
+                    ) : u.university ? (
                       <span>
                         {u.university.name}{" "}
                         <span className="text-xs text-[var(--foreground-muted)]">({u.university.code})</span>

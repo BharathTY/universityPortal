@@ -10,7 +10,6 @@ export function NewUniversityForm() {
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
-  const [password, setPassword] = React.useState("");
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,7 +23,6 @@ export function NewUniversityForm() {
           name,
           email,
           phone,
-          password: password.trim() || undefined,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -60,7 +58,8 @@ export function NewUniversityForm() {
           className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
         />
         <p className="mt-1 text-xs text-[var(--foreground-muted)]">
-          Unique; used for the university admin account (OTP sign-in; password emailed for your records).
+          Unique; used for the university admin account. Sign-in uses OTP; a generated password is emailed for your
+          records.
         </p>
       </div>
       <div>
@@ -73,17 +72,9 @@ export function NewUniversityForm() {
           className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
         />
       </div>
-      <div>
-        <label className="block text-sm font-medium text-[var(--foreground)]">Password</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Leave blank to auto-generate"
-          className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
-        />
-        <p className="mt-1 text-xs text-[var(--foreground-muted)]">Minimum 8 characters if set manually.</p>
-      </div>
+      <p className="text-sm text-[var(--foreground-muted)]">
+        A secure password is generated automatically and emailed to the address above when you submit.
+      </p>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       <div className="flex gap-3 pt-2">
         <button
@@ -91,7 +82,7 @@ export function NewUniversityForm() {
           disabled={busy}
           className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-blue-hover)] disabled:opacity-50"
         >
-          {busy ? "Saving…" : "Create & email credentials"}
+          {busy ? "Submitting…" : "Submit"}
         </button>
       </div>
     </form>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
+import { resolveConsultantActiveUniversityId } from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
 import { isConsultantOnly } from "@/lib/roles";
 import { LeadPipelineStatus, AdmissionReviewStatus } from "@prisma/client";
@@ -12,18 +13,17 @@ export default async function ConsultantDashboardPage() {
   if (!isConsultantOnly(session.roles)) {
     redirect("/dashboard");
   }
-  if (!session.universityId) {
+  const { universityId } = await resolveConsultantActiveUniversityId(session);
+  if (!universityId) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
         <h1 className="text-2xl font-semibold text-[var(--foreground)]">Consultant dashboard</h1>
         <p className="mt-4 text-sm text-[var(--foreground-muted)]">
-          Your account is not linked to a university yet. Ask a master admin to assign one.
+          Your account is not linked to a university yet. Ask a master admin to assign one or more universities.
         </p>
       </div>
     );
   }
-
-  const universityId = session.universityId;
 
   const [leadsNew, leadsLost, leadsConverted, applications, admissionsWon] = await Promise.all([
     prisma.admissionLead.count({
@@ -61,7 +61,7 @@ export default async function ConsultantDashboardPage() {
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <h1 className="text-2xl font-bold text-[var(--foreground)]">Consultant dashboard</h1>
       <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-        Leads, applications, and units (batches) for your assigned university.
+        Leads, applications, and units (batches) for your active university (switch in the header if you have several).
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

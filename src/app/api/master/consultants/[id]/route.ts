@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { replaceConsultantUniversityAssignments } from "@/lib/consultant-universities";
 import { requireMasterApi } from "@/lib/master-session";
 import { prisma } from "@/lib/prisma";
 
@@ -13,7 +14,7 @@ const patchSchema = z.object({
   name: z.string().min(2).max(200).trim().optional(),
   email: z.string().email().max(254).trim().optional(),
   phone: phoneSchema.optional(),
-  universityId: z.union([z.string().min(1), z.null()]).optional(),
+  universityIds: z.array(z.string().min(1)).optional(),
   accountStatus: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 
@@ -50,19 +51,16 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     }
   }
 
-  if (parsed.data.universityId) {
-    const uni = await prisma.university.findUnique({ where: { id: parsed.data.universityId } });
-    if (!uni) {
-      return NextResponse.json({ error: "University not found" }, { status: 400 });
+  if (parsed.data.universityIds !== undefined) {
+    const ids = [...new Set(parsed.data.universityIds)];
+    if (ids.length > 0) {
+      const count = await prisma.university.count({ where: { id: { in: ids } } });
+      if (count !== ids.length) {
+        return NextResponse.json({ error: "One or more universities not found" }, { status: 400 });
+      }
     }
+    await replaceConsultantUniversityAssignments(id, ids);
   }
-
-  const uniId =
-    parsed.data.universityId === undefined
-      ? undefined
-      : parsed.data.universityId === null
-        ? null
-        : parsed.data.universityId;
 
   await prisma.user.update({
     where: { id },
@@ -70,7 +68,6 @@ export async function PATCH(req: Request, ctx: RouteContext) {
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
       ...(email !== undefined ? { email } : {}),
       ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone } : {}),
-      ...(uniId !== undefined ? { universityId: uniId } : {}),
       ...(parsed.data.accountStatus !== undefined ? { accountStatus: parsed.data.accountStatus } : {}),
     },
   });

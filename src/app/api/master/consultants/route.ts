@@ -4,6 +4,7 @@ import { sendAccountCredentialsEmail } from "@/lib/email";
 import { requireMasterApi } from "@/lib/master-session";
 import { generateRandomPassword, hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { replaceConsultantUniversityAssignments } from "@/lib/consultant-universities";
 import { ROLES } from "@/lib/roles";
 
 const phoneSchema = z
@@ -17,7 +18,8 @@ const createSchema = z.object({
   email: z.string().email().max(254).trim(),
   phone: phoneSchema,
   password: z.union([z.string().min(8).max(128), z.literal("")]).optional(),
-  universityId: z.string().min(1).nullable().optional(),
+  /** One consultant may map to multiple universities. */
+  universityIds: z.array(z.string().min(1)).optional(),
 });
 
 export async function POST(req: Request) {
@@ -46,11 +48,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Email is already in use" }, { status: 409 });
   }
 
-  const universityId = parsed.data.universityId ?? null;
-  if (universityId) {
-    const uni = await prisma.university.findUnique({ where: { id: universityId } });
-    if (!uni) {
-      return NextResponse.json({ error: "University not found" }, { status: 400 });
+  const universityIds = parsed.data.universityIds ?? [];
+  if (universityIds.length > 0) {
+    const count = await prisma.university.count({
+      where: { id: { in: [...new Set(universityIds)] } },
+    });
+    if (count !== new Set(universityIds).size) {
+      return NextResponse.json({ error: "One or more universities not found" }, { status: 400 });
     }
   }
 
@@ -66,12 +70,16 @@ export async function POST(req: Request) {
       phone: parsed.data.phone,
       passwordHash,
       accountStatus: "ACTIVE",
-      universityId,
+      universityId: universityIds[0] ?? null,
       roles: {
         create: { roleId: consultantRole.id },
       },
     },
   });
+
+  if (universityIds.length > 0) {
+    await replaceConsultantUniversityAssignments(user.id, universityIds);
+  }
 
   try {
     await sendAccountCredentialsEmail({

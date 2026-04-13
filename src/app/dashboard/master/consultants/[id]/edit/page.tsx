@@ -19,7 +19,10 @@ export default async function EditConsultantPage(props: PageProps) {
   const { id } = await props.params;
   const user = await prisma.user.findUnique({
     where: { id },
-    include: { roles: { include: { role: true } } },
+    include: {
+      roles: { include: { role: true } },
+      consultantUniversities: { select: { universityId: true } },
+    },
   });
 
   if (!user) notFound();
@@ -33,6 +36,14 @@ export default async function EditConsultantPage(props: PageProps) {
     orderBy: { name: "asc" },
     select: { id: true, name: true, code: true },
   });
+
+  const joinIds = user.consultantUniversities.map((c) => c.universityId);
+  const universityIds =
+    joinIds.length > 0
+      ? joinIds
+      : user.universityId
+        ? [user.universityId]
+        : [];
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -51,7 +62,7 @@ export default async function EditConsultantPage(props: PageProps) {
             name: user.name ?? "",
             email: user.email,
             phone: user.phone ?? "",
-            universityId: user.universityId,
+            universityIds,
             accountStatus: user.accountStatus,
           }}
         />

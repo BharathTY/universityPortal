@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ConsultantUniversitySwitcher } from "@/components/consultant-university-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { formatRoleLabel } from "@/lib/roles";
 
@@ -52,6 +53,7 @@ export function DashboardHeader({ email, roles }: DashboardHeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-end gap-3 px-4 py-3 sm:gap-4 sm:px-6">
+        <ConsultantUniversitySwitcher roles={roles} />
         <ThemeToggle />
 
         <div className="relative" ref={wrapRef}>

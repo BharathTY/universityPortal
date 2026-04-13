@@ -18,8 +18,7 @@ export function AuthPageShell({ children, title, subtitle, navSlot }: AuthPageSh
       {/* Left: white form column — fixed light styling for auth */}
       <div className="flex min-h-screen flex-col bg-white px-6 pb-8 pt-8 sm:px-10 sm:pt-10 lg:px-16">
         <div>
-          <p className="text-2xl font-bold tracking-tight text-[#1e6fe6]">QSP Edu</p>
-          <p className="mt-0.5 text-base font-medium text-[#3b82f6]">Student Portal</p>
+          <p className="text-2xl font-bold tracking-tight text-[#1e6fe6]">Eduversity</p>
         </div>
 
         <div className="flex flex-1 flex-col justify-center py-10">
@@ -32,7 +31,7 @@ export function AuthPageShell({ children, title, subtitle, navSlot }: AuthPageSh
         </div>
 
         <p className="mt-auto text-center text-xs text-slate-400 sm:text-left">
-          © {new Date().getFullYear()} QSP Edu
+          © {new Date().getFullYear()} Eduversity
         </p>
       </div>
 

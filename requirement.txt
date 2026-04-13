@@ -1,0 +1,31 @@
+
+Eduversity
+Master Amdin Role
+
+	Add University - email to be sent - Autogen password
+	Remove Role Column - University list in Master Admin
+	Suppoort Consultant for Multi University
+	Link for COnsultant which shows his mapping
+	Application - add COnsultant (Name) Column
+
+University
+	Admission - Remove Consultant Code and Role column, Add x against Stream. Addmission (Uni-Admission) done by Uni seperate Section
+	Make Speciatization as mandatory when capturing Lead
+	Application - Remove ACtuion COlumn, remove COnsultant column, change review to Status
+	Academic Years & Stream - Navigate thru - view of admission
+	
+	
+Consultant
+	Invite Student / User - capture Mobile Number, Name mandatory
+	Create Manager Credentials
+	Create Councellor Cred
+	Add Lead (Is same as Student), Lead By (Auto Fill COnsultant name)
+	Manager - Counsellor - Students
+	Manage users - remove
+	Remove Mangage USers from Dashboard
+	
+Student Login
+	Remove "Assigned consultant"
+	Start Application Process - Add Stream, Year, Specialization to be shown. Confirmation - Date , University, prefered time - Submit to go to University. fEES pAY - THEY SHOUDL BE ABLE TO select COnsultant name ("Lead By <COnsultant Name>"  Auto)
+	
+	

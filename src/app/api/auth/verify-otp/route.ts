@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { verifyOtp } from "@/lib/otp";
 import { COOKIE_NAME, createSessionToken } from "@/lib/auth";
+import { initialSessionUniversityIdForUser } from "@/lib/consultant-universities";
 
 const schema = z.object({
   email: z.string().email(),
@@ -90,11 +91,13 @@ export async function POST(req: Request) {
 
   const roles = user.roles.map((ur) => ur.role.slug);
 
+  const universityId = await initialSessionUniversityIdForUser(user);
+
   const token = await createSessionToken({
     sub: user.id,
     email: user.email,
     roles,
-    universityId: user.universityId ?? null,
+    universityId,
     studentOfId: user.studentOfId ?? null,
   });
 

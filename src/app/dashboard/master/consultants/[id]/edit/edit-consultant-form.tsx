@@ -12,7 +12,7 @@ type Props = {
     name: string;
     email: string;
     phone: string;
-    universityId: string | null;
+    universityIds: string[];
     accountStatus: "ACTIVE" | "INACTIVE";
   };
 };
@@ -24,8 +24,17 @@ export function EditConsultantForm({ userId, universities, initial }: Props) {
   const [name, setName] = React.useState(initial.name);
   const [email, setEmail] = React.useState(initial.email);
   const [phone, setPhone] = React.useState(initial.phone);
-  const [universityId, setUniversityId] = React.useState<string>(initial.universityId ?? "");
+  const [selectedUniIds, setSelectedUniIds] = React.useState<Set<string>>(new Set(initial.universityIds));
   const [accountStatus, setAccountStatus] = React.useState<"ACTIVE" | "INACTIVE">(initial.accountStatus);
+
+  function toggleUniversity(id: string) {
+    setSelectedUniIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,7 +48,7 @@ export function EditConsultantForm({ userId, universities, initial }: Props) {
           name,
           email,
           phone,
-          universityId: universityId ? universityId : null,
+          universityIds: [...selectedUniIds],
           accountStatus,
         }),
       });
@@ -86,19 +95,26 @@ export function EditConsultantForm({ userId, universities, initial }: Props) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-[var(--foreground)]">Assigned university</label>
-        <select
-          value={universityId}
-          onChange={(e) => setUniversityId(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
-        >
-          <option value="">None</option>
+        <span className="block text-sm font-medium text-[var(--foreground)]">Assigned universities</span>
+        <p className="mt-1 text-xs text-[var(--foreground-muted)]">Select one or more.</p>
+        <ul className="mt-3 max-h-56 space-y-2 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
           {universities.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name} ({u.code})
-            </option>
+            <li key={u.id}>
+              <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--foreground)]">
+                <input
+                  type="checkbox"
+                  checked={selectedUniIds.has(u.id)}
+                  onChange={() => toggleUniversity(u.id)}
+                  className="mt-0.5 h-4 w-4 rounded border-[var(--border)]"
+                />
+                <span>
+                  {u.name}{" "}
+                  <span className="text-xs text-[var(--foreground-muted)]">({u.code})</span>
+                </span>
+              </label>
+            </li>
           ))}
-        </select>
+        </ul>
       </div>
       <div>
         <label className="block text-sm font-medium text-[var(--foreground)]">Status</label>

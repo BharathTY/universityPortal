@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
+import { resolveConsultantActiveUniversityId } from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
 import { isConsultantOnly } from "@/lib/roles";
 import { ConsultantLeadsClient } from "@/app/dashboard/consultant/leads/consultant-leads-client";
@@ -11,11 +12,10 @@ export default async function ConsultantLeadsPage() {
   if (!isConsultantOnly(session.roles)) {
     redirect("/dashboard");
   }
-  if (!session.universityId) {
+  const { universityId } = await resolveConsultantActiveUniversityId(session);
+  if (!universityId) {
     redirect("/dashboard/consultant");
   }
-
-  const universityId = session.universityId;
 
   const [university, years, streams] = await Promise.all([
     prisma.university.findUnique({

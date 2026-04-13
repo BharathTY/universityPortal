@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "QSP Edu — Student Portal",
+  title: "Eduversity",
   description: "Secure student portal — sign in with email and a one-time code.",
 };
 
