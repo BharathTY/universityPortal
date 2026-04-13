@@ -41,7 +41,6 @@ export type DashboardSnapshot = {
   studentSelf?: {
     pendingInvite: boolean;
     universityName: string | null;
-    counsellorEmail: string | null;
   };
   setupMessage: string | null;
   /** Master role: per-university breakdown */
@@ -81,7 +80,6 @@ export async function getDashboardSnapshot(session: SessionPayload): Promise<Das
         email: true,
         inviteToken: true,
         university: { select: { name: true, code: true } },
-        studentOf: { select: { email: true } },
       },
     });
 
@@ -110,7 +108,6 @@ export async function getDashboardSnapshot(session: SessionPayload): Promise<Das
         studentSelf: {
           pendingInvite: Boolean(me?.inviteToken),
           universityName: university?.name ?? null,
-          counsellorEmail: me?.studentOf?.email ?? null,
         },
       };
     }

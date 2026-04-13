@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
 
 export type AcademicYearRow = { id: string; label: string; sortOrder: number };
@@ -78,7 +79,12 @@ export function AcademicYearsManager({ universityId, initialYears }: Props) {
         ) : (
           years.map((y) => (
             <li key={y.id} className="flex items-center justify-between px-4 py-3 text-sm">
-              <span className="font-medium text-[var(--foreground)]">{y.label}</span>
+              <Link
+                href={`/dashboard/university/${universityId}/admissions/academic-years/${y.id}`}
+                className="font-medium text-[var(--primary)] underline underline-offset-2 hover:no-underline"
+              >
+                {y.label}
+              </Link>
               <span className="text-[var(--foreground-muted)]">Order {y.sortOrder}</span>
             </li>
           ))

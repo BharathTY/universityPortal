@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
 
 export type StreamRow = { id: string; name: string; sortOrder: number };
@@ -78,7 +79,12 @@ export function StreamsManager({ universityId, initialStreams }: Props) {
         ) : (
           streams.map((s) => (
             <li key={s.id} className="flex items-center justify-between px-4 py-3 text-sm">
-              <span className="font-medium text-[var(--foreground)]">{s.name}</span>
+              <Link
+                href={`/dashboard/university/${universityId}/admissions/streams/${s.id}`}
+                className="font-medium text-[var(--primary)] underline underline-offset-2 hover:no-underline"
+              >
+                {s.name}
+              </Link>
               <span className="text-[var(--foreground-muted)]">Order {s.sortOrder}</span>
             </li>
           ))

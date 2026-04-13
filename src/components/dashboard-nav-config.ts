@@ -30,9 +30,9 @@ export function buildDashboardNav(roles: string[], options?: BuildDashboardNavOp
   if (isStudent(roles) && !isMaster(roles)) {
     return [
       {
-        title: "Student",
+        title: "Dashboard",
         items: [
-          { href: "/dashboard/student", label: "Overview", icon: "graduation" },
+          { href: "/dashboard", label: "Overview", icon: "home" },
           { href: "/dashboard/student/application", label: "Application", icon: "file" },
         ],
       },
@@ -108,6 +108,16 @@ export function buildDashboardNav(roles: string[], options?: BuildDashboardNavOp
           },
         ],
       });
+      groups.push({
+        title: "Uni-Admission",
+        items: [
+          {
+            href: `/dashboard/university/${universityId}/uni-admissions`,
+            label: "Admission (Uni-Admission)",
+            icon: "graduation",
+          },
+        ],
+      });
     }
     return groups;
   }
@@ -134,6 +144,10 @@ export function isNavActive(pathname: string, href: string): boolean {
   }
   /** Admissions home: match only .../admissions, not .../admissions/academic-years etc. */
   if (/\/dashboard\/university\/[^/]+\/admissions$/.test(hrefNorm)) {
+    return pathNorm === hrefNorm;
+  }
+  /** Uni-Admission list: match only .../uni-admissions */
+  if (/\/dashboard\/university\/[^/]+\/uni-admissions$/.test(hrefNorm)) {
     return pathNorm === hrefNorm;
   }
   if (/\/dashboard\/university\/[^/]+\/applications$/.test(hrefNorm)) {

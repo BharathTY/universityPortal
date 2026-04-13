@@ -81,31 +81,27 @@ export default async function DashboardPage() {
       ) : null}
 
       {isStudent(session.roles) && !isMaster(session.roles) && data.studentSelf ? (
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {data.stats.map((s) => (
-            <div
-              key={s.label}
-              className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm"
-            >
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
-                {s.label}
-              </p>
-              <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">{s.value}</p>
-              {s.sub ? <p className="mt-1 text-xs text-[var(--foreground-muted)]">{s.sub}</p> : null}
-            </div>
-          ))}
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm sm:col-span-2">
-            <p className="text-sm font-semibold text-[var(--foreground)]">Counsellor / consultant</p>
-            <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-              {data.studentSelf.counsellorEmail ?? "—"}
-            </p>
-            <Link
-              href="/dashboard/student"
-              className="mt-4 inline-flex rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white shadow hover:bg-[var(--accent-blue-hover)]"
-            >
-              Open student portal
-            </Link>
+        <div className="mt-8 space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {data.stats.map((s) => (
+              <div
+                key={s.label}
+                className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
+                  {s.label}
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">{s.value}</p>
+                {s.sub ? <p className="mt-1 text-xs text-[var(--foreground-muted)]">{s.sub}</p> : null}
+              </div>
+            ))}
           </div>
+          <Link
+            href="/dashboard/student/application"
+            className="inline-flex rounded-lg bg-[var(--accent-blue)] px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-[var(--accent-blue-hover)]"
+          >
+            Open student portal
+          </Link>
         </div>
       ) : (
         <>

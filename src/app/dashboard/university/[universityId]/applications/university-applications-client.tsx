@@ -11,10 +11,7 @@ type AppRow = {
   studentName: string;
   mobile: string;
   course: string;
-  consultantName: string;
   status: string;
-  pipeline: string;
-  payment: string;
   leadCreatedAt: string;
 };
 
@@ -26,11 +23,15 @@ type Props = {
   applications: AppRow[];
 };
 
+const reviewLabel: Record<string, string> = {
+  PENDING: "Pending",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+};
+
 export function UniversityApplicationsClient(props: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [busy, setBusy] = React.useState<string | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
 
   function setFilter(next: { year?: string | null; stream?: string | null }) {
     const p = new URLSearchParams(searchParams.toString());
@@ -43,26 +44,6 @@ export function UniversityApplicationsClient(props: Props) {
     router.push(`/dashboard/university/${props.universityId}/applications?${p.toString()}`);
   }
 
-  async function review(applicationId: string, admissionReview: "APPROVED" | "REJECTED") {
-    setBusy(applicationId);
-    setErr(null);
-    try {
-      const res = await fetch(`/api/university/${props.universityId}/applications/review`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ applicationId, admissionReview }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        setErr(data.error ?? "Update failed");
-        return;
-      }
-      router.refresh();
-    } finally {
-      setBusy(null);
-    }
-  }
-
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <nav className="text-sm text-[var(--foreground-muted)]">
@@ -71,9 +52,7 @@ export function UniversityApplicationsClient(props: Props) {
         <span className="font-medium text-[var(--foreground)]">Applications</span>
       </nav>
       <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">{props.universityName}</h1>
-      <p className="mt-1 text-sm text-[var(--foreground-muted)]">Review and update admission decisions.</p>
-
-      {err ? <p className="mt-4 text-sm text-red-600">{err}</p> : null}
+      <p className="mt-1 text-sm text-[var(--foreground-muted)]">Applications linked to leads — filter by year and stream.</p>
 
       <div className="mt-6 flex flex-wrap gap-2">
         <select
@@ -103,17 +82,15 @@ export function UniversityApplicationsClient(props: Props) {
       </div>
 
       <div className="mt-8 overflow-x-auto rounded-xl border border-[var(--border)]">
-        <table className="w-full min-w-[960px] text-left text-sm">
+        <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40">
             <tr>
               <th className="px-3 py-2">Application ID</th>
               <th className="px-3 py-2">Student</th>
               <th className="px-3 py-2">Mobile</th>
               <th className="px-3 py-2">Course</th>
-              <th className="px-3 py-2">Consultant</th>
-              <th className="px-3 py-2">Review</th>
+              <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Lead created</th>
-              <th className="px-3 py-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -123,30 +100,9 @@ export function UniversityApplicationsClient(props: Props) {
                 <td className="px-3 py-2">{a.studentName}</td>
                 <td className="px-3 py-2">{a.mobile}</td>
                 <td className="px-3 py-2">{a.course}</td>
-                <td className="px-3 py-2">{a.consultantName}</td>
-                <td className="px-3 py-2">{a.status}</td>
+                <td className="px-3 py-2">{reviewLabel[a.status] ?? a.status}</td>
                 <td className="px-3 py-2 text-xs text-[var(--foreground-muted)]">
                   {new Date(a.leadCreatedAt).toLocaleString()}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <button
-                      type="button"
-                      disabled={busy === a.id}
-                      onClick={() => void review(a.id, "APPROVED")}
-                      className="text-sm font-medium text-emerald-700 underline"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy === a.id}
-                      onClick={() => void review(a.id, "REJECTED")}
-                      className="text-sm font-medium text-red-600 underline"
-                    >
-                      Reject
-                    </button>
-                  </div>
                 </td>
               </tr>
             ))}
@@ -155,8 +111,7 @@ export function UniversityApplicationsClient(props: Props) {
       </div>
 
       <p className="mt-6 text-sm text-[var(--foreground-muted)]">
-        Use Approve / Reject to set the university admission decision. Students still follow the pipeline status on
-        their application record.
+        Status is the university admission decision on the application (pending, approved, or rejected).
       </p>
     </div>
   );

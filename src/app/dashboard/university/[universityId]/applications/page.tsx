@@ -69,10 +69,7 @@ export default async function UniversityApplicationsPage(props: PageProps) {
     studentName: a.user.name ?? a.user.email,
     mobile: a.user.phone ?? "—",
     course: a.lead?.stream.name ?? "—",
-    consultantName: "—",
     status: a.admissionReview,
-    pipeline: a.status,
-    payment: a.paymentStatus,
     leadCreatedAt: a.lead?.createdAt?.toISOString() ?? a.createdAt.toISOString(),
   }));
 

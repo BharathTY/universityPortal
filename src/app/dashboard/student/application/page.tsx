@@ -8,10 +8,12 @@ type AppData = {
   paymentStatus: string;
   admissionReview: string;
   university: { name: string; code: string } | null;
+  user: { name: string | null; phone: string | null };
   lead: {
     stream: { name: string };
     academicYear: { label: string };
     nationality: string | null;
+    specialization: string | null;
   } | null;
 };
 
@@ -47,6 +49,16 @@ export default function StudentApplicationPage() {
   React.useEffect(() => {
     void loadApp();
   }, []);
+
+  React.useEffect(() => {
+    if (!app?.user) return;
+    const name = app.user.name?.trim() ?? "";
+    const parts = name.split(/\s+/).filter(Boolean);
+    setFirstName(parts[0] ?? "");
+    setLastName(parts.slice(1).join(" "));
+    setPhone(app.user.phone ?? "");
+    setNationality(app.lead?.nationality ?? "");
+  }, [app]);
 
   async function savePersonal(e: React.FormEvent) {
     e.preventDefault();
@@ -112,6 +124,7 @@ export default function StudentApplicationPage() {
 
   const course = app.lead?.stream.name ?? "—";
   const year = app.lead?.academicYear.label ?? "—";
+  const specialization = app.lead?.specialization?.trim() || "—";
 
   const canPayRegistration =
     app.paymentStatus === "NONE" || app.paymentStatus === "REGISTRATION_PENDING";
@@ -120,7 +133,7 @@ export default function StudentApplicationPage() {
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
       <h1 className="text-2xl font-bold text-[var(--foreground)]">Application</h1>
       <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-        {app.university?.name} ({app.university?.code}) · {course} · {year}
+        {app.university?.name} ({app.university?.code})
       </p>
 
       <ol className="mt-8 flex gap-4 text-sm">
@@ -140,6 +153,29 @@ export default function StudentApplicationPage() {
       {step === 1 ? (
         <form onSubmit={savePersonal} className="mt-8 space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
           <h2 className="text-lg font-semibold text-[var(--foreground)]">Personal details</h2>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            Programme fields come from your admission record. Update your name and contact below.
+          </p>
+
+          <div className="grid gap-4 rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-4 sm:grid-cols-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">Stream</p>
+              <p className="mt-1 text-sm font-medium text-[var(--foreground)]">{course}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
+                Academic year
+              </p>
+              <p className="mt-1 text-sm font-medium text-[var(--foreground)]">{year}</p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
+                Specialization
+              </p>
+              <p className="mt-1 text-sm font-medium text-[var(--foreground)]">{specialization}</p>
+            </div>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="text-sm font-medium">First name</label>

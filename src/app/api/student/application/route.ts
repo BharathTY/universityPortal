@@ -22,7 +22,13 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
     include: {
       university: { select: { name: true, code: true } },
-      lead: { include: { stream: { select: { name: true } }, academicYear: { select: { label: true } } } },
+      user: { select: { name: true, phone: true } },
+      lead: {
+        include: {
+          stream: { select: { name: true } },
+          academicYear: { select: { label: true } },
+        },
+      },
     },
   });
 

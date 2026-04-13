@@ -13,8 +13,6 @@ export type AdmissionLeadRow = {
   lastName: string;
   email: string;
   mobile: string;
-  consultantCode: string;
-  roleLabel: string;
   admissionStatus: string;
   createdAt: string;
   academicYear: { label: string };
@@ -23,6 +21,11 @@ export type AdmissionLeadRow = {
 
 type AdmissionsDashboardProps = {
   universityId: string;
+  /** Route segment for this list (`admissions` vs `uni-admissions`) — keeps filters on the correct page. */
+  listPathSegment?: "admissions" | "uni-admissions";
+  breadcrumbLabel?: string;
+  pageTitle?: string;
+  pageSubtitle?: string;
   years: AdmissionsYearOption[];
   streams: AdmissionsStreamOption[];
   leads: AdmissionLeadRow[];
@@ -59,6 +62,10 @@ function formatDateTime(iso: string) {
 
 export function AdmissionsDashboard({
   universityId,
+  listPathSegment = "admissions",
+  breadcrumbLabel = "Admissions",
+  pageTitle = "Admissions",
+  pageSubtitle = "Admission leads — filter by academic year and stream.",
   years,
   streams,
   leads,
@@ -85,7 +92,7 @@ export function AdmissionsDashboard({
     if (pg > 1) p.set("page", String(pg));
     else p.delete("page");
 
-    router.push(`/dashboard/university/${universityId}/admissions?${p.toString()}`);
+    router.push(`/dashboard/university/${universityId}/${listPathSegment}?${p.toString()}`);
   }
 
   const leadPunchHref = `/dashboard/university/${universityId}/admissions/leads/new`;
@@ -95,15 +102,13 @@ export function AdmissionsDashboard({
       <nav className="text-sm text-[var(--foreground-muted)]" aria-label="Breadcrumb">
         <span className="text-[var(--foreground)]">University</span>
         <span className="mx-1.5">/</span>
-        <span className="font-medium text-[var(--foreground)]">Admissions</span>
+        <span className="font-medium text-[var(--foreground)]">{breadcrumbLabel}</span>
       </nav>
 
       <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Admissions</h1>
-          <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-            Leads with consultant codes — filter by academic year and stream.
-          </p>
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">{pageTitle}</h1>
+          <p className="mt-1 text-sm text-[var(--foreground-muted)]">{pageSubtitle}</p>
         </div>
         <Link
           href={leadPunchHref}
@@ -185,15 +190,13 @@ export function AdmissionsDashboard({
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px] text-left text-sm">
+          <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="bg-[var(--muted)]/50 text-[var(--foreground-muted)]">
               <tr>
                 <th className="px-4 py-3 font-medium">First name</th>
                 <th className="px-4 py-3 font-medium">Last name</th>
                 <th className="px-4 py-3 font-medium">Mobile</th>
                 <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium">Consultant code</th>
-                <th className="px-4 py-3 font-medium">Role</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Year / stream</th>
                 <th className="px-4 py-3 font-medium">Created</th>
@@ -202,7 +205,7 @@ export function AdmissionsDashboard({
             <tbody>
               {leads.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-14 text-center text-[var(--foreground-muted)]">
+                  <td colSpan={7} className="px-4 py-14 text-center text-[var(--foreground-muted)]">
                     No leads match these filters. Use <strong className="text-[var(--foreground)]">Lead punch</strong>{" "}
                     or <strong className="text-[var(--foreground)]">Add lead</strong> in the sidebar.
                   </td>
@@ -214,8 +217,6 @@ export function AdmissionsDashboard({
                     <td className="px-4 py-3 text-[var(--foreground)]">{row.lastName}</td>
                     <td className="px-4 py-3 tabular-nums text-[var(--foreground-muted)]">{row.mobile}</td>
                     <td className="px-4 py-3 text-[var(--foreground-muted)]">{row.email}</td>
-                    <td className="px-4 py-3 font-mono text-sm text-[var(--foreground)]">{row.consultantCode}</td>
-                    <td className="px-4 py-3 text-[var(--foreground)]">{row.roleLabel}</td>
                     <td className="px-4 py-3">
                       <span className="rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">
                         {statusLabel[row.admissionStatus] ?? row.admissionStatus}

@@ -16,7 +16,8 @@ type PageProps = {
   searchParams: Promise<{ year?: string; stream?: string; page?: string; pageSize?: string }>;
 };
 
-export default async function UniversityAdmissionsPage(props: PageProps) {
+/** Leads created by university staff (same UI as Admissions, separate list). */
+export default async function UniversityUniAdmissionsPage(props: PageProps) {
   const session = await requireAuth();
   const { universityId } = await props.params;
   assertUniversityScope(session, universityId);
@@ -47,13 +48,10 @@ export default async function UniversityAdmissionsPage(props: PageProps) {
     universityId,
     ...(selectedYearId ? { academicYearId: selectedYearId } : {}),
     ...(selectedStreamId ? { streamId: selectedStreamId } : {}),
-    /** University-team leads live under Uni-Admission (see `/uni-admissions`). */
-    NOT: {
-      createdBy: {
-        is: {
-          universityId,
-          roles: { some: { role: { slug: ROLES.university } } },
-        },
+    createdBy: {
+      is: {
+        universityId,
+        roles: { some: { role: { slug: ROLES.university } } },
       },
     },
   };
@@ -89,6 +87,10 @@ export default async function UniversityAdmissionsPage(props: PageProps) {
   return (
     <AdmissionsDashboard
       universityId={universityId}
+      listPathSegment="uni-admissions"
+      breadcrumbLabel="Uni-Admission"
+      pageTitle="Admission (Uni-Admission)"
+      pageSubtitle="Leads created by your university team — filter by academic year and stream."
       years={years}
       streams={streams}
       leads={leads}
@@ -98,7 +100,6 @@ export default async function UniversityAdmissionsPage(props: PageProps) {
       totalPages={totalPages}
       selectedYearId={selectedYearId}
       selectedStreamId={selectedStreamId}
-      pageSubtitle="Consultant and partner leads — filter by academic year and stream."
     />
   );
 }

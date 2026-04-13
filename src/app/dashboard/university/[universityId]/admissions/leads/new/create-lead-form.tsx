@@ -69,7 +69,7 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
           consultantRoleId,
           admissionStatus,
           nationality,
-          specialization: specialization.trim() || null,
+          specialization: specialization.trim(),
         }),
       });
       const data = (await res.json()) as { error?: string };
@@ -77,7 +77,7 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
         setError(data.error ?? "Could not create lead");
         return;
       }
-      router.push(`/dashboard/university/${universityId}/admissions`);
+      router.push(`/dashboard/university/${universityId}/uni-admissions`);
       router.refresh();
     } catch {
       setError("Network error");
@@ -218,9 +218,10 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
         <div>
           <label className="block text-sm font-medium text-[var(--foreground)]">Specialization</label>
           <input
+            required
             value={specialization}
             onChange={(e) => setSpecialization(e.target.value)}
-            placeholder="Optional"
+            placeholder="e.g. Computer Science"
             className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
           />
         </div>

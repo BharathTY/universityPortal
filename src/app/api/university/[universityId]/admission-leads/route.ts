@@ -4,7 +4,6 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { isAdmissionLeadRoleSlug } from "@/lib/admission-lead-role";
 import { prisma } from "@/lib/prisma";
-import { isConsultant } from "@/lib/roles";
 import { canAccessUniversityScope } from "@/lib/university-scope";
 
 const createSchema = z.object({
@@ -19,7 +18,7 @@ const createSchema = z.object({
   consultantRoleId: z.string().min(1),
   admissionStatus: z.nativeEnum(AdmissionLeadStatus).optional(),
   nationality: z.string().max(120).trim().optional().nullable(),
-  specialization: z.string().max(200).trim().optional().nullable(),
+  specialization: z.string().min(1).max(200).trim(),
 });
 
 type RouteContext = { params: Promise<{ universityId: string }> };
@@ -128,8 +127,9 @@ export async function POST(req: Request, ctx: RouteContext) {
       admissionStatus: parsed.data.admissionStatus ?? AdmissionLeadStatus.NEW,
       pipelineStatus: LeadPipelineStatus.NEW,
       nationality: parsed.data.nationality ?? null,
-      specialization: parsed.data.specialization ?? null,
-      createdByUserId: isConsultant(session.roles) ? session.sub : null,
+      specialization: parsed.data.specialization,
+      /** Always record creator so Admissions vs Uni-Admission lists can be split. */
+      createdByUserId: session.sub,
     },
   });
 
