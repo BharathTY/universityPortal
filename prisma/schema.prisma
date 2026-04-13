@@ -1,0 +1,251 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UniversityStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model University {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  email     String?  @unique
+  phone     String?
+  status    UniversityStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users         User[]
+  applications Application[]
+  academicYears AcademicYear[]
+  streams       Stream[]
+  admissionLeads AdmissionLead[]
+}
+
+enum UserAccountStatus {
+  ACTIVE
+  INACTIVE
+}
+
+/// Configurable intake years per university (e.g. 2024, 2025).
+model AcademicYear {
+  id           String   @id @default(cuid())
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  label        String
+  sortOrder    Int      @default(0)
+  leads        AdmissionLead[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([universityId, label])
+  @@index([universityId])
+}
+
+/// Program streams (e.g. B.Tech, MBA) per university.
+model Stream {
+  id           String   @id @default(cuid())
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  name         String
+  sortOrder    Int      @default(0)
+  leads        AdmissionLead[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([universityId, name])
+  @@index([universityId])
+}
+
+enum AdmissionLeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  ADMITTED
+  REJECTED
+  WITHDRAWN
+}
+
+/// Consultant funnel: lost / converted before university admission workflow.
+enum LeadPipelineStatus {
+  NEW
+  LOST
+  CONVERTED
+}
+
+enum ApplicationPaymentStatus {
+  NONE
+  REGISTRATION_PENDING
+  REGISTRATION_PAID
+  PROGRAM_PENDING
+  PROGRAM_PAID
+}
+
+enum AdmissionReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Prospective student lead created by university staff; consultantCode maps the referring consultant.
+/// `consultantRole` references `Role` (same catalogue as user roles; typically consultant or counsellor).
+model AdmissionLead {
+  id               String              @id @default(cuid())
+  universityId     String
+  university       University          @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  academicYearId   String
+  academicYear     AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  streamId         String
+  stream           Stream              @relation(fields: [streamId], references: [id], onDelete: Restrict)
+  firstName        String
+  lastName         String
+  email            String
+  mobile           String
+  consultantCode   String
+  consultantRoleId String
+  consultantRole   Role                @relation(fields: [consultantRoleId], references: [id], onDelete: Restrict)
+  admissionStatus  AdmissionLeadStatus @default(NEW)
+  pipelineStatus   LeadPipelineStatus  @default(NEW)
+  nationality      String?
+  specialization   String?
+  createdByUserId  String?
+  createdBy        User?               @relation("LeadCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  application Application?
+
+  @@index([universityId])
+  @@index([academicYearId])
+  @@index([streamId])
+  @@index([consultantCode])
+  @@index([consultantRoleId])
+  @@index([createdByUserId])
+  @@index([email])
+  @@index([mobile])
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String?
+  phone     String?
+  /// Reserved for future password-based flows; sign-in is OTP-only.
+  passwordHash String?
+  accountStatus UserAccountStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  /// Set when a consultant invites a student; cleared after they accept. Used in /invite/accept
+  inviteToken      String?   @unique
+  inviteSentAt     DateTime?
+  inviteAcceptedAt DateTime?
+
+  universityId String?
+  university   University? @relation(fields: [universityId], references: [id], onDelete: SetNull)
+
+  /// When role is `student`, optional link to the consultant who manages this student.
+  studentOfId String?
+  studentOf   User?   @relation("StudentToConsultant", fields: [studentOfId], references: [id], onDelete: SetNull)
+  students    User[]  @relation("StudentToConsultant")
+
+  roles         UserRole[]
+  batches       Batch[]
+  applications  Application[]
+  leadsCreated  AdmissionLead[] @relation("LeadCreator")
+
+  @@index([universityId])
+  @@index([studentOfId])
+}
+
+model Batch {
+  id               String   @id @default(cuid())
+  title            String
+  code             String
+  batchStartDate   DateTime
+  admissionEndDate DateTime
+  ownerId          String?
+  owner            User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  applications     Application[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
+/// Student application pipeline (one current stage per row; metrics count by status).
+enum ApplicationStatus {
+  APPLICATION_DETAILS_PENDING
+  REGISTRATION_FEE_PENDING
+  PROGRAM_FEE_PENDING
+  APPLICANT_KYC_PENDING
+  PERSONAL_DETAILS_PENDING
+  EDUCATION_DETAILS_PENDING
+  DOCUMENTS_PENDING
+  UNDER_L1_VERIFICATION
+  UNDER_L2_VERIFICATION
+  REJECTED
+  COMPLETED
+}
+
+model Application {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  universityId String?
+  university   University? @relation(fields: [universityId], references: [id], onDelete: SetNull)
+
+  batchId String?
+  batch   Batch?  @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  leadId String? @unique
+  lead   AdmissionLead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  status ApplicationStatus @default(APPLICATION_DETAILS_PENDING)
+
+  paymentStatus   ApplicationPaymentStatus @default(NONE)
+  admissionReview AdmissionReviewStatus @default(PENDING)
+
+  @@index([userId])
+  @@index([universityId])
+  @@index([batchId])
+  @@index([status])
+  @@index([admissionReview])
+}
+
+model Role {
+  id             String          @id @default(cuid())
+  slug           String          @unique
+  name           String
+  users          UserRole[]
+  admissionLeads AdmissionLead[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
