@@ -1,7 +1,12 @@
 import { ROLES } from "@/lib/roles";
 
 /** Role slugs from `Role` that may be attributed on an admission lead (subset of portal roles). */
-export const ADMISSION_LEAD_ROLE_SLUGS = [ROLES.consultant, ROLES.counsellor] as const;
+export const ADMISSION_LEAD_ROLE_SLUGS = [
+  ROLES.consultant,
+  ROLES.counsellor,
+  ROLES.consultantMaster,
+  ROLES.qspidersBranch,
+] as const;
 
 export type AdmissionLeadRoleSlug = (typeof ADMISSION_LEAD_ROLE_SLUGS)[number];
 

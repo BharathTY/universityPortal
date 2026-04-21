@@ -15,6 +15,7 @@ const patchSchema = z.object({
   email: z.string().email().max(254).trim().optional(),
   phone: phoneSchema.optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
+  logoUrl: z.union([z.string().url().max(2000), z.literal("")]).optional().nullable(),
 });
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -74,6 +75,9 @@ export async function PATCH(req: Request, ctx: RouteContext) {
         ...(email !== undefined ? { email } : {}),
         ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone } : {}),
         ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
+        ...(parsed.data.logoUrl !== undefined
+          ? { logoUrl: parsed.data.logoUrl === "" ? null : parsed.data.logoUrl }
+          : {}),
       },
     });
 

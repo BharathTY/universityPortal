@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { requireAuth } from "@/lib/auth";
+import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
 import {
   canAccessLeadsAndBatches,
@@ -10,8 +11,16 @@ import {
   isMaster,
   isUniversity,
   ROLES,
+  formatTeamMemberRole,
 } from "@/lib/roles";
 import { InviteStudentForm } from "@/app/dashboard/consultant/students/invite-student-form";
+
+const PARTNER_ROSTER_SLUGS = [
+  ROLES.consultant,
+  ROLES.counsellor,
+  ROLES.consultantMaster,
+  ROLES.qspidersBranch,
+] as const;
 
 export default async function ConsultantStudentsPage() {
   const session = await requireAuth();
@@ -19,18 +28,18 @@ export default async function ConsultantStudentsPage() {
     redirect("/dashboard");
   }
 
-  const where: Prisma.UserWhereInput = {
+  const studentWhere: Prisma.UserWhereInput = {
     roles: { some: { role: { slug: ROLES.student } } },
   };
 
   if (isConsultant(session.roles) && !isMaster(session.roles) && !isUniversity(session.roles)) {
-    where.studentOfId = session.sub;
+    studentWhere.studentOfId = session.sub;
   } else if (isUniversity(session.roles) && session.universityId) {
-    where.universityId = session.universityId;
+    studentWhere.universityId = session.universityId;
   }
 
   const students = await prisma.user.findMany({
-    where,
+    where: studentWhere,
     orderBy: { email: "asc" },
     select: {
       id: true,
@@ -46,11 +55,16 @@ export default async function ConsultantStudentsPage() {
 
   const canInvite = isConsultant(session.roles);
 
+  let teamMembers: Awaited<ReturnType<typeof loadTeamMembers>> = [];
+  if (isConsultantOnly(session.roles)) {
+    teamMembers = await loadTeamMembers(session.sub);
+  }
+
   const title =
-    isMaster(session.roles) || isUniversity(session.roles)
-      ? "Students (scoped to your access)"
-      : isConsultantOnly(session.roles)
-        ? "Students"
+    isConsultantOnly(session.roles)
+      ? "Team"
+      : isMaster(session.roles) || isUniversity(session.roles)
+        ? "Students (scoped to your access)"
         : "Your students";
 
   return (
@@ -59,8 +73,9 @@ export default async function ConsultantStudentsPage() {
       <p className="mt-2 max-w-3xl text-[var(--foreground-muted)]">
         {isConsultantOnly(session.roles) ? (
           <>
-            Invite students by email; they must accept before OTP login. Use <strong className="text-[var(--foreground)]">View</strong>{" "}
-            and <strong className="text-[var(--foreground)]">Edit</strong> on each row for details.
+            Manage <strong className="text-[var(--foreground)]">team members</strong> (counsellors, managers, partners)
+            and <strong className="text-[var(--foreground)]">students</strong> you support. Invite students by email;
+            they must accept before OTP login.
           </>
         ) : (
           <>
@@ -71,13 +86,97 @@ export default async function ConsultantStudentsPage() {
         )}
       </p>
 
-      {canInvite ? (
-        <div className="mt-8">
-          <InviteStudentForm />
+      {isConsultantOnly(session.roles) ? (
+        <div className="mt-8 grid gap-6 lg:grid-cols-2">
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">Invite student</h2>
+            <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+              Adds a student linked to your organisation; they receive an accept link, then OTP login.
+            </p>
+            <div className="mt-4">{canInvite ? <InviteStudentForm /> : null}</div>
+          </div>
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">Counsellor & manager</h2>
+            <p className="mt-2 text-sm text-[var(--foreground-muted)]">
+              Staff accounts for <strong className="text-[var(--foreground)]">counsellor</strong>,{" "}
+              <strong className="text-[var(--foreground)]">manager</strong>, and{" "}
+              <strong className="text-[var(--foreground)]">branch</strong> partners are created by your{" "}
+              <strong className="text-[var(--foreground)]">master administrator</strong> under{" "}
+              <strong className="text-[var(--foreground)]">Master → Admission partners</strong>. Contact them to add or
+              change team access.
+            </p>
+          </div>
         </div>
+      ) : (
+        canInvite && (
+          <div className="mt-8">
+            <InviteStudentForm />
+          </div>
+        )
+      )}
+
+      {isConsultantOnly(session.roles) ? (
+        <>
+          <h2 className="mt-12 text-lg font-semibold text-[var(--foreground)]">Team members</h2>
+          <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+            Counsellors, managers, and admission partners who share at least one of your assigned universities (not your
+            own row).
+          </p>
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40 text-[var(--foreground-muted)]">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Name</th>
+                  <th className="px-4 py-3 font-semibold">Email</th>
+                  <th className="px-4 py-3 font-semibold">Role</th>
+                  <th className="px-4 py-3 font-semibold">Branch</th>
+                  <th className="px-4 py-3 font-semibold">Universities</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamMembers.map((m) => (
+                  <tr key={m.id} className="border-b border-[var(--border)] last:border-0">
+                    <td className="px-4 py-3 font-medium text-[var(--foreground)]">{m.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-[var(--foreground-muted)]">{m.email}</td>
+                    <td className="px-4 py-3 text-[var(--foreground-muted)]">{roleSummary(m.roles)}</td>
+                    <td className="px-4 py-3 text-[var(--foreground-muted)]">{m.branchName ?? "—"}</td>
+                    <td className="px-4 py-3 text-[var(--foreground-muted)]">{uniSummary(m)}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          m.accountStatus === "ACTIVE"
+                            ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
+                            : "bg-[var(--muted)] text-[var(--foreground-muted)]"
+                        }`}
+                      >
+                        {m.accountStatus === "ACTIVE" ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {teamMembers.length === 0 ? (
+              <p className="px-4 py-10 text-center text-sm text-[var(--foreground-muted)]">
+                No other team members share your universities yet.
+              </p>
+            ) : null}
+          </div>
+
+          <h2 className="mt-12 text-lg font-semibold text-[var(--foreground)]">Students you manage</h2>
+          <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+            Use <strong className="text-[var(--foreground)]">View</strong> and{" "}
+            <strong className="text-[var(--foreground)]">Edit</strong> on each row for details.
+          </p>
+        </>
       ) : null}
 
-      <div className="mt-8 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
+      <div
+        className={
+          isConsultantOnly(session.roles) ? "mt-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm" : "mt-8 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm"
+        }
+      >
         <table className="w-full text-left text-sm">
           <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40 text-[var(--foreground-muted)]">
             <tr>
@@ -86,7 +185,7 @@ export default async function ConsultantStudentsPage() {
               <th className="px-4 py-3 font-semibold">Invitation</th>
               <th className="px-4 py-3 font-semibold">Status</th>
               <th className="px-4 py-3 font-semibold">University</th>
-              <th className="px-4 py-3 font-semibold">Counsellor / consultant</th>
+              <th className="px-4 py-3 font-semibold">Admission partner</th>
               <th className="px-4 py-3 text-right font-semibold">Actions</th>
             </tr>
           </thead>
@@ -150,4 +249,52 @@ export default async function ConsultantStudentsPage() {
       </div>
     </div>
   );
+}
+
+function roleSummary(roles: { role: { slug: string } }[]): string {
+  const slugs = [...new Set(roles.map((r) => r.role.slug))].filter((s) =>
+    (PARTNER_ROSTER_SLUGS as readonly string[]).includes(s),
+  );
+  if (slugs.length === 0) return "—";
+  return slugs.map((s) => formatTeamMemberRole(s)).join(", ");
+}
+
+function uniSummary(m: {
+  university: { name: string; code: string } | null;
+  consultantUniversities: { university: { name: string; code: string } }[];
+}): string {
+  const fromJoin = m.consultantUniversities.map((c) => `${c.university.name} (${c.university.code})`);
+  if (fromJoin.length > 0) return fromJoin.join(", ");
+  if (m.university) return `${m.university.name} (${m.university.code})`;
+  return "—";
+}
+
+async function loadTeamMembers(currentUserId: string) {
+  const myUniIds = await getAllowedConsultantUniversityIds(currentUserId);
+  if (myUniIds.length === 0) return [];
+
+  return prisma.user.findMany({
+    where: {
+      id: { not: currentUserId },
+      OR: [
+        { consultantUniversities: { some: { universityId: { in: myUniIds } } } },
+        { universityId: { in: myUniIds } },
+      ],
+      roles: { some: { role: { slug: { in: [...PARTNER_ROSTER_SLUGS] } } } },
+    },
+    orderBy: { email: "asc" },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      branchName: true,
+      accountStatus: true,
+      university: { select: { name: true, code: true } },
+      roles: { include: { role: { select: { slug: true } } } },
+      consultantUniversities: {
+        include: { university: { select: { name: true, code: true } } },
+      },
+    },
+    take: 100,
+  });
 }

@@ -6,7 +6,12 @@ import { isMaster } from "@/lib/roles";
 import { ROLES } from "@/lib/roles";
 import { EditConsultantForm } from "@/app/dashboard/master/consultants/[id]/edit/edit-consultant-form";
 
-const consultantSlugs = [ROLES.consultant, ROLES.counsellor, ROLES.consultantMaster] as const;
+const consultantSlugs = [
+  ROLES.consultant,
+  ROLES.counsellor,
+  ROLES.consultantMaster,
+  ROLES.qspidersBranch,
+] as const;
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -51,9 +56,9 @@ export default async function EditConsultantPage(props: PageProps) {
         href="/dashboard/master/consultants"
         className="text-sm font-medium text-[var(--primary)] underline underline-offset-2"
       >
-        ← Consultants
+        ← Admission partners
       </Link>
-      <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Edit consultant</h1>
+      <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Edit admission partner</h1>
       <div className="mt-8">
         <EditConsultantForm
           userId={id}

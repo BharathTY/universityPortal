@@ -10,6 +10,7 @@ type Props = {
     email: string;
     phone: string;
     status: "ACTIVE" | "INACTIVE";
+    logoUrl: string;
   };
 };
 
@@ -21,6 +22,7 @@ export function EditUniversityForm({ universityId, initial }: Props) {
   const [email, setEmail] = React.useState(initial.email);
   const [phone, setPhone] = React.useState(initial.phone);
   const [status, setStatus] = React.useState<"ACTIVE" | "INACTIVE">(initial.status);
+  const [logoUrl, setLogoUrl] = React.useState(initial.logoUrl);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,7 +32,7 @@ export function EditUniversityForm({ universityId, initial }: Props) {
       const res = await fetch(`/api/master/universities/${universityId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, phone, status }),
+        body: JSON.stringify({ name, email, phone, status, logoUrl: logoUrl.trim() || "" }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
@@ -71,6 +73,19 @@ export function EditUniversityForm({ universityId, initial }: Props) {
           required
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
+          className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-[var(--foreground)]">Logo URL (optional)</label>
+        <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+          Shown on the student overview. Use a direct HTTPS link to a PNG or SVG.
+        </p>
+        <input
+          type="url"
+          value={logoUrl}
+          onChange={(e) => setLogoUrl(e.target.value)}
+          placeholder="https://…"
           className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
         />
       </div>

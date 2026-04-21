@@ -9,6 +9,8 @@ export const ROLES = {
   counsellor: "counsellor",
   /** @deprecated use consultant */
   consultantMaster: "consultant_master",
+  /** Qspiders branch login — same portal as consultant; branch name on leads. */
+  qspidersBranch: "qspiders_branch",
 } as const;
 
 export type RoleSlug = (typeof ROLES)[keyof typeof ROLES];
@@ -21,12 +23,13 @@ export function isUniversity(roles: string[]): boolean {
   return roles.includes(ROLES.university);
 }
 
-/** Counsellor, consultant, or consultant_master (lead/student workflows). */
+/** Counsellor, consultant, consultant_master, or Qspiders branch (lead/student workflows). */
 export function isConsultant(roles: string[]): boolean {
   return (
     roles.includes(ROLES.consultant) ||
     roles.includes(ROLES.counsellor) ||
-    roles.includes(ROLES.consultantMaster)
+    roles.includes(ROLES.consultantMaster) ||
+    roles.includes(ROLES.qspidersBranch)
   );
 }
 
@@ -48,10 +51,37 @@ export function canAccessLeadsAndBatches(roles: string[]): boolean {
   return isMaster(roles) || isUniversity(roles) || isConsultant(roles);
 }
 
+const ADMISSION_PARTNER_SLUGS = new Set<string>([
+  ROLES.consultant,
+  ROLES.counsellor,
+  ROLES.consultantMaster,
+  ROLES.qspidersBranch,
+]);
+
+/** User-facing role line in headers and dashboards. */
 export function formatRoleLabel(slug: string): string {
+  if (ADMISSION_PARTNER_SLUGS.has(slug)) {
+    return "Admission Partner";
+  }
   return slug
     .split("_")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(" ");
+}
+
+/** Distinct labels on the consultant Manage users → Team roster (not collapsed to "Admission Partner"). */
+export function formatTeamMemberRole(slug: string): string {
+  switch (slug) {
+    case ROLES.counsellor:
+      return "Counsellor";
+    case ROLES.consultantMaster:
+      return "Manager";
+    case ROLES.qspidersBranch:
+      return "Branch";
+    case ROLES.consultant:
+      return "Admission partner";
+    default:
+      return formatRoleLabel(slug);
+  }
 }
 

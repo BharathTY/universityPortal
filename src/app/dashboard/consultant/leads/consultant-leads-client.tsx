@@ -3,7 +3,6 @@
 import Link from "next/link";
 import * as React from "react";
 
-type Year = { id: string; label: string };
 type Stream = { id: string; name: string };
 
 type LeadRow = {
@@ -14,6 +13,12 @@ type LeadRow = {
   mobile: string;
   pipelineStatus: string;
   createdAt: string;
+  admissionState: string | null;
+  referralFirstName: string | null;
+  referralLastName: string | null;
+  referralPhone: string | null;
+  referralEmail: string | null;
+  branchName: string | null;
   university: { name: string; code: string };
   stream: { name: string };
 };
@@ -21,12 +26,10 @@ type LeadRow = {
 type Props = {
   universityName: string;
   universityCode: string;
-  years: Year[];
   streams: Stream[];
 };
 
 export function ConsultantLeadsClient(props: Props) {
-  const [pipeline, setPipeline] = React.useState<string>("");
   const [loading, setLoading] = React.useState(true);
   const [rows, setRows] = React.useState<LeadRow[]>([]);
   const [error, setError] = React.useState<string | null>(null);
@@ -38,8 +41,12 @@ export function ConsultantLeadsClient(props: Props) {
   const [email, setEmail] = React.useState("");
   const [mobile, setMobile] = React.useState("");
   const [nat, setNat] = React.useState("");
-  const [yearId, setYearId] = React.useState(props.years[0]?.id ?? "");
   const [streamId, setStreamId] = React.useState(props.streams[0]?.id ?? "");
+  const [admissionState, setAdmissionState] = React.useState("");
+  const [refFn, setRefFn] = React.useState("");
+  const [refLn, setRefLn] = React.useState("");
+  const [refPhone, setRefPhone] = React.useState("");
+  const [refEmail, setRefEmail] = React.useState("");
 
   const [bulkText, setBulkText] = React.useState("");
   const [bulkResult, setBulkResult] = React.useState<string | null>(null);
@@ -48,9 +55,7 @@ export function ConsultantLeadsClient(props: Props) {
     setLoading(true);
     setError(null);
     try {
-      const q = new URLSearchParams();
-      if (pipeline) q.set("pipeline", pipeline);
-      const res = await fetch(`/api/consultant/leads?${q.toString()}`);
+      const res = await fetch(`/api/consultant/leads`);
       const data = (await res.json().catch(() => ({}))) as { error?: string; leads?: LeadRow[] };
       if (!res.ok) {
         setError(data.error ?? "Could not load leads");
@@ -64,7 +69,7 @@ export function ConsultantLeadsClient(props: Props) {
 
   React.useEffect(() => {
     void load();
-  }, [pipeline]);
+  }, []);
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -78,8 +83,12 @@ export function ConsultantLeadsClient(props: Props) {
         email,
         mobile,
         nationality: nat || null,
-        academicYearId: yearId,
         streamId,
+        admissionState,
+        referralFirstName: refFn || null,
+        referralLastName: refLn || null,
+        referralPhone: refPhone || null,
+        referralEmail: refEmail || null,
       }),
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -92,6 +101,11 @@ export function ConsultantLeadsClient(props: Props) {
     setEmail("");
     setMobile("");
     setNat("");
+    setAdmissionState("");
+    setRefFn("");
+    setRefLn("");
+    setRefPhone("");
+    setRefEmail("");
     await load();
   }
 
@@ -150,9 +164,14 @@ export function ConsultantLeadsClient(props: Props) {
         lastName: get("last name") || get("lastname"),
         email: get("email"),
         mobile: get("mobile") || get("phone"),
-        academicYearLabel: get("academic year") || get("year"),
+        academicYearLabel: get("academic year") || get("year") || null,
         streamName: get("stream") || get("program") || get("course"),
         nationality: get("nationality") || null,
+        admissionState: get("admission state") || get("state") || get("looking admission in which state"),
+        referralFirstName: get("referral first name") || get("referral firstname") || null,
+        referralLastName: get("referral last name") || get("referral lastname") || null,
+        referralPhone: get("referral phone") || get("referral contact") || null,
+        referralEmail: get("referral email") || null,
       };
     });
     const res = await fetch("/api/consultant/leads/bulk", {
@@ -189,6 +208,12 @@ export function ConsultantLeadsClient(props: Props) {
     URL.revokeObjectURL(a.href);
   }
 
+  function referralSummary(r: LeadRow): string {
+    const parts = [r.referralFirstName, r.referralLastName].filter(Boolean);
+    if (parts.length === 0 && !r.referralPhone && !r.referralEmail) return "—";
+    return [parts.join(" "), r.referralPhone, r.referralEmail].filter(Boolean).join(" · ");
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <nav className="text-sm text-[var(--foreground-muted)]">
@@ -203,107 +228,131 @@ export function ConsultantLeadsClient(props: Props) {
         {props.universityName} ({props.universityCode})
       </p>
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        {(["", "NEW", "LOST", "CONVERTED"] as const).map((p) => (
-          <button
-            key={p || "all"}
-            type="button"
-            onClick={() => setPipeline(p)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              pipeline === p ? "bg-[var(--accent-blue)] text-white" : "border border-[var(--border)] bg-[var(--card)]"
-            }`}
-          >
-            {p === "" ? "All" : p}
-          </button>
-        ))}
-      </div>
-
       {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
 
       <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
         <h2 className="text-lg font-semibold text-[var(--foreground)]">Add lead</h2>
-        <form onSubmit={onCreate} className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="text-sm font-medium">First name</label>
-            <input
-              required
-              value={fn}
-              onChange={(e) => setFn(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-            />
+        <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+          Admission partner name is recorded automatically from your account.
+        </p>
+        <form onSubmit={onCreate} className="mt-4 space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium">First name</label>
+              <input
+                required
+                value={fn}
+                onChange={(e) => setFn(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Last name</label>
+              <input
+                required
+                value={ln}
+                onChange={(e) => setLn(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Email</label>
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Mobile</label>
+              <input
+                required
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Stream</label>
+              <select
+                value={streamId}
+                onChange={(e) => setStreamId(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+              >
+                {props.streams.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Looking admission in which state</label>
+              <input
+                required
+                value={admissionState}
+                onChange={(e) => setAdmissionState(e.target.value)}
+                placeholder="e.g. Karnataka"
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-sm font-medium">Nationality (optional)</label>
+              <input
+                value={nat}
+                onChange={(e) => setNat(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+              />
+            </div>
           </div>
-          <div>
-            <label className="text-sm font-medium">Last name</label>
-            <input
-              required
-              value={ln}
-              onChange={(e) => setLn(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-            />
+
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-4">
+            <h3 className="text-sm font-semibold text-[var(--foreground)]">Referral (optional)</h3>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium">First name</label>
+                <input
+                  value={refFn}
+                  onChange={(e) => setRefFn(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Last name</label>
+                <input
+                  value={refLn}
+                  onChange={(e) => setRefLn(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Contact</label>
+                <input
+                  value={refPhone}
+                  onChange={(e) => setRefPhone(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Email</label>
+                <input
+                  type="email"
+                  value={refEmail}
+                  onChange={(e) => setRefEmail(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="text-sm font-medium">Email</label>
-            <input
-              required
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Mobile</label>
-            <input
-              required
-              value={mobile}
-              onChange={(e) => setMobile(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Nationality</label>
-            <input
-              value={nat}
-              onChange={(e) => setNat(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Program (stream)</label>
-            <select
-              value={streamId}
-              onChange={(e) => setStreamId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-            >
-              {props.streams.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="sm:col-span-2">
-            <label className="text-sm font-medium">Academic year</label>
-            <select
-              value={yearId}
-              onChange={(e) => setYearId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-            >
-              {props.years.map((y) => (
-                <option key={y.id} value={y.id}>
-                  {y.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="sm:col-span-2">
-            <button
-              type="submit"
-              className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white"
-            >
-              Add lead
-            </button>
-          </div>
+
+          <button
+            type="submit"
+            className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white"
+          >
+            Add lead
+          </button>
         </form>
       </section>
 
@@ -311,8 +360,12 @@ export function ConsultantLeadsClient(props: Props) {
         <h2 className="text-lg font-semibold text-[var(--foreground)]">Bulk upload (CSV)</h2>
         <p className="mt-1 text-sm text-[var(--foreground-muted)]">
           Header:{" "}
-          <code>first name,last name,email,mobile,academic year,stream,nationality</code> — year/stream must match
-          configured values.
+          <code>
+            first name, last name, email, mobile, stream, admission state, nationality, academic year, referral first
+            name, referral last name, referral phone, referral email
+          </code>
+          . Academic year is optional (defaults to the first configured year). Stream and admission state must match
+          your university configuration.
         </p>
         <form onSubmit={onBulk} className="mt-4 space-y-3">
           <textarea
@@ -323,7 +376,10 @@ export function ConsultantLeadsClient(props: Props) {
             placeholder="Paste CSV here..."
           />
           <div className="flex flex-wrap gap-2">
-            <button type="submit" className="rounded-lg bg-[var(--foreground)] px-4 py-2 text-sm font-semibold text-[var(--background)]">
+            <button
+              type="submit"
+              className="rounded-lg bg-[var(--foreground)] px-4 py-2 text-sm font-semibold text-[var(--background)]"
+            >
               Upload
             </button>
             <button
@@ -346,13 +402,16 @@ export function ConsultantLeadsClient(props: Props) {
           <p className="mt-4 text-sm text-[var(--foreground-muted)]">Loading…</p>
         ) : (
           <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
-            <table className="w-full min-w-[880px] text-left text-sm">
+            <table className="w-full min-w-[960px] text-left text-sm">
               <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40">
                 <tr>
                   <th className="px-3 py-2">First</th>
                   <th className="px-3 py-2">Last</th>
                   <th className="px-3 py-2">Mobile</th>
                   <th className="px-3 py-2">Email</th>
+                  <th className="px-3 py-2">State</th>
+                  <th className="px-3 py-2">Referral</th>
+                  <th className="px-3 py-2">Branch</th>
                   <th className="px-3 py-2">University</th>
                   <th className="px-3 py-2">Course</th>
                   <th className="px-3 py-2">Created</th>
@@ -367,6 +426,11 @@ export function ConsultantLeadsClient(props: Props) {
                     <td className="px-3 py-2">{r.lastName}</td>
                     <td className="px-3 py-2">{r.mobile}</td>
                     <td className="px-3 py-2">{r.email}</td>
+                    <td className="px-3 py-2">{r.admissionState ?? "—"}</td>
+                    <td className="max-w-[12rem] truncate px-3 py-2 text-xs" title={referralSummary(r)}>
+                      {referralSummary(r)}
+                    </td>
+                    <td className="px-3 py-2">{r.branchName ?? "—"}</td>
                     <td className="px-3 py-2">{r.university.name}</td>
                     <td className="px-3 py-2">{r.stream.name}</td>
                     <td className="px-3 py-2 text-xs text-[var(--foreground-muted)]">

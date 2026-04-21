@@ -35,6 +35,7 @@ export default async function EditUniversityPage(props: PageProps) {
             email: university.email ?? "",
             phone: university.phone ?? "",
             status: university.status,
+            logoUrl: university.logoUrl ?? "",
           }}
         />
       </div>

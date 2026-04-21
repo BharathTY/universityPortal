@@ -31,7 +31,8 @@ export default async function MasterUniversitiesListPage() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl">Universities</h1>
           <p className="mt-2 text-[var(--foreground-muted)]">
-            Create and manage university organisations and portal access.
+            Create and manage university organisations and portal access. Select a university to open admissions for
+            that organisation.
           </p>
         </div>
         <Link
@@ -42,67 +43,66 @@ export default async function MasterUniversitiesListPage() {
         </Link>
       </div>
 
-      <div className="mt-8 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40 text-[var(--foreground-muted)]">
-              <tr>
-                <th className="px-4 py-3 font-semibold">Name</th>
-                <th className="px-4 py-3 font-semibold">Email</th>
-                <th className="px-4 py-3 font-semibold">Phone</th>
-                <th className="px-4 py-3 font-semibold">Status</th>
-                <th className="px-4 py-3 font-semibold">Created</th>
-                <th className="px-4 py-3 font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {universities.map((u) => (
-                <tr key={u.id} className="border-b border-[var(--border)] last:border-0">
-                  <td className="px-4 py-3 font-medium text-[var(--foreground)]">{u.name}</td>
-                  <td className="px-4 py-3 text-[var(--foreground-muted)]">{u.email ?? "—"}</td>
-                  <td className="px-4 py-3 text-[var(--foreground-muted)]">{u.phone ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        u.status === "ACTIVE"
-                          ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
-                          : "bg-[var(--muted)] text-[var(--foreground-muted)]"
-                      }`}
-                    >
-                      {u.status === "ACTIVE" ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-[var(--foreground-muted)]">
-                    {formatDate(u.createdAt)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/dashboard/university/${u.id}/admissions`}
-                        className="text-sm font-medium text-[var(--accent-blue)] hover:underline"
-                      >
-                        Admissions
-                      </Link>
-                      <Link
-                        href={`/dashboard/master/universities/${u.id}/edit`}
-                        className="text-sm font-medium text-[var(--primary)] hover:underline"
-                      >
-                        Edit
-                      </Link>
-                      <UniversityRowActions universityId={u.id} name={u.name} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {universities.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-[var(--foreground-muted)]">
-            No universities yet. Click <strong className="text-[var(--foreground)]">Add university</strong>.
-          </p>
-        ) : null}
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {universities.map((u) => (
+          <article
+            key={u.id}
+            className="flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm"
+          >
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">{u.name}</h2>
+            <p className="mt-1 font-mono text-xs text-[var(--foreground-muted)]">{u.code}</p>
+            <dl className="mt-4 space-y-2 text-sm text-[var(--foreground-muted)]">
+              <div className="flex justify-between gap-2">
+                <dt>Email</dt>
+                <dd className="text-right text-[var(--foreground)]">{u.email ?? "—"}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt>Phone</dt>
+                <dd className="text-right text-[var(--foreground)]">{u.phone ?? "—"}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt>Status</dt>
+                <dd>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      u.status === "ACTIVE"
+                        ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
+                        : "bg-[var(--muted)] text-[var(--foreground-muted)]"
+                    }`}
+                  >
+                    {u.status === "ACTIVE" ? "Active" : "Inactive"}
+                  </span>
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt>Created</dt>
+                <dd className="tabular-nums">{formatDate(u.createdAt)}</dd>
+              </div>
+            </dl>
+            <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--border)] pt-4">
+              <Link
+                href={`/dashboard/university/${u.id}/admissions`}
+                className="rounded-lg bg-[var(--accent-blue)] px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                Admissions
+              </Link>
+              <Link
+                href={`/dashboard/master/universities/${u.id}/edit`}
+                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold"
+              >
+                Edit
+              </Link>
+              <UniversityRowActions universityId={u.id} name={u.name} />
+            </div>
+          </article>
+        ))}
       </div>
+
+      {universities.length === 0 ? (
+        <p className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-10 text-center text-sm text-[var(--foreground-muted)]">
+          No universities yet. Click <strong className="text-[var(--foreground)]">Add university</strong>.
+        </p>
+      ) : null}
     </div>
   );
 }

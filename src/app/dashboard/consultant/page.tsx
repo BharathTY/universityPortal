@@ -17,7 +17,7 @@ export default async function ConsultantDashboardPage() {
   if (!universityId) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-        <h1 className="text-2xl font-semibold text-[var(--foreground)]">Consultant dashboard</h1>
+        <h1 className="text-2xl font-semibold text-[var(--foreground)]">Admission partner dashboard</h1>
         <p className="mt-4 text-sm text-[var(--foreground-muted)]">
           Your account is not linked to a university yet. Ask a master admin to assign one or more universities.
         </p>
@@ -59,16 +59,17 @@ export default async function ConsultantDashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <h1 className="text-2xl font-bold text-[var(--foreground)]">Consultant dashboard</h1>
+      <h1 className="text-2xl font-bold text-[var(--foreground)]">Admission partner dashboard</h1>
       <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-        Leads, applications, and units (batches) for your active university (switch in the header if you have several).
+        Leads, applications, and universities (batches) for your active university (switch in the header if you have
+        several).
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Leads (open)" value={String(leadsNew)} href="/dashboard/consultant/leads?pipeline=NEW" />
+        <StatCard label="Leads (open)" value={String(leadsNew)} href="/dashboard/consultant/leads" />
         <StatCard label="Applications" value={String(applications)} href="/dashboard/consultant/leads" />
         <StatCard label="Admissions (approved)" value={String(admissionsWon)} href="/dashboard/consultant/leads" />
-        <StatCard label="Lost leads" value={String(leadsLost)} href="/dashboard/consultant/leads?pipeline=LOST" />
+        <StatCard label="Lost leads" value={String(leadsLost)} href="/dashboard/consultant/leads" />
       </div>
 
       <div className="mt-2 text-xs text-[var(--foreground-muted)]">
@@ -77,7 +78,7 @@ export default async function ConsultantDashboardPage() {
 
       <section className="mt-10">
         <div className="flex items-end justify-between gap-3">
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">Units (batches)</h2>
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">Universities (batches)</h2>
           <Link
             href="/dashboard/batches"
             className="text-sm font-medium text-[var(--primary)] underline underline-offset-2 hover:no-underline"
@@ -86,7 +87,7 @@ export default async function ConsultantDashboardPage() {
           </Link>
         </div>
         <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-          Use batches as intake &ldquo;units&rdquo; — link students and reporting.
+          Use batches as intake groups — link students and reporting.
         </p>
         {batches.length === 0 ? (
           <p className="mt-4 text-sm text-[var(--foreground-muted)]">No batches yet. Create one under Batches.</p>

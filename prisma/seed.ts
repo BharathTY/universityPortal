@@ -11,6 +11,7 @@ async function main() {
     { slug: "admin", name: "Admin" },
     { slug: "counsellor", name: "Counsellor" },
     { slug: "consultant_master", name: "Consultant Master" },
+    { slug: "qspiders_branch", name: "Qspiders Branch" },
   ];
 
   for (const r of roleDefs) {
@@ -145,6 +146,35 @@ async function main() {
     data: { userId: counsellorUser.id, roleId: (await role("counsellor")).id },
   });
 
+  const branchUser = await prisma.user.upsert({
+    where: { email: "branch@university.local" },
+    create: {
+      email: "branch@university.local",
+      name: "Qspiders Branch Demo",
+      phone: "+91-0000000006",
+      universityId: uni1.id,
+      branchName: "Bangalore — Koramangala",
+      studentOfId: null,
+      accountStatus: "ACTIVE",
+    },
+    update: {
+      name: "Qspiders Branch Demo",
+      phone: "+91-0000000006",
+      universityId: uni1.id,
+      branchName: "Bangalore — Koramangala",
+      accountStatus: "ACTIVE",
+    },
+  });
+  await prisma.userRole.deleteMany({ where: { userId: branchUser.id } });
+  await prisma.userRole.create({
+    data: { userId: branchUser.id, roleId: (await role("qspiders_branch")).id },
+  });
+  await prisma.consultantUniversity.upsert({
+    where: { userId_universityId: { userId: branchUser.id, universityId: uni1.id } },
+    create: { userId: branchUser.id, universityId: uni1.id },
+    update: {},
+  });
+
   /** Students linked to counsellor vs consultant (university QSP-U1). */
   const studentSeeds: {
     email: string;
@@ -229,6 +259,7 @@ async function main() {
       admissionStatus: "NEW",
       nationality: "India",
       specialization: "CSE",
+      admissionState: "Karnataka",
     },
   });
 
@@ -246,6 +277,7 @@ async function main() {
       admissionStatus: "CONTACTED",
       nationality: "India",
       specialization: "MBA",
+      admissionState: "Karnataka",
       createdByUserId: counsellorUser.id,
     },
   });
@@ -334,7 +366,7 @@ async function main() {
     data: { userId: adminUser.id, roleId: (await role("admin")).id },
   });
 
-  const consultantRoleSlugs = ["consultant", "counsellor", "consultant_master"];
+  const consultantRoleSlugs = ["consultant", "counsellor", "consultant_master", "qspiders_branch"];
   const consultantsWithLegacyUni = await prisma.user.findMany({
     where: {
       universityId: { not: null },
@@ -364,6 +396,7 @@ async function main() {
   console.log("University staff : university@university.local");
   console.log("Counsellor       : counsellor@university.local");
   console.log("Consultant       : consultant@university.local");
+  console.log("Qspiders branch  : branch@university.local");
   console.log("Student (couns.) : student@university.local, student2@, student3@");
   console.log("Student (cons.) : student4@, student5@, student6@university.local");
   console.log("See docs/DEMO_LOGINS.md for details.\n");

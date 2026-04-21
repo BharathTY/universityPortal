@@ -14,6 +14,9 @@ type DashboardSidebarProps = {
   onToggleCollapse: () => void;
   roles: string[];
   universityId: string | null;
+  /** Sidebar title (e.g. Student Portal for students). */
+  brandTitle?: string;
+  brandSubtitle?: string;
 };
 
 export function DashboardSidebar({
@@ -22,6 +25,8 @@ export function DashboardSidebar({
   onToggleCollapse,
   roles,
   universityId,
+  brandTitle = "University Portal",
+  brandSubtitle = "portal.ams",
 }: DashboardSidebarProps) {
   const pathname = usePathname() ?? "";
   const groups = buildDashboardNav(roles, { universityId });
@@ -31,20 +36,31 @@ export function DashboardSidebar({
       <div
         className={`mb-4 flex w-full gap-2 ${collapsed ? "flex-col items-center gap-3" : "items-start justify-between"}`}
       >
-        <div className={`flex min-w-0 items-center gap-2 ${collapsed ? "justify-center" : "flex-1"}`}>
+        <Link
+          href="/dashboard"
+          onClick={onNavigate}
+          className={`group flex min-w-0 items-center gap-2.5 rounded-xl p-1.5 -m-1.5 transition-all duration-200 ease-out hover:bg-[var(--muted)]/80 focus-visible:bg-[var(--muted)]/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-blue)]/50 active:scale-[0.98] md:hover:shadow-sm ${
+            collapsed ? "flex-col justify-center" : "flex-1"
+          }`}
+          title="Go to dashboard"
+        >
           <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#fbbf24] text-xs font-bold text-amber-950 shadow-sm"
+            className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-orange-600 text-white shadow-md ring-2 ring-amber-400/25 transition-all duration-200 ease-out group-hover:scale-105 group-hover:shadow-lg group-hover:ring-amber-400/45 group-active:scale-95 dark:from-amber-500 dark:via-amber-600 dark:to-orange-700"
             aria-hidden
           >
-            U
+            <PortalLogoSvg className="h-6 w-6 drop-shadow-sm" />
           </span>
           {!collapsed ? (
-            <div className="min-w-0 leading-tight">
-              <p className="text-sm font-bold text-[var(--foreground)]">University Portal</p>
-              <p className="text-xs text-[var(--foreground-muted)]">portal.ams</p>
+            <div className="min-w-0 leading-tight transition-colors group-hover:text-[var(--foreground)]">
+              <p className="text-sm font-bold tracking-tight text-[var(--foreground)]">{brandTitle}</p>
+              <p className="text-xs text-[var(--foreground-muted)] group-hover:text-[var(--foreground-muted)]/90">
+                {brandSubtitle}
+              </p>
             </div>
-          ) : null}
-        </div>
+          ) : (
+            <span className="sr-only">{brandTitle}</span>
+          )}
+        </Link>
         <button
           type="button"
           onClick={onToggleCollapse}
@@ -95,6 +111,33 @@ export function DashboardSidebar({
         ))}
       </nav>
     </aside>
+  );
+}
+
+/** Vector mark: stacked “portal” + book — no external image file required. */
+function PortalLogoSvg({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 2L4 6v10c0 5 8 8 8 8s8-3 8-8V6l-8-4z"
+        fill="currentColor"
+        fillOpacity={0.15}
+      />
+      <path
+        d="M12 2L4 6l8 4 8-4-8-4zM4 6v10M20 6v10"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 12h6M9 15.5h4"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        opacity={0.95}
+      />
+    </svg>
   );
 }
 

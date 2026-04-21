@@ -18,6 +18,8 @@ model University {
   code      String   @unique
   email     String?  @unique
   phone     String?
+  /// Public URL for logo (shown on student overview, etc.)
+  logoUrl   String?
   status    UniversityStatus @default(ACTIVE)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -127,6 +129,15 @@ model AdmissionLead {
   pipelineStatus   LeadPipelineStatus  @default(NEW)
   nationality      String?
   specialization   String?
+  /// Referrer contact (optional section on consultant lead form).
+  referralFirstName String?
+  referralLastName  String?
+  referralPhone     String?
+  referralEmail     String?
+  /// e.g. state where student seeks admission (replaces academic year in consultant UI).
+  admissionState    String?
+  /// Set for Qspiders branch leads; denormalized from creator at insert.
+  branchName        String?
   createdByUserId  String?
   createdBy        User?               @relation("LeadCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   createdAt        DateTime            @default(now())
@@ -167,6 +178,9 @@ model User {
   studentOfId String?
   studentOf   User?   @relation("StudentToConsultant", fields: [studentOfId], references: [id], onDelete: SetNull)
   students    User[]  @relation("StudentToConsultant")
+
+  /// Qspiders branch accounts: displayed on leads and in student comms.
+  branchName String?
 
   roles         UserRole[]
   batches       Batch[]

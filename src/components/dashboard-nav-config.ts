@@ -46,7 +46,7 @@ export function buildDashboardNav(roles: string[], options?: BuildDashboardNavOp
         items: [
           { href: "/dashboard", label: "Dashboard", icon: "home" },
           { href: "/dashboard/master/universities", label: "Universities", icon: "building" },
-          { href: "/dashboard/master/consultants", label: "Consultants", icon: "users" },
+          { href: "/dashboard/master/consultants", label: "Admission partners", icon: "users" },
           { href: "/dashboard/master/applications", label: "Applications", icon: "file" },
         ],
       },
@@ -59,8 +59,7 @@ export function buildDashboardNav(roles: string[], options?: BuildDashboardNavOp
       {
         title: "Work",
         items: [
-          { href: "/dashboard/batches", label: "Units", icon: "layers" },
-          { href: "/dashboard/consultant/leads", label: "Leads", icon: "file" },
+          { href: "/dashboard/batches", label: "Universities", icon: "layers" },
         ],
       },
       {

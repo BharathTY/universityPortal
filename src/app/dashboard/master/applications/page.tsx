@@ -68,7 +68,7 @@ export default async function MasterApplicationsPage(props: SearchProps) {
             <tr>
               <th className="px-3 py-2">Application ID</th>
               <th className="px-3 py-2">Student</th>
-              <th className="px-3 py-2">Consultant</th>
+              <th className="px-3 py-2">Admission partner</th>
               <th className="px-3 py-2">University</th>
               <th className="px-3 py-2">Course</th>
               <th className="px-3 py-2">Pipeline</th>

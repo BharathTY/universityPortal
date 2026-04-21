@@ -20,6 +20,10 @@ const createSchema = z.object({
   password: z.union([z.string().min(8).max(128), z.literal("")]).optional(),
   /** One consultant may map to multiple universities. */
   universityIds: z.array(z.string().min(1)).optional(),
+  /** Default admission partner (consultant) or Qspiders branch replica. */
+  partnerRole: z.enum(["consultant", "qspiders_branch"]).optional(),
+  /** Required when partnerRole is qspiders_branch (shown on leads and student comms). */
+  branchName: z.string().max(120).optional().nullable(),
 });
 
 export async function POST(req: Request) {
@@ -36,6 +40,11 @@ export async function POST(req: Request) {
   const parsed = createSchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  }
+
+  const partnerRole = parsed.data.partnerRole ?? "consultant";
+  if (partnerRole === "qspiders_branch" && !parsed.data.branchName?.trim()) {
+    return NextResponse.json({ error: "Branch name is required for Qspiders branch accounts" }, { status: 400 });
   }
 
   const email = parsed.data.email.toLowerCase();
@@ -58,10 +67,17 @@ export async function POST(req: Request) {
     }
   }
 
-  const consultantRole = await prisma.role.findUnique({ where: { slug: ROLES.consultant } });
-  if (!consultantRole) {
-    return NextResponse.json({ error: "Consultant role not configured" }, { status: 500 });
+  const partnerSlug = partnerRole === "qspiders_branch" ? ROLES.qspidersBranch : ROLES.consultant;
+  const roleRow = await prisma.role.findUnique({ where: { slug: partnerSlug } });
+  if (!roleRow) {
+    return NextResponse.json(
+      { error: `Role "${partnerSlug}" is not configured. Run the database seed.` },
+      { status: 500 },
+    );
   }
+
+  const branchName =
+    partnerSlug === ROLES.qspidersBranch ? parsed.data.branchName?.trim() ?? null : null;
 
   const user = await prisma.user.create({
     data: {
@@ -71,8 +87,9 @@ export async function POST(req: Request) {
       passwordHash,
       accountStatus: "ACTIVE",
       universityId: universityIds[0] ?? null,
+      branchName,
       roles: {
-        create: { roleId: consultantRole.id },
+        create: { roleId: roleRow.id },
       },
     },
   });

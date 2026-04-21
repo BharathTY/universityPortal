@@ -20,7 +20,7 @@ export async function handleInviteStudentRequest(req: Request): Promise<Response
 
   if (!isConsultant(session.roles)) {
     return NextResponse.json(
-      { error: "Only counsellors and consultants can invite students" },
+      { error: "Only admission partners can invite students" },
       { status: 403 },
     );
   }
@@ -42,7 +42,7 @@ export async function handleInviteStudentRequest(req: Request): Promise<Response
 
   const staff = await prisma.user.findUnique({
     where: { id: session.sub },
-    select: { id: true, universityId: true, email: true },
+    select: { id: true, universityId: true, email: true, name: true, branchName: true },
   });
 
   if (!staff?.universityId) {
@@ -82,7 +82,17 @@ export async function handleInviteStudentRequest(req: Request): Promise<Response
   });
 
   const acceptUrl = `${getAppOrigin()}/invite/accept?token=${encodeURIComponent(token)}`;
-  await sendStudentInviteEmail(email, acceptUrl);
+  const partnerName =
+    staff.name?.trim() ||
+    staff.email
+      .split("@")[0]
+      ?.replace(/[._-]+/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase()) ||
+    "Admission partner";
+  await sendStudentInviteEmail(email, acceptUrl, {
+    partnerName,
+    branchName: staff.branchName?.trim() || undefined,
+  });
 
   return NextResponse.json({ ok: true });
 }

@@ -23,12 +23,12 @@ export default async function NewConsultantPage() {
         href="/dashboard/master/consultants"
         className="text-sm font-medium text-[var(--primary)] underline underline-offset-2"
       >
-        ← Consultants
+        ← Admission partners
       </Link>
-      <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Add consultant</h1>
+      <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Add admission partner</h1>
       <p className="mt-2 text-sm text-[var(--foreground-muted)]">
-        Creates a consultant user and emails account details (password auto or manual). Sign-in uses OTP; SMTP optional
-        (dev logs to console).
+        Creates an admission partner account and emails account details (password auto or manual). Sign-in uses OTP; SMTP
+        optional (dev logs to console).
       </p>
       <div className="mt-8">
         <NewConsultantForm universities={universities} />

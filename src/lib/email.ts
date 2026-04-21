@@ -30,16 +30,31 @@ export async function sendOtpEmail(to: string, code: string): Promise<void> {
   });
 }
 
-export async function sendStudentInviteEmail(to: string, acceptUrl: string): Promise<void> {
+export async function sendStudentInviteEmail(
+  to: string,
+  acceptUrl: string,
+  opts?: { partnerName?: string; branchName?: string },
+): Promise<void> {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   const from = process.env.EMAIL_FROM || "noreply@localhost";
 
+  const partnerLine =
+    opts?.partnerName && opts.partnerName.trim().length > 0
+      ? `\nAdmission partner: ${opts.partnerName.trim()}`
+      : "";
+  const branchLine =
+    opts?.branchName && opts.branchName.trim().length > 0
+      ? `\nBranch: ${opts.branchName.trim()}`
+      : "";
+
   const subject = "Accept your student portal invitation";
-  const text = `You've been invited to the University Portal as a student.\n\nOpen this link to accept and then sign in with your email (OTP):\n${acceptUrl}\n`;
-  const html = `<p>You've been invited to the <strong>University Portal</strong> as a student.</p><p><a href="${acceptUrl}">Accept invitation</a></p><p>After accepting, sign in with your email — you'll receive a one-time code (OTP).</p>`;
+  const text = `You've been invited to the Student Portal.${partnerLine}${branchLine}\n\nOpen this link to accept and then sign in with your email (OTP):\n${acceptUrl}\n`;
+  const html = `<p>You've been invited to the <strong>Student Portal</strong>.</p>${
+    opts?.partnerName ? `<p><strong>Admission partner:</strong> ${escapeHtml(opts.partnerName.trim())}</p>` : ""
+  }${opts?.branchName ? `<p><strong>Branch:</strong> ${escapeHtml(opts.branchName.trim())}</p>` : ""}<p><a href="${acceptUrl}">Accept invitation</a></p><p>After accepting, sign in with your email — you'll receive a one-time code (OTP).</p>`;
 
   if (!host || !user || !pass) {
     if (process.env.NODE_ENV === "development") {

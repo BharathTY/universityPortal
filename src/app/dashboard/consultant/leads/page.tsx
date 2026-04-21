@@ -17,15 +17,10 @@ export default async function ConsultantLeadsPage() {
     redirect("/dashboard/consultant");
   }
 
-  const [university, years, streams] = await Promise.all([
+  const [university, streams] = await Promise.all([
     prisma.university.findUnique({
       where: { id: universityId },
       select: { name: true, code: true },
-    }),
-    prisma.academicYear.findMany({
-      where: { universityId },
-      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-      select: { id: true, label: true },
     }),
     prisma.stream.findMany({
       where: { universityId },
@@ -38,7 +33,6 @@ export default async function ConsultantLeadsPage() {
     <ConsultantLeadsClient
       universityName={university?.name ?? "University"}
       universityCode={university?.code ?? ""}
-      years={years}
       streams={streams}
     />
   );

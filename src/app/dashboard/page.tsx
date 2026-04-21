@@ -58,9 +58,9 @@ export default async function DashboardPage() {
 
       {masterView ? (
         <p className="mt-3 max-w-3xl text-sm text-[var(--foreground-muted)]">
-          Universities on the platform, with consultant and student counts. Use{" "}
-          <strong className="text-[var(--foreground)]">Students</strong> in the sidebar to invite users and open the
-          full directory.
+          Universities on the platform, with admission partner and student counts. Use{" "}
+          <strong className="text-[var(--foreground)]">Manage users</strong> in the consultant workspace to invite
+          students and open the full directory.
         </p>
       ) : null}
 
@@ -81,7 +81,22 @@ export default async function DashboardPage() {
       ) : null}
 
       {isStudent(session.roles) && !isMaster(session.roles) && data.studentSelf ? (
-        <div className="mt-8 space-y-6">
+        <div className="mt-8 flex min-h-[min(70vh,40rem)] flex-col space-y-6">
+          {data.studentSelf.universityLogoUrl ? (
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
+                University logo
+              </p>
+              <div className="mt-4 flex justify-center sm:justify-start">
+                {/* Arbitrary HTTPS logo URLs from master admin — avoid next/image remote config */}
+                <img
+                  src={data.studentSelf.universityLogoUrl}
+                  alt={data.studentSelf.universityName ?? "University logo"}
+                  className="max-h-28 max-w-full object-contain"
+                />
+              </div>
+            </div>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             {data.stats.map((s) => (
               <div
@@ -154,7 +169,7 @@ export default async function DashboardPage() {
                     Universities
                   </h2>
                   <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-                    Consultants and students linked to each organisation.
+                    Admission partners and students linked to each organisation.
                   </p>
                 </div>
                 <Link
@@ -171,7 +186,7 @@ export default async function DashboardPage() {
                       <tr>
                         <th className="px-4 py-3 font-semibold">University</th>
                         <th className="px-4 py-3 font-semibold">Code</th>
-                        <th className="px-4 py-3 font-semibold">Consultants</th>
+                        <th className="px-4 py-3 font-semibold">Admission partners</th>
                         <th className="px-4 py-3 font-semibold">Students</th>
                         <th className="px-4 py-3 text-right font-semibold">Actions</th>
                       </tr>
@@ -319,7 +334,7 @@ export default async function DashboardPage() {
           <p className="text-sm font-medium text-[var(--foreground)]">Roles</p>
           <ul className="mt-3 list-inside list-disc text-sm text-[var(--foreground-muted)]">
             <li>
-              <strong className="text-[var(--foreground)]">University</strong> — consultants and org-wide tools
+              <strong className="text-[var(--foreground)]">University</strong> — admission partners and org-wide tools
             </li>
             <li>
               <strong className="text-[var(--foreground)]">Student</strong> — personal application journey

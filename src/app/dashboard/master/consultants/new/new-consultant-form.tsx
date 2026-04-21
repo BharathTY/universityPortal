@@ -16,6 +16,8 @@ export function NewConsultantForm({ universities }: Props) {
   const [phone, setPhone] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [selectedUniIds, setSelectedUniIds] = React.useState<Set<string>>(new Set());
+  const [partnerRole, setPartnerRole] = React.useState<"consultant" | "qspiders_branch">("consultant");
+  const [branchName, setBranchName] = React.useState("");
 
   function toggleUniversity(id: string) {
     setSelectedUniIds((prev) => {
@@ -40,11 +42,13 @@ export function NewConsultantForm({ universities }: Props) {
           phone,
           password: password.trim() || undefined,
           universityIds: [...selectedUniIds],
+          partnerRole,
+          branchName: partnerRole === "qspiders_branch" ? branchName.trim() || undefined : undefined,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        setError(data.error ?? "Could not create consultant");
+        setError(data.error ?? "Could not create admission partner");
         return;
       }
       router.push("/dashboard/master/consultants");
@@ -56,6 +60,32 @@ export function NewConsultantForm({ universities }: Props) {
 
   return (
     <form onSubmit={onSubmit} className="mx-auto max-w-lg space-y-5">
+      <div>
+        <label className="block text-sm font-medium text-[var(--foreground)]">Account type</label>
+        <select
+          value={partnerRole}
+          onChange={(e) => setPartnerRole(e.target.value as "consultant" | "qspiders_branch")}
+          className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+        >
+          <option value="consultant">Standard admission partner</option>
+          <option value="qspiders_branch">Qspiders branch (same portal; branch name on leads)</option>
+        </select>
+      </div>
+      {partnerRole === "qspiders_branch" ? (
+        <div>
+          <label className="block text-sm font-medium text-[var(--foreground)]">Branch name</label>
+          <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+            Auto-attached to leads and student invitations (e.g. city or campus).
+          </p>
+          <input
+            required
+            value={branchName}
+            onChange={(e) => setBranchName(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+            placeholder="e.g. Bangalore — Koramangala"
+          />
+        </div>
+      ) : null}
       <div>
         <label className="block text-sm font-medium text-[var(--foreground)]">Name</label>
         <input
@@ -87,7 +117,7 @@ export function NewConsultantForm({ universities }: Props) {
       <div>
         <span className="block text-sm font-medium text-[var(--foreground)]">Assigned universities</span>
         <p className="mt-1 text-xs text-[var(--foreground-muted)]">
-          Select one or more. The consultant can switch the active university from the header when more than one is
+          Select one or more. The partner can switch the active university from the header when more than one is
           selected.
         </p>
         <ul className="mt-3 max-h-56 space-y-2 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">

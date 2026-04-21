@@ -9,9 +9,17 @@ type DashboardShellProps = {
   children: React.ReactNode;
   roles: string[];
   universityId: string | null;
+  brandTitle?: string;
+  brandSubtitle?: string;
 };
 
-export function DashboardShell({ children, roles, universityId }: DashboardShellProps) {
+export function DashboardShell({
+  children,
+  roles,
+  universityId,
+  brandTitle,
+  brandSubtitle,
+}: DashboardShellProps) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [collapsed, setCollapsed] = React.useState(false);
   const [hydrated, setHydrated] = React.useState(false);
@@ -63,6 +71,8 @@ export function DashboardShell({ children, roles, universityId }: DashboardShell
           <DashboardSidebar
             roles={roles}
             universityId={universityId}
+            brandTitle={brandTitle}
+            brandSubtitle={brandSubtitle}
             collapsed={!sidebarExpandedVisual}
             onToggleCollapse={() => setCollapsed((c) => !c)}
             onNavigate={() => setMobileOpen(false)}

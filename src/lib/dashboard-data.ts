@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import type { SessionPayload } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ADMISSION_PARTNER_ROLE_SLUGS } from "@/lib/admission-partner-slugs";
 import {
   isConsultant,
   isConsultantOnly,
@@ -41,6 +42,7 @@ export type DashboardSnapshot = {
   studentSelf?: {
     pendingInvite: boolean;
     universityName: string | null;
+    universityLogoUrl: string | null;
   };
   setupMessage: string | null;
   /** Master role: per-university breakdown */
@@ -60,8 +62,6 @@ function buildStudentWhere(session: SessionPayload): Prisma.UserWhereInput {
   return where;
 }
 
-const consultantSlugs = [ROLES.consultant, ROLES.counsellor, ROLES.consultantMaster] as const;
-
 export async function getDashboardSnapshot(session: SessionPayload): Promise<DashboardSnapshot> {
   const empty: DashboardSnapshot = {
     greetingName: "there",
@@ -79,7 +79,7 @@ export async function getDashboardSnapshot(session: SessionPayload): Promise<Das
         name: true,
         email: true,
         inviteToken: true,
-        university: { select: { name: true, code: true } },
+        university: { select: { name: true, code: true, logoUrl: true } },
       },
     });
 
@@ -108,6 +108,7 @@ export async function getDashboardSnapshot(session: SessionPayload): Promise<Das
         studentSelf: {
           pendingInvite: Boolean(me?.inviteToken),
           universityName: university?.name ?? null,
+          universityLogoUrl: university?.logoUrl ?? null,
         },
       };
     }
@@ -135,14 +136,14 @@ export async function getDashboardSnapshot(session: SessionPayload): Promise<Das
         ? prisma.user.count({
             where: {
               universityId: session.universityId,
-              roles: { some: { role: { slug: { in: [...consultantSlugs] } } } },
+              roles: { some: { role: { slug: { in: [...ADMISSION_PARTNER_ROLE_SLUGS] } } } },
             },
           })
         : Promise.resolve(0),
       isMaster(session.roles)
         ? prisma.user.count({
             where: {
-              roles: { some: { role: { slug: { in: [...consultantSlugs] } } } },
+              roles: { some: { role: { slug: { in: [...ADMISSION_PARTNER_ROLE_SLUGS] } } } },
             },
           })
         : Promise.resolve(0),
@@ -163,7 +164,7 @@ export async function getDashboardSnapshot(session: SessionPayload): Promise<Das
             prisma.user.count({
               where: {
                 universityId: u.id,
-                roles: { some: { role: { slug: { in: [...consultantSlugs] } } } },
+                roles: { some: { role: { slug: { in: [...ADMISSION_PARTNER_ROLE_SLUGS] } } } },
               },
             }),
             prisma.user.count({
@@ -183,14 +184,14 @@ export async function getDashboardSnapshot(session: SessionPayload): Promise<Das
     if (isMaster(session.roles)) {
       stats.push(
         { label: "Universities", value: String(universityCount) },
-        { label: "Consultants", value: String(totalConsultantsAll) },
+        { label: "Admission partners", value: String(totalConsultantsAll) },
         { label: "Students", value: String(studentTotal), href: "/dashboard/consultant/students" },
         { label: "Pending invites", value: String(pendingInvites), href: "/dashboard/consultant/students" },
       );
     } else if (isUniversity(session.roles) && session.universityId) {
       stats.push(
         {
-          label: "Counsellors & consultants",
+          label: "Admission partners",
           value: String(consultantCount),
           sub: "Listed under Admissions",
           href: `/dashboard/university/${session.universityId}/admissions`,
@@ -198,7 +199,7 @@ export async function getDashboardSnapshot(session: SessionPayload): Promise<Das
         {
           label: "Admission leads",
           value: String(admissionLeadTotal),
-          sub: "Consultant codes on dashboard",
+          sub: "Partner codes on dashboard",
           href: `/dashboard/university/${session.universityId}/admissions`,
         },
         { label: "Students", value: String(studentTotal) },

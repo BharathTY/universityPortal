@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { isAdmissionLeadRoleSlug } from "@/lib/admission-lead-role";
+import { resolveAcademicYearIdForLead } from "@/lib/consultant-default-year";
 import { consultantCodeFromUserId } from "@/lib/consultant-code";
 import { requireConsultantUniversity } from "@/lib/consultant-api";
 
@@ -11,9 +12,14 @@ const rowSchema = z.object({
   lastName: z.string().min(1).max(120).trim(),
   email: z.string().email().max(254).trim(),
   mobile: z.string().min(5).max(32).trim(),
-  academicYearLabel: z.string().min(1).max(32).trim(),
+  academicYearLabel: z.string().max(32).trim().optional().nullable(),
   streamName: z.string().min(1).max(120).trim(),
   nationality: z.string().max(120).trim().optional().nullable(),
+  admissionState: z.string().max(120).trim().optional().nullable(),
+  referralFirstName: z.string().max(120).trim().optional().nullable(),
+  referralLastName: z.string().max(120).trim().optional().nullable(),
+  referralPhone: z.string().max(32).trim().optional().nullable(),
+  referralEmail: z.string().max(254).trim().optional().nullable(),
 });
 
 const bodySchema = z.object({
@@ -43,8 +49,13 @@ export async function POST(req: Request) {
   });
   const consultantRole = roleRows.find((r) => isAdmissionLeadRoleSlug(r.role.slug));
   if (!consultantRole) {
-    return NextResponse.json({ error: "No consultant role on your account" }, { status: 400 });
+    return NextResponse.json({ error: "No admission partner role on your account" }, { status: 400 });
   }
+
+  const creator = await prisma.user.findUnique({
+    where: { id: session.sub },
+    select: { branchName: true },
+  });
 
   const [years, streams] = await Promise.all([
     prisma.academicYear.findMany({ where: { universityId } }),
@@ -73,15 +84,44 @@ export async function POST(req: Request) {
     seenEmail.add(email);
     seenMobile.add(mob);
 
-    const year = years.find((y) => y.label.trim() === row.academicYearLabel.trim());
-    const stream = streams.find((s) => s.name.trim() === row.streamName.trim());
-    if (!year) {
-      errors.push({ row: rowNum, message: `Unknown academic year: ${row.academicYearLabel}` });
+    const stateTrim = row.admissionState?.trim();
+    if (!stateTrim) {
+      errors.push({ row: rowNum, message: "Admission state is required (column: admission state or state)" });
       continue;
     }
+
+    const stream = streams.find((s) => s.name.trim() === row.streamName.trim());
     if (!stream) {
       errors.push({ row: rowNum, message: `Unknown stream/program: ${row.streamName}` });
       continue;
+    }
+
+    let yearId: string | null = null;
+    const yLabel = row.academicYearLabel?.trim();
+    if (yLabel) {
+      const year = years.find((y) => y.label.trim() === yLabel);
+      if (!year) {
+        errors.push({ row: rowNum, message: `Unknown academic year: ${yLabel}` });
+        continue;
+      }
+      yearId = year.id;
+    } else {
+      yearId = await resolveAcademicYearIdForLead(universityId, null);
+    }
+    if (!yearId) {
+      errors.push({ row: rowNum, message: "No academic year configured for this university" });
+      continue;
+    }
+
+    let referralEmail: string | null = null;
+    const refE = row.referralEmail?.trim();
+    if (refE) {
+      const ok = z.string().email().safeParse(refE);
+      if (!ok.success) {
+        errors.push({ row: rowNum, message: "Invalid referral email" });
+        continue;
+      }
+      referralEmail = refE.toLowerCase();
     }
 
     const dup = await prisma.admissionLead.findFirst({ where: { universityId, email } });
@@ -94,7 +134,7 @@ export async function POST(req: Request) {
       await prisma.admissionLead.create({
         data: {
           universityId,
-          academicYearId: year.id,
+          academicYearId: yearId,
           streamId: stream.id,
           firstName: row.firstName,
           lastName: row.lastName,
@@ -105,6 +145,12 @@ export async function POST(req: Request) {
           admissionStatus: AdmissionLeadStatus.NEW,
           pipelineStatus: LeadPipelineStatus.NEW,
           nationality: row.nationality ?? null,
+          admissionState: stateTrim,
+          referralFirstName: row.referralFirstName?.trim() || null,
+          referralLastName: row.referralLastName?.trim() || null,
+          referralPhone: row.referralPhone?.trim() || null,
+          referralEmail,
+          branchName: creator?.branchName?.trim() || null,
           createdByUserId: session.sub,
         },
       });
