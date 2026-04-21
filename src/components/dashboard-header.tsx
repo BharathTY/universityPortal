@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { ConsultantUniversitySwitcher } from "@/components/consultant-university-switcher";
+import { PortalLogoSvg } from "@/components/portal-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { formatRoleLabel } from "@/lib/roles";
 
@@ -18,9 +20,16 @@ function displayNameFromEmail(email: string): string {
 type DashboardHeaderProps = {
   email: string;
   roles: string[];
+  brandTitle?: string;
+  brandSubtitle?: string;
 };
 
-export function DashboardHeader({ email, roles }: DashboardHeaderProps) {
+export function DashboardHeader({
+  email,
+  roles,
+  brandTitle = "University Portal",
+  brandSubtitle = "portal.ams",
+}: DashboardHeaderProps) {
   const [open, setOpen] = React.useState(false);
   const wrapRef = React.useRef<HTMLDivElement>(null);
 
@@ -52,7 +61,27 @@ export function DashboardHeader({ email, roles }: DashboardHeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-end gap-3 px-4 py-3 sm:gap-4 sm:px-6">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-6">
+        <Link
+          href="/dashboard"
+          className="group flex min-w-0 max-w-[min(100%,14rem)] shrink items-center gap-2.5 rounded-xl p-1 -m-1 transition hover:bg-[var(--muted)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-blue)]/45 sm:max-w-md"
+          title="Go to dashboard"
+        >
+          <span
+            className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-amber-400 via-amber-500 to-orange-600 text-white shadow-md ring-2 ring-amber-400/20 transition group-hover:shadow-lg dark:from-amber-500 dark:via-amber-600 dark:to-orange-700"
+            aria-hidden
+          >
+            <PortalLogoSvg className="h-[1.35rem] w-[1.35rem] drop-shadow-sm" />
+          </span>
+          <span className="min-w-0 text-left leading-tight">
+            <span className="block truncate text-sm font-bold tracking-tight text-[var(--foreground)]">
+              {brandTitle}
+            </span>
+            <span className="hidden truncate text-xs text-[var(--foreground-muted)] sm:block">{brandSubtitle}</span>
+          </span>
+        </Link>
+
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
         <ConsultantUniversitySwitcher roles={roles} />
         <ThemeToggle />
 
@@ -117,6 +146,7 @@ export function DashboardHeader({ email, roles }: DashboardHeaderProps) {
               </button>
             </div>
           ) : null}
+        </div>
         </div>
       </div>
     </header>

@@ -10,15 +10,22 @@ export default async function DashboardLayout({
 }) {
   const session = await requireAuth();
   const studentView = isStudent(session.roles) && !isMaster(session.roles);
+  const brandTitle = studentView ? "Student Portal" : "University Portal";
+  const brandSubtitle = studentView ? "Your application hub" : "portal.ams";
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--background)]">
-      <DashboardHeader email={session.email} roles={session.roles} />
+      <DashboardHeader
+        email={session.email}
+        roles={session.roles}
+        brandTitle={brandTitle}
+        brandSubtitle={brandSubtitle}
+      />
       <DashboardShell
         roles={session.roles}
         universityId={session.universityId}
-        brandTitle={studentView ? "Student Portal" : "University Portal"}
-        brandSubtitle={studentView ? "Your application hub" : "portal.ams"}
+        brandTitle={brandTitle}
+        brandSubtitle={brandSubtitle}
       >
         {children}
       </DashboardShell>
