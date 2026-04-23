@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { ApplicationStatus, PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -290,6 +291,7 @@ async function main() {
       batchStartDate: new Date("2025-11-20T00:00:00.000Z"),
       admissionEndDate: new Date("2026-04-10T00:00:00.000Z"),
       ownerId: consultantUser.id,
+      leadPunchToken: randomBytes(18).toString("base64url"),
     },
   });
   await prisma.batch.create({
@@ -299,6 +301,7 @@ async function main() {
       batchStartDate: new Date("2027-11-01T00:00:00.000Z"),
       admissionEndDate: new Date("2028-04-15T00:00:00.000Z"),
       ownerId: consultantUser.id,
+      leadPunchToken: randomBytes(18).toString("base64url"),
     },
   });
 

@@ -4,22 +4,35 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { isAdmissionLeadRoleSlug } from "@/lib/admission-lead-role";
 import { prisma } from "@/lib/prisma";
-import { canAccessUniversityScope } from "@/lib/university-scope";
+import { ROLES } from "@/lib/roles";
+import { canAccessUniversityScopeAsync } from "@/lib/university-scope";
 
-const createSchema = z.object({
-  academicYearId: z.string().min(1),
-  streamId: z.string().min(1),
-  firstName: z.string().min(1).max(120).trim(),
-  lastName: z.string().min(1).max(120).trim(),
-  email: z.string().email().max(254).trim(),
-  mobile: z.string().min(5).max(32).trim(),
-  consultantCode: z.string().min(1).max(64).trim(),
-  /** `Role.id` — must be a role whose slug is allowed for leads (e.g. consultant, counsellor). */
-  consultantRoleId: z.string().min(1),
-  admissionStatus: z.nativeEnum(AdmissionLeadStatus).optional(),
-  nationality: z.string().max(120).trim().optional().nullable(),
-  specialization: z.string().min(1).max(200).trim(),
-});
+const createSchema = z
+  .object({
+    academicYearId: z.string().min(1),
+    streamId: z.string().min(1),
+    firstName: z.string().min(1).max(120).trim(),
+    lastName: z.string().min(1).max(120).trim(),
+    email: z.string().email().max(254).trim(),
+    mobile: z.string().min(5).max(32).trim(),
+    /** Display name for the admission guide (stored in `consultantCode` column for attribution). */
+    admissionGuideName: z.string().min(1).max(200).trim(),
+    /** `consultant` = partner attribution; `university` = college staff lead. */
+    admissionBy: z.enum(["consultant", "university"]),
+    /** `Role.id` — required when `admissionBy` is `consultant` (partner directory role). */
+    consultantRoleId: z.string().optional(),
+    nationality: z.string().max(120).trim().optional().nullable(),
+    specialization: z.string().min(1).max(200).trim(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.admissionBy === "consultant" && (!data.consultantRoleId || !data.consultantRoleId.trim())) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Partner role is required when admission is by consultant",
+        path: ["consultantRoleId"],
+      });
+    }
+  });
 
 type RouteContext = { params: Promise<{ universityId: string }> };
 
@@ -28,7 +41,7 @@ export async function GET(req: Request, ctx: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { universityId } = await ctx.params;
-  if (!canAccessUniversityScope(session, universityId)) {
+  if (!(await canAccessUniversityScopeAsync(session, universityId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -73,7 +86,7 @@ export async function POST(req: Request, ctx: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { universityId } = await ctx.params;
-  if (!canAccessUniversityScope(session, universityId)) {
+  if (!(await canAccessUniversityScopeAsync(session, universityId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -102,16 +115,30 @@ export async function POST(req: Request, ctx: RouteContext) {
     return NextResponse.json({ error: "Invalid academic year or stream for this university" }, { status: 400 });
   }
 
-  const roleRow = await prisma.role.findUnique({
-    where: { id: parsed.data.consultantRoleId },
-    select: { id: true, slug: true },
-  });
-  if (!roleRow || !isAdmissionLeadRoleSlug(roleRow.slug)) {
-    return NextResponse.json(
-      { error: "Invalid role — choose a consultant or counsellor role from the directory." },
-      { status: 400 },
-    );
+  let roleRow: { id: string; slug: string } | null = null;
+  if (parsed.data.admissionBy === "university") {
+    roleRow = await prisma.role.findUnique({
+      where: { slug: ROLES.university },
+      select: { id: true, slug: true },
+    });
+    if (!roleRow) {
+      return NextResponse.json({ error: "University role is not configured in the directory." }, { status: 500 });
+    }
+  } else {
+    const r = await prisma.role.findUnique({
+      where: { id: parsed.data.consultantRoleId! },
+      select: { id: true, slug: true },
+    });
+    if (!r || !isAdmissionLeadRoleSlug(r.slug)) {
+      return NextResponse.json(
+        { error: "Invalid role — choose a partner role (consultant, counsellor, etc.) from the directory." },
+        { status: 400 },
+      );
+    }
+    roleRow = r;
   }
+
+  const guideStored = parsed.data.admissionGuideName.slice(0, 200);
 
   const lead = await prisma.admissionLead.create({
     data: {
@@ -122,13 +149,12 @@ export async function POST(req: Request, ctx: RouteContext) {
       lastName: parsed.data.lastName,
       email: parsed.data.email.toLowerCase(),
       mobile: parsed.data.mobile,
-      consultantCode: parsed.data.consultantCode,
+      consultantCode: guideStored,
       consultantRoleId: roleRow.id,
-      admissionStatus: parsed.data.admissionStatus ?? AdmissionLeadStatus.NEW,
+      admissionStatus: AdmissionLeadStatus.NEW,
       pipelineStatus: LeadPipelineStatus.NEW,
       nationality: parsed.data.nationality ?? null,
       specialization: parsed.data.specialization,
-      /** Always record creator so Admissions vs Uni-Admission lists can be split. */
       createdByUserId: session.sub,
     },
   });

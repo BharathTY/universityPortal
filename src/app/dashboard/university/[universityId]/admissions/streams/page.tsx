@@ -11,7 +11,7 @@ type PageProps = { params: Promise<{ universityId: string }> };
 export default async function StreamsPage(props: PageProps) {
   const session = await requireAuth();
   const { universityId } = await props.params;
-  assertUniversityScope(session, universityId);
+  await assertUniversityScope(session, universityId);
 
   const university = await prisma.university.findUnique({ where: { id: universityId } });
   if (!university) notFound();

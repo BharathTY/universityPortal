@@ -55,11 +55,11 @@ export function buildDashboardNav(roles: string[], options?: BuildDashboardNavOp
 
   if (isConsultantOnly(roles)) {
     return [
-      { title: "Home", items: [{ href: "/dashboard/consultant", label: "Dashboard", icon: "home" }] },
       {
         title: "Work",
         items: [
-          { href: "/dashboard/batches", label: "Universities", icon: "layers" },
+          { href: "/dashboard/university", label: "Universities", icon: "building" },
+          { href: "/dashboard/consultant/leads", label: "Partner leads", icon: "briefcase" },
         ],
       },
       {
@@ -84,36 +84,6 @@ export function buildDashboardNav(roles: string[], options?: BuildDashboardNavOp
             href: `/dashboard/university/${universityId}/admissions`,
             label: "Admissions",
             icon: "briefcase",
-          },
-          {
-            href: `/dashboard/university/${universityId}/applications`,
-            label: "Applications",
-            icon: "file",
-          },
-          {
-            href: `/dashboard/university/${universityId}/admissions/academic-years`,
-            label: "Academic years",
-            icon: "calendar",
-          },
-          {
-            href: `/dashboard/university/${universityId}/admissions/streams`,
-            label: "Streams",
-            icon: "layers",
-          },
-          {
-            href: `/dashboard/university/${universityId}/admissions/leads/new`,
-            label: "Add lead",
-            icon: "userPlus",
-          },
-        ],
-      });
-      groups.push({
-        title: "Uni-Admission",
-        items: [
-          {
-            href: `/dashboard/university/${universityId}/uni-admissions`,
-            label: "Admission (Uni-Admission)",
-            icon: "graduation",
           },
         ],
       });

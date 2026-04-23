@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canAccessUniversityScope } from "@/lib/university-scope";
+import { canAccessUniversityScopeAsync } from "@/lib/university-scope";
 
 const patchSchema = z.object({
   applicationId: z.string().min(1),
@@ -17,7 +17,7 @@ export async function PATCH(req: Request, ctx: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { universityId } = await ctx.params;
-  if (!canAccessUniversityScope(session, universityId)) {
+  if (!(await canAccessUniversityScopeAsync(session, universityId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

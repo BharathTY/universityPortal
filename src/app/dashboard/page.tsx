@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const session = await requireAuth();
   if (isConsultantOnly(session.roles)) {
-    redirect("/dashboard/consultant");
+    redirect("/dashboard/university");
   }
   const data = await getDashboardSnapshot(session);
 

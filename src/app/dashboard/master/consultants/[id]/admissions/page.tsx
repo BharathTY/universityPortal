@@ -35,7 +35,14 @@ export default async function MasterConsultantAdmissionsPage(props: PageProps) {
       where: { createdByUserId: id },
       orderBy: { createdAt: "desc" },
       take: 100,
-      include: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        admissionState: true,
+        createdAt: true,
+        assignedPartnerDisplayName: true,
         university: { select: { name: true, code: true } },
         stream: { select: { name: true } },
       },
@@ -76,6 +83,7 @@ export default async function MasterConsultantAdmissionsPage(props: PageProps) {
                 <th className="px-3 py-2">University</th>
                 <th className="px-3 py-2">Course</th>
                 <th className="px-3 py-2">State</th>
+                <th className="px-3 py-2">Assigned partner (snapshot)</th>
                 <th className="px-3 py-2">Created</th>
               </tr>
             </thead>
@@ -92,6 +100,9 @@ export default async function MasterConsultantAdmissionsPage(props: PageProps) {
                   </td>
                   <td className="px-3 py-2">{l.stream.name}</td>
                   <td className="px-3 py-2">{l.admissionState ?? "—"}</td>
+                  <td className="max-w-[12rem] truncate px-3 py-2 text-xs" title={l.assignedPartnerDisplayName ?? ""}>
+                    {l.assignedPartnerDisplayName ?? "—"}
+                  </td>
                   <td className="px-3 py-2 text-xs text-[var(--foreground-muted)]">
                     {l.createdAt.toLocaleString()}
                   </td>

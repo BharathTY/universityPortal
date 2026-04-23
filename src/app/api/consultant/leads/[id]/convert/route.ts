@@ -21,7 +21,15 @@ export async function POST(_req: Request, ctx: Ctx) {
 
   const lead = await prisma.admissionLead.findFirst({
     where: { id: leadId, universityId, createdByUserId: session.sub },
-    include: {
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      mobile: true,
+      pipelineStatus: true,
+      universityId: true,
+      batchId: true,
       university: { select: { name: true } },
       stream: { select: { name: true } },
     },
@@ -48,10 +56,17 @@ export async function POST(_req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Student role not configured" }, { status: 500 });
   }
 
-  const batch = await prisma.batch.findFirst({
-    where: { ownerId: session.sub },
-    orderBy: { createdAt: "desc" },
-  });
+  const batch =
+    lead.batchId != null
+      ? await prisma.batch.findFirst({
+          where: { id: lead.batchId, ownerId: session.sub },
+          select: { id: true },
+        })
+      : await prisma.batch.findFirst({
+          where: { ownerId: session.sub },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        });
 
   const fullName = `${lead.firstName} ${lead.lastName}`.trim();
 

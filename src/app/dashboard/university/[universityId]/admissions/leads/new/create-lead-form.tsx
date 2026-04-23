@@ -20,18 +20,9 @@ type Props = {
   universityId: string;
   years: YearOpt[];
   streams: StreamOpt[];
-  /** Rows from `Role` (e.g. consultant, counsellor). */
+  /** Partner roles only (consultant, counsellor, …) for “By consultant”. */
   attributionRoles: AttributionRoleOpt[];
 };
-
-const STATUS_OPTIONS = [
-  { value: "NEW", label: "New" },
-  { value: "CONTACTED", label: "Contacted" },
-  { value: "QUALIFIED", label: "Qualified" },
-  { value: "ADMITTED", label: "Admitted" },
-  { value: "REJECTED", label: "Rejected" },
-  { value: "WITHDRAWN", label: "Withdrawn" },
-] as const;
 
 export function CreateLeadForm({ universityId, years, streams, attributionRoles }: Props) {
   const router = useRouter();
@@ -46,9 +37,9 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
   const [mobile, setMobile] = React.useState("");
   const [nationality, setNationality] = React.useState<string>(NATIONALITIES[0]!);
   const [specialization, setSpecialization] = React.useState("");
-  const [consultantCode, setConsultantCode] = React.useState("");
-  const [consultantRoleId, setConsultantRoleId] = React.useState<string>(attributionRoles[0]?.id ?? "");
-  const [admissionStatus, setAdmissionStatus] = React.useState<string>("NEW");
+  const [admissionGuideName, setAdmissionGuideName] = React.useState("");
+  const [admissionBy, setAdmissionBy] = React.useState<"consultant" | "university">("consultant");
+  const [partnerRoleId, setPartnerRoleId] = React.useState<string>(attributionRoles[0]?.id ?? "");
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -65,9 +56,9 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
           lastName,
           email,
           mobile,
-          consultantCode,
-          consultantRoleId,
-          admissionStatus,
+          admissionGuideName,
+          admissionBy,
+          ...(admissionBy === "consultant" ? { consultantRoleId: partnerRoleId } : {}),
           nationality,
           specialization: specialization.trim(),
         }),
@@ -77,7 +68,7 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
         setError(data.error ?? "Could not create lead");
         return;
       }
-      router.push(`/dashboard/university/${universityId}/uni-admissions`);
+      router.push(`/dashboard/university/${universityId}/admissions`);
       router.refresh();
     } catch {
       setError("Network error");
@@ -87,12 +78,13 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
   }
 
   const back = `/dashboard/university/${universityId}/admissions`;
+  const masterIntake = "/dashboard/master/universities";
 
   if (!attributionRoles.length) {
     return (
       <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">
         <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-[var(--foreground)]">
-          Role directory is missing consultant or counsellor roles. Run the database seed (
+          Role directory is missing admission partner roles. Run the database seed (
           <code className="rounded bg-[var(--muted)] px-1">npm run db:seed</code>).
         </p>
         <Link href={back} className="mt-6 inline-block text-sm font-medium text-[var(--primary)] underline">
@@ -106,15 +98,11 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
     return (
       <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">
         <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-[var(--foreground)]">
-          Add at least one{" "}
-          <Link className="font-medium underline" href={`/dashboard/university/${universityId}/admissions/academic-years`}>
-            academic year
+          Add at least one academic year and one program stream for this university from the{" "}
+          <Link className="font-medium underline" href={masterIntake}>
+            Master portal — Universities
           </Link>{" "}
-          and{" "}
-          <Link className="font-medium underline" href={`/dashboard/university/${universityId}/admissions/streams`}>
-            stream
-          </Link>{" "}
-          before creating leads.
+          (open the university card → Academic years / Streams).
         </p>
         <Link href={back} className="mt-6 inline-block text-sm font-medium text-[var(--primary)] underline">
           Back to admissions
@@ -129,7 +117,9 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
         ← Admissions
       </Link>
       <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Create lead</h1>
-      <p className="mt-1 text-sm text-[var(--foreground-muted)]">Enter lead details. Consultant code maps this lead to a consultant.</p>
+      <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+        Enter lead details. Admission guide name is stored on the lead for reporting.
+      </p>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -225,22 +215,33 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
             className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium text-[var(--foreground)]">Admission guide name</label>
+          <input
+            required
+            value={admissionGuideName}
+            onChange={(e) => setAdmissionGuideName(e.target.value)}
+            placeholder="e.g. Jane Doe or desk code"
+            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[var(--foreground)]">Admission by</label>
+          <select
+            value={admissionBy}
+            onChange={(e) => setAdmissionBy(e.target.value as "consultant" | "university")}
+            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+          >
+            <option value="consultant">1. By consultant</option>
+            <option value="university">2. By university</option>
+          </select>
+        </div>
+        {admissionBy === "consultant" ? (
           <div>
-            <label className="block text-sm font-medium text-[var(--foreground)]">Consultant code</label>
-            <input
-              required
-              value={consultantCode}
-              onChange={(e) => setConsultantCode(e.target.value)}
-              placeholder="e.g. CONS-001"
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-mono text-sm text-[var(--foreground)]"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)]">Role</label>
+            <label className="block text-sm font-medium text-[var(--foreground)]">Partner role</label>
             <select
-              value={consultantRoleId}
-              onChange={(e) => setConsultantRoleId(e.target.value)}
+              value={partnerRoleId}
+              onChange={(e) => setPartnerRoleId(e.target.value)}
               className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
               required
             >
@@ -250,22 +251,11 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
                 </option>
               ))}
             </select>
+            <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+              Directory role used for partner attribution on this lead.
+            </p>
           </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-[var(--foreground)]">Admission status</label>
-          <select
-            value={admissionStatus}
-            onChange={(e) => setAdmissionStatus(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
-          >
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        ) : null}
 
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 

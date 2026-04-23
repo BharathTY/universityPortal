@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ConsultantUniversitySwitcher } from "@/components/consultant-university-switcher";
 import { PortalLogoSvg } from "@/components/portal-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { formatRoleLabel } from "@/lib/roles";
+import { formatRoleLabel, isConsultant } from "@/lib/roles";
 
 /** Derive a display name from the email local part (e.g. preeti.s → Preeti S). */
 function displayNameFromEmail(email: string): string {
@@ -30,6 +31,11 @@ export function DashboardHeader({
   brandTitle = "University Portal",
   brandSubtitle = "portal.ams",
 }: DashboardHeaderProps) {
+  const pathname = usePathname() ?? "";
+  const hideConsultantUniSwitcher =
+    isConsultant(roles) &&
+    (pathname === "/dashboard/university" || pathname.startsWith("/dashboard/batches"));
+
   const [open, setOpen] = React.useState(false);
   const wrapRef = React.useRef<HTMLDivElement>(null);
 
@@ -82,7 +88,7 @@ export function DashboardHeader({
         </Link>
 
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
-        <ConsultantUniversitySwitcher roles={roles} />
+        {!hideConsultantUniSwitcher ? <ConsultantUniversitySwitcher roles={roles} /> : null}
         <ThemeToggle />
 
         <div className="relative" ref={wrapRef}>

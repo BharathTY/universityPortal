@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdmissionReviewStatus, LeadPipelineStatus } from "@prisma/client";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isConsultantOnly } from "@/lib/roles";
 import { assertUniversityScope } from "@/lib/university-scope";
 
 export const dynamic = "force-dynamic";
@@ -34,30 +36,71 @@ type PageProps = {
   searchParams: Promise<{ page?: string }>;
 };
 
-/** All leads for this academic year (no redirect to streams). */
+/** Leads for this academic year; metrics are scoped to this university + year (and to you if you are an admission partner). */
 export default async function AcademicYearLeadsPage(props: PageProps) {
   const session = await requireAuth();
   const { universityId, yearId } = await props.params;
-  assertUniversityScope(session, universityId);
+  await assertUniversityScope(session, universityId);
 
   const sp = await props.searchParams;
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
   const pageSize = 25;
 
-  const year = await prisma.academicYear.findFirst({
-    where: { id: yearId, universityId },
-    select: { id: true, label: true, sortOrder: true },
-  });
+  const consultantOnly = isConsultantOnly(session.roles);
+
+  const [year, university] = await Promise.all([
+    prisma.academicYear.findFirst({
+      where: { id: yearId, universityId },
+      select: { id: true, label: true, sortOrder: true },
+    }),
+    prisma.university.findUnique({
+      where: { id: universityId },
+      select: { name: true, code: true },
+    }),
+  ]);
   if (!year) notFound();
 
-  const where = { universityId, academicYearId: yearId };
+  const listWhere = {
+    universityId,
+    academicYearId: yearId,
+    ...(consultantOnly ? { createdByUserId: session.sub } : {}),
+  };
 
-  const total = await prisma.admissionLead.count({ where });
+  const metricsLeadBase = listWhere;
+
+  const [total, leadsNew, leadsLost, leadsConverted, applications, admissionsApproved] = await Promise.all([
+    prisma.admissionLead.count({ where: listWhere }),
+    prisma.admissionLead.count({
+      where: { ...metricsLeadBase, pipelineStatus: LeadPipelineStatus.NEW },
+    }),
+    prisma.admissionLead.count({
+      where: { ...metricsLeadBase, pipelineStatus: LeadPipelineStatus.LOST },
+    }),
+    prisma.admissionLead.count({
+      where: { ...metricsLeadBase, pipelineStatus: LeadPipelineStatus.CONVERTED },
+    }),
+    prisma.application.count({
+      where: {
+        universityId,
+        lead: { academicYearId: yearId },
+        ...(consultantOnly ? { user: { studentOfId: session.sub } } : {}),
+      },
+    }),
+    prisma.application.count({
+      where: {
+        universityId,
+        lead: { academicYearId: yearId },
+        admissionReview: AdmissionReviewStatus.APPROVED,
+        ...(consultantOnly ? { user: { studentOfId: session.sub } } : {}),
+      },
+    }),
+  ]);
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages);
 
   const leads = await prisma.admissionLead.findMany({
-    where,
+    where: listWhere,
     orderBy: { createdAt: "desc" },
     skip: (safePage - 1) * pageSize,
     take: pageSize,
@@ -66,6 +109,7 @@ export default async function AcademicYearLeadsPage(props: PageProps) {
     },
   });
 
+  const hubHref = "/dashboard/university";
   const listHref = `/dashboard/university/${universityId}/admissions/academic-years`;
   const pageHref = (p: number) =>
     p <= 1
@@ -74,16 +118,48 @@ export default async function AcademicYearLeadsPage(props: PageProps) {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <nav className="text-sm text-[var(--foreground-muted)]">
+      <nav className="text-sm text-[var(--foreground-muted)]" aria-label="Breadcrumb">
+        <Link href={hubHref} className="text-[var(--primary)] underline underline-offset-2">
+          Universities
+        </Link>
+        <span className="mx-1.5">/</span>
         <Link href={listHref} className="text-[var(--primary)] underline underline-offset-2">
-          Academic years
+          {university?.name ?? "University"} ({university?.code ?? "—"})
         </Link>
         <span className="mx-1.5">/</span>
         <span className="font-medium text-[var(--foreground)]">{year.label}</span>
       </nav>
       <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">{year.label}</h1>
       <p className="mt-2 text-sm text-[var(--foreground-muted)]">
-        All leads for this intake ({total} total{total > pageSize ? ` — showing page ${safePage} of ${totalPages}` : ""}).
+        {consultantOnly
+          ? "Counts below are for your leads and students on this intake only."
+          : "Counts below are for this university and academic year."}{" "}
+        {total > pageSize ? `Table: page ${safePage} of ${totalPages} (${total} leads).` : `${total} lead${total === 1 ? "" : "s"} in the table below.`}
+      </p>
+
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--foreground-muted)]">Leads (open)</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-[var(--foreground)]">{leadsNew}</p>
+        </div>
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--foreground-muted)]">Applications</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-[var(--foreground)]">{applications}</p>
+        </div>
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--foreground-muted)]">
+            Admissions (approved)
+          </p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-[var(--foreground)]">{admissionsApproved}</p>
+        </div>
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--foreground-muted)]">Lost leads</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-[var(--foreground)]">{leadsLost}</p>
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-[var(--foreground-muted)]">
+        Converted leads (pipeline):{" "}
+        <span className="font-medium text-[var(--foreground)]">{leadsConverted}</span>
       </p>
 
       {leads.length === 0 ? (

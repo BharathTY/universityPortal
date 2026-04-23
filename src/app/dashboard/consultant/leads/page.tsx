@@ -14,7 +14,7 @@ export default async function ConsultantLeadsPage() {
   }
   const { universityId } = await resolveConsultantActiveUniversityId(session);
   if (!universityId) {
-    redirect("/dashboard/consultant");
+    redirect("/dashboard/university");
   }
 
   const [university, streams] = await Promise.all([

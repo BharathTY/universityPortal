@@ -140,6 +140,11 @@ model AdmissionLead {
   branchName        String?
   createdByUserId  String?
   createdBy        User?               @relation("LeadCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  /// When set, this lead came from that batch’s Lead Punch / brochure QR flow.
+  batchId          String?
+  batch            Batch?              @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  /// Snapshot of the assigned admission partner’s display name at lead creation (Lead Punch owner). Not exposed to students.
+  assignedPartnerDisplayName String?
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
 
@@ -151,6 +156,7 @@ model AdmissionLead {
   @@index([consultantCode])
   @@index([consultantRoleId])
   @@index([createdByUserId])
+  @@index([batchId])
   @@index([email])
   @@index([mobile])
 }
@@ -200,7 +206,10 @@ model Batch {
   admissionEndDate DateTime
   ownerId          String?
   owner            User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  /// Unguessable token for brochure / QR “Lead Punch” — public form at `/ref/[leadPunchToken]`.
+  leadPunchToken   String?  @unique
   applications     Application[]
+  admissionLeads   AdmissionLead[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -243,6 +252,14 @@ model Application {
 
   paymentStatus   ApplicationPaymentStatus @default(NONE)
   admissionReview AdmissionReviewStatus @default(PENDING)
+
+  /// Scheduled admission counselling / office visit (student-selected).
+  admissionVisitAt DateTime?
+  /// Scheduled campus tour (student-selected).
+  campusTourAt     DateTime?
+
+  /// Last Razorpay order id created for this application (used to validate payment web callback).
+  lastRazorpayOrderId String?
 
   @@index([userId])
   @@index([universityId])

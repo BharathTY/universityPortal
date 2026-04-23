@@ -1,17 +1,9 @@
-import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { LeadsView } from "@/app/dashboard/batches/[batchId]/leads/leads-view";
+import { redirect } from "next/navigation";
 
 type PageProps = { params: Promise<{ batchId: string }> };
 
-export default async function BatchLeadsPage(props: PageProps) {
+/** Legacy URL — batch leads now live at `/dashboard/batches/[batchId]`. */
+export default async function BatchLeadsRedirectPage(props: PageProps) {
   const { batchId } = await props.params;
-  const batch = await prisma.batch.findUnique({
-    where: { id: batchId },
-    select: { id: true, title: true, code: true },
-  });
-
-  if (!batch) notFound();
-
-  return <LeadsView batchTitle={batch.title} batchCode={batch.code} />;
+  redirect(`/dashboard/batches/${batchId}`);
 }

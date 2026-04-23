@@ -38,7 +38,7 @@ type PageProps = {
 export default async function StreamLeadsPage(props: PageProps) {
   const session = await requireAuth();
   const { universityId, streamId } = await props.params;
-  assertUniversityScope(session, universityId);
+  await assertUniversityScope(session, universityId);
 
   const sp = await props.searchParams;
   const page = Math.max(1, Number(sp.page ?? "1") || 1);

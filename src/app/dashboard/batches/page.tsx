@@ -1,15 +1,21 @@
 import { Prisma } from "@prisma/client";
 import { BatchListClient, type BatchListItem } from "@/app/dashboard/batches/batch-list-client";
+import { ConsultantInPageUniversitySection } from "@/components/consultant-in-page-university-section";
+import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isConsultantOnly, isMaster } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
 export default async function ManageBatchesPage() {
+  const session = await requireAuth();
   let batches: BatchListItem[] = [];
   let setupMessage: string | null = null;
 
   try {
+    const consultantOwnBatches = !isMaster(session.roles) && isConsultantOnly(session.roles);
     const rows = await prisma.batch.findMany({
+      ...(consultantOwnBatches ? { where: { ownerId: session.sub } } : {}),
       orderBy: { batchStartDate: "desc" },
       include: { owner: { select: { email: true } } },
     });
@@ -44,6 +50,7 @@ export default async function ManageBatchesPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <ConsultantInPageUniversitySection roles={session.roles} variant="batches" />
       <h1 className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl">Manage Batches</h1>
       <p className="mt-2 text-[var(--foreground-muted)]">Configure and manage batches from here</p>
       <div className="mt-8">

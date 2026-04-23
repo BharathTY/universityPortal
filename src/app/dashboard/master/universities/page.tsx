@@ -31,8 +31,9 @@ export default async function MasterUniversitiesListPage() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl">Universities</h1>
           <p className="mt-2 text-[var(--foreground-muted)]">
-            Create and manage university organisations and portal access. Select a university to open admissions for
-            that organisation.
+            Create and manage university organisations and portal access. Academic years and program streams are
+            configured here per university (intake catalogue). University staff use Admissions only for day-to-day
+            leads.
           </p>
         </div>
         <Link
@@ -85,6 +86,18 @@ export default async function MasterUniversitiesListPage() {
                 className="rounded-lg bg-[var(--accent-blue)] px-3 py-1.5 text-xs font-semibold text-white"
               >
                 Admissions
+              </Link>
+              <Link
+                href={`/dashboard/university/${u.id}/admissions/academic-years`}
+                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold"
+              >
+                Academic years
+              </Link>
+              <Link
+                href={`/dashboard/university/${u.id}/admissions/streams`}
+                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold"
+              >
+                Streams
               </Link>
               <Link
                 href={`/dashboard/master/universities/${u.id}/edit`}

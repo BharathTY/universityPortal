@@ -14,7 +14,7 @@ type PageProps = {
 export default async function UniversityApplicationsPage(props: PageProps) {
   const session = await requireAuth();
   const { universityId } = await props.params;
-  assertUniversityScope(session, universityId);
+  await assertUniversityScope(session, universityId);
   const sp = await props.searchParams;
   const yearId = sp.year && sp.year.length > 0 ? sp.year : null;
   const streamId = sp.stream && sp.stream.length > 0 ? sp.stream : null;

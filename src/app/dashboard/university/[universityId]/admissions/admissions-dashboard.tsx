@@ -17,6 +17,8 @@ export type AdmissionLeadRow = {
   createdAt: string;
   academicYear: { label: string };
   stream: { name: string };
+  /** Partner name / guide, or "(By University)" for college-created leads. */
+  admissionAttribution: string;
 };
 
 type AdmissionsDashboardProps = {
@@ -197,6 +199,7 @@ export function AdmissionsDashboard({
                 <th className="px-4 py-3 font-medium">Last name</th>
                 <th className="px-4 py-3 font-medium">Mobile</th>
                 <th className="px-4 py-3 font-medium">Email</th>
+                <th className="px-4 py-3 font-medium">Admission consultant</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Year / stream</th>
                 <th className="px-4 py-3 font-medium">Created</th>
@@ -205,9 +208,9 @@ export function AdmissionsDashboard({
             <tbody>
               {leads.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-14 text-center text-[var(--foreground-muted)]">
-                    No leads match these filters. Use <strong className="text-[var(--foreground)]">Lead punch</strong>{" "}
-                    or <strong className="text-[var(--foreground)]">Add lead</strong> in the sidebar.
+                  <td colSpan={8} className="px-4 py-14 text-center text-[var(--foreground-muted)]">
+                    No leads match these filters. Use <strong className="text-[var(--foreground)]">Lead punch</strong> to
+                    add a lead. Academic years and streams are set up from the Master portal (Universities).
                   </td>
                 </tr>
               ) : (
@@ -217,6 +220,9 @@ export function AdmissionsDashboard({
                     <td className="px-4 py-3 text-[var(--foreground)]">{row.lastName}</td>
                     <td className="px-4 py-3 tabular-nums text-[var(--foreground-muted)]">{row.mobile}</td>
                     <td className="px-4 py-3 text-[var(--foreground-muted)]">{row.email}</td>
+                    <td className="max-w-[14rem] truncate px-4 py-3 text-sm text-[var(--foreground-muted)]" title={row.admissionAttribution}>
+                      {row.admissionAttribution}
+                    </td>
                     <td className="px-4 py-3">
                       <span className="rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">
                         {statusLabel[row.admissionStatus] ?? row.admissionStatus}

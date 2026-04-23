@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canAccessUniversityScope } from "@/lib/university-scope";
+import { isConsultantOnly } from "@/lib/roles";
+import { canAccessUniversityScopeAsync } from "@/lib/university-scope";
 
 const createSchema = z.object({
   label: z.string().min(2).max(32).trim(),
@@ -16,7 +17,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { universityId } = await ctx.params;
-  if (!canAccessUniversityScope(session, universityId)) {
+  if (!(await canAccessUniversityScopeAsync(session, universityId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -32,7 +33,10 @@ export async function POST(req: Request, ctx: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { universityId } = await ctx.params;
-  if (!canAccessUniversityScope(session, universityId)) {
+  if (!(await canAccessUniversityScopeAsync(session, universityId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (isConsultantOnly(session.roles)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

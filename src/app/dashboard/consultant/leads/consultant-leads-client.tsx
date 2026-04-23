@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import * as React from "react";
+import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
 
 type Stream = { id: string; name: string };
 
@@ -21,6 +22,8 @@ type LeadRow = {
   branchName: string | null;
   university: { name: string; code: string };
   stream: { name: string };
+  /** Present only for Manager / Admin / Counsellor / Master API responses. */
+  assignedPartnerDisplayName?: string | null;
 };
 
 type Props = {
@@ -47,9 +50,6 @@ export function ConsultantLeadsClient(props: Props) {
   const [refLn, setRefLn] = React.useState("");
   const [refPhone, setRefPhone] = React.useState("");
   const [refEmail, setRefEmail] = React.useState("");
-
-  const [bulkText, setBulkText] = React.useState("");
-  const [bulkResult, setBulkResult] = React.useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -139,74 +139,9 @@ export function ConsultantLeadsClient(props: Props) {
     }
   }
 
-  async function onBulk(e: React.FormEvent) {
-    e.preventDefault();
-    setBulkResult(null);
-    setError(null);
-    const lines = bulkText
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-    if (lines.length < 2) {
-      setError("Paste CSV with header row and data rows");
-      return;
-    }
-    const header = lines[0]!.toLowerCase().split(",").map((s) => s.trim());
-    const idx = (name: string) => header.indexOf(name);
-    const rowsParsed = lines.slice(1).map((line) => {
-      const cols = line.split(",").map((c) => c.trim());
-      const get = (h: string) => {
-        const i = idx(h);
-        return i >= 0 ? cols[i] ?? "" : "";
-      };
-      return {
-        firstName: get("first name") || get("firstname"),
-        lastName: get("last name") || get("lastname"),
-        email: get("email"),
-        mobile: get("mobile") || get("phone"),
-        academicYearLabel: get("academic year") || get("year") || null,
-        streamName: get("stream") || get("program") || get("course"),
-        nationality: get("nationality") || null,
-        admissionState: get("admission state") || get("state") || get("looking admission in which state"),
-        referralFirstName: get("referral first name") || get("referral firstname") || null,
-        referralLastName: get("referral last name") || get("referral lastname") || null,
-        referralPhone: get("referral phone") || get("referral contact") || null,
-        referralEmail: get("referral email") || null,
-      };
-    });
-    const res = await fetch("/api/consultant/leads/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows: rowsParsed }),
-    });
-    const data = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      created?: number;
-      failed?: number;
-      errors?: { row: number; message: string }[];
-    };
-    if (!res.ok) {
-      setError(data.error ?? "Bulk upload failed");
-      return;
-    }
-    setBulkResult(
-      `Created ${data.created ?? 0}, failed ${data.failed ?? 0}.` +
-        (data.errors?.length
-          ? `\n` + data.errors.map((e) => `Row ${e.row}: ${e.message}`).join("\n")
-          : ""),
-    );
-    await load();
-  }
-
-  function downloadErrorsReport() {
-    if (!bulkResult || !bulkResult.includes("Row")) return;
-    const blob = new Blob([bulkResult], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "bulk-upload-report.txt";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
+  const showAssignedPartnerCol = rows.some((r) =>
+    Object.prototype.hasOwnProperty.call(r, "assignedPartnerDisplayName"),
+  );
 
   function referralSummary(r: LeadRow): string {
     const parts = [r.referralFirstName, r.referralLastName].filter(Boolean);
@@ -217,11 +152,11 @@ export function ConsultantLeadsClient(props: Props) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <nav className="text-sm text-[var(--foreground-muted)]">
-        <Link href="/dashboard/consultant" className="underline-offset-2 hover:underline">
-          Dashboard
+        <Link href="/dashboard/university" className="text-[var(--primary)] underline-offset-2 hover:underline">
+          Universities
         </Link>
         <span className="mx-1.5">/</span>
-        <span className="font-medium text-[var(--foreground)]">Leads</span>
+        <span className="font-medium text-[var(--foreground)]">Partner leads</span>
       </nav>
       <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Leads</h1>
       <p className="mt-1 text-sm text-[var(--foreground-muted)]">
@@ -357,43 +292,12 @@ export function ConsultantLeadsClient(props: Props) {
       </section>
 
       <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
-        <h2 className="text-lg font-semibold text-[var(--foreground)]">Bulk upload (CSV)</h2>
-        <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-          Header:{" "}
-          <code>
-            first name, last name, email, mobile, stream, admission state, nationality, academic year, referral first
-            name, referral last name, referral phone, referral email
-          </code>
-          . Academic year is optional (defaults to the first configured year). Stream and admission state must match
-          your university configuration.
-        </p>
-        <form onSubmit={onBulk} className="mt-4 space-y-3">
-          <textarea
-            value={bulkText}
-            onChange={(e) => setBulkText(e.target.value)}
-            rows={6}
-            className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-mono text-sm"
-            placeholder="Paste CSV here..."
-          />
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="submit"
-              className="rounded-lg bg-[var(--foreground)] px-4 py-2 text-sm font-semibold text-[var(--background)]"
-            >
-              Upload
-            </button>
-            <button
-              type="button"
-              onClick={downloadErrorsReport}
-              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold"
-            >
-              Download error report
-            </button>
-          </div>
-        </form>
-        {bulkResult ? (
-          <pre className="mt-4 whitespace-pre-wrap rounded-lg bg-[var(--muted)]/50 p-3 text-xs">{bulkResult}</pre>
-        ) : null}
+        <ConsultantBulkCsvPanel
+          universityName={props.universityName}
+          universityCode={props.universityCode}
+          streams={props.streams}
+          onSuccess={() => void load()}
+        />
       </section>
 
       <section className="mt-10">
@@ -415,6 +319,7 @@ export function ConsultantLeadsClient(props: Props) {
                   <th className="px-3 py-2">University</th>
                   <th className="px-3 py-2">Course</th>
                   <th className="px-3 py-2">Created</th>
+                  {showAssignedPartnerCol ? <th className="px-3 py-2">Assigned partner</th> : null}
                   <th className="px-3 py-2">Status</th>
                   <th className="px-3 py-2 text-right">Actions</th>
                 </tr>
@@ -436,6 +341,11 @@ export function ConsultantLeadsClient(props: Props) {
                     <td className="px-3 py-2 text-xs text-[var(--foreground-muted)]">
                       {new Date(r.createdAt).toLocaleString()}
                     </td>
+                    {showAssignedPartnerCol ? (
+                      <td className="max-w-[10rem] truncate px-3 py-2 text-xs" title={r.assignedPartnerDisplayName ?? ""}>
+                        {r.assignedPartnerDisplayName ?? "—"}
+                      </td>
+                    ) : null}
                     <td className="px-3 py-2">{r.pipelineStatus}</td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex flex-wrap justify-end gap-2">

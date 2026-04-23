@@ -54,8 +54,12 @@ export async function POST(req: Request) {
 
   const creator = await prisma.user.findUnique({
     where: { id: session.sub },
-    select: { branchName: true },
+    select: { branchName: true, name: true, email: true },
   });
+  const assignedPartnerDisplayName = (creator?.name?.trim() || creator?.email?.trim() || "Admission partner").slice(
+    0,
+    200,
+  );
 
   const [years, streams] = await Promise.all([
     prisma.academicYear.findMany({ where: { universityId } }),
@@ -90,16 +94,24 @@ export async function POST(req: Request) {
       continue;
     }
 
-    const stream = streams.find((s) => s.name.trim() === row.streamName.trim());
+    let streamKey = row.streamName.trim().toLowerCase();
+    /** Common typo from brochures / manual entry — map to B.Tech when that stream exists. */
+    if (streamKey === "ebgineering" || streamKey === "enginering") {
+      const btech = streams.find((s) => /^b\.?\s*tech$/i.test(s.name.trim()));
+      if (btech) streamKey = btech.name.trim().toLowerCase();
+    }
+    const stream = streams.find((s) => s.name.trim().toLowerCase() === streamKey);
     if (!stream) {
-      errors.push({ row: rowNum, message: `Unknown stream/program: ${row.streamName}` });
+      const hint = streams.length ? ` Available: ${streams.map((s) => s.name).join(", ")}.` : "";
+      errors.push({ row: rowNum, message: `Unknown stream/program: "${row.streamName}".${hint}` });
       continue;
     }
 
     let yearId: string | null = null;
     const yLabel = row.academicYearLabel?.trim();
     if (yLabel) {
-      const year = years.find((y) => y.label.trim() === yLabel);
+      const yNorm = yLabel.toLowerCase();
+      const year = years.find((y) => y.label.trim().toLowerCase() === yNorm);
       if (!year) {
         errors.push({ row: rowNum, message: `Unknown academic year: ${yLabel}` });
         continue;
@@ -145,6 +157,7 @@ export async function POST(req: Request) {
           admissionStatus: AdmissionLeadStatus.NEW,
           pipelineStatus: LeadPipelineStatus.NEW,
           nationality: row.nationality ?? null,
+          specialization: "Bulk CSV",
           admissionState: stateTrim,
           referralFirstName: row.referralFirstName?.trim() || null,
           referralLastName: row.referralLastName?.trim() || null,
@@ -152,6 +165,7 @@ export async function POST(req: Request) {
           referralEmail,
           branchName: creator?.branchName?.trim() || null,
           createdByUserId: session.sub,
+          assignedPartnerDisplayName,
         },
       });
       created += 1;

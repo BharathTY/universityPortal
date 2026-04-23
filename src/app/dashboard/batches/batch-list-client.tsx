@@ -53,7 +53,7 @@ export function BatchListClient({ batches }: { batches: BatchListItem[] }) {
         {filtered.map((b) => (
           <li key={b.id}>
             <Link
-              href={`/dashboard/batches/${b.id}/leads`}
+              href={`/dashboard/batches/${b.id}`}
               className="block h-full rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm transition hover:border-[var(--primary)]/40 hover:shadow-md"
             >
               <h2 className="text-lg font-semibold text-[var(--foreground)]">{b.title}</h2>

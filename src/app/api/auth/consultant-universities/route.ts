@@ -22,7 +22,7 @@ export async function GET() {
   const universities = await prisma.university.findMany({
     where: { id: { in: ids } },
     orderBy: { name: "asc" },
-    select: { id: true, name: true, code: true },
+    select: { id: true, name: true, code: true, logoUrl: true },
   });
 
   return NextResponse.json({

@@ -46,6 +46,20 @@ export function isStudent(roles: string[]): boolean {
   return roles.includes(ROLES.student);
 }
 
+/**
+ * Whether internal UIs may show the assigned admission partner name on a lead
+ * (Lead Punch snapshot). Never use for student-facing APIs or pages.
+ * Intended for Manager (`consultant_master`), `admin`, `counsellor`, and `master` oversight.
+ */
+export function canSeeAdmissionLeadAssignedPartnerName(roles: string[]): boolean {
+  return (
+    roles.includes(ROLES.admin) ||
+    roles.includes(ROLES.master) ||
+    roles.includes(ROLES.counsellor) ||
+    roles.includes(ROLES.consultantMaster)
+  );
+}
+
 /** Consultants & university staff & master can open lead/batch tools */
 export function canAccessLeadsAndBatches(roles: string[]): boolean {
   return isMaster(roles) || isUniversity(roles) || isConsultant(roles);

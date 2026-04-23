@@ -6,6 +6,7 @@ import { isAdmissionLeadRoleSlug } from "@/lib/admission-lead-role";
 import { resolveAcademicYearIdForLead } from "@/lib/consultant-default-year";
 import { consultantCodeFromUserId } from "@/lib/consultant-code";
 import { requireConsultantUniversity } from "@/lib/consultant-api";
+import { canSeeAdmissionLeadAssignedPartnerName } from "@/lib/roles";
 
 const createSchema = z.object({
   academicYearId: z.string().min(1).optional(),
@@ -57,8 +58,13 @@ export async function GET(req: Request) {
     }),
   ]);
 
+  const canSeePartner = canSeeAdmissionLeadAssignedPartnerName(session.roles);
+  const leadsOut = canSeePartner
+    ? leads
+    : leads.map(({ assignedPartnerDisplayName: _a, ...rest }) => rest);
+
   return NextResponse.json({
-    leads,
+    leads: leadsOut,
     total,
     page,
     pageSize,
@@ -128,6 +134,11 @@ export async function POST(req: Request) {
     referralEmail = refE.toLowerCase();
   }
 
+  const assignedPartnerDisplayName = (creator?.name?.trim() || creator?.email?.trim() || "Admission partner").slice(
+    0,
+    200,
+  );
+
   const lead = await prisma.admissionLead.create({
     data: {
       universityId,
@@ -149,6 +160,7 @@ export async function POST(req: Request) {
       referralEmail,
       branchName: creator?.branchName?.trim() || null,
       createdByUserId: session.sub,
+      assignedPartnerDisplayName,
     },
   });
 
