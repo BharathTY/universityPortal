@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { getDashboardSnapshot } from "@/lib/dashboard-data";
+import { PortalWorkflowMap } from "@/components/portal-workflow-map";
 import {
   canAccessLeadsAndBatches,
   isConsultantOnly,
@@ -35,6 +36,12 @@ export default async function DashboardPage() {
   const masterView = isMaster(session.roles) && !isStudent(session.roles);
   const consultantTeam = isConsultantOnly(session.roles);
   const universityStaff = isUniversity(session.roles) && !isMaster(session.roles);
+
+  const staffWorkflowKind =
+    masterView ? ("master" as const)
+    : universityStaff && session.universityId ? ("university" as const)
+    : consultantTeam ? ("consultant" as const)
+    : null;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
@@ -80,6 +87,18 @@ export default async function DashboardPage() {
         </p>
       ) : null}
 
+      {isStudent(session.roles) && !isMaster(session.roles) && data.studentPortalJourney ? (
+        <div className="mt-8">
+          <PortalWorkflowMap mode="student" journey={data.studentPortalJourney} />
+        </div>
+      ) : null}
+
+      {!isStudent(session.roles) && staffWorkflowKind ? (
+        <div className="mt-8">
+          <PortalWorkflowMap mode="staff" staffKind={staffWorkflowKind} />
+        </div>
+      ) : null}
+
       {isStudent(session.roles) && !isMaster(session.roles) && data.studentSelf ? (
         <div className="mt-8 flex min-h-[min(70vh,40rem)] flex-col space-y-6">
           {data.studentSelf.universityLogoUrl ? (
@@ -89,6 +108,7 @@ export default async function DashboardPage() {
               </p>
               <div className="mt-4 flex justify-center sm:justify-start">
                 {/* Arbitrary HTTPS logo URLs from master admin — avoid next/image remote config */}
+                {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary remote logo URLs */}
                 <img
                   src={data.studentSelf.universityLogoUrl}
                   alt={data.studentSelf.universityName ?? "University logo"}

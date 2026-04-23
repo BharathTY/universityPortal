@@ -7,6 +7,7 @@ import { resolveAcademicYearIdWithPrisma } from "../src/lib/consultant-default-y
 import { isAdmissionLeadRoleSlug } from "../src/lib/admission-lead-role";
 import { ADMISSION_PARTNER_ROLE_SLUGS } from "../src/lib/admission-partner-slugs";
 import { buildDashboardNav, isNavActive } from "../src/components/dashboard-nav-config";
+import { verifyAppRoutes } from "./verify-app-routes";
 import {
   ROLES,
   canAccessLeadsAndBatches,
@@ -235,6 +236,11 @@ async function main() {
     const items = nav[0]?.items ?? [];
     assert.ok(items.some((i) => i.href === "/dashboard"));
     assert.ok(items.some((i) => i.href === "/dashboard/student/application"));
+  });
+
+  section("App routes & nav links");
+  await test("filesystem routes cover dashboard nav and critical pages", () => {
+    verifyAppRoutes();
   });
 
   section("Role combinations (edge)");

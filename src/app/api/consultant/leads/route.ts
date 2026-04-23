@@ -61,7 +61,11 @@ export async function GET(req: Request) {
   const canSeePartner = canSeeAdmissionLeadAssignedPartnerName(session.roles);
   const leadsOut = canSeePartner
     ? leads
-    : leads.map(({ assignedPartnerDisplayName: _a, ...rest }) => rest);
+    : leads.map((row) => {
+        const { assignedPartnerDisplayName, ...rest } = row;
+        void assignedPartnerDisplayName;
+        return rest;
+      });
 
   return NextResponse.json({
     leads: leadsOut,

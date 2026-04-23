@@ -180,6 +180,8 @@ export function LeadsView({
             </p>
             <div className="mt-6 flex flex-col items-center gap-4">
               {qrDataUrl ? (
+                // Data URL — next/image is not used for inline QR bitmaps.
+                // eslint-disable-next-line @next/next/no-img-element -- data: URL from qrcode package
                 <img src={qrDataUrl} width={220} height={220} className="rounded-lg border border-[var(--border)]" alt="" />
               ) : (
                 <div className="flex h-[220px] w-[220px] items-center justify-center rounded-lg border border-dashed border-[var(--border)] text-sm text-[var(--foreground-muted)]">

@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { ApplicationPaymentStatus, Prisma } from "@prisma/client";
 import type { SessionPayload } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ADMISSION_PARTNER_ROLE_SLUGS } from "@/lib/admission-partner-slugs";
@@ -33,6 +33,15 @@ export type MasterUniversityRow = {
   studentCount: number;
 };
 
+/** Serializable student progress for the portal journey map on the dashboard. */
+export type StudentPortalJourney = {
+  pendingInvite: boolean;
+  hasApplication: boolean;
+  registrationPaid: boolean;
+  programPaid: boolean;
+  visitsScheduled: boolean;
+};
+
 export type DashboardSnapshot = {
   greetingName: string;
   email: string;
@@ -44,11 +53,61 @@ export type DashboardSnapshot = {
     universityName: string | null;
     universityLogoUrl: string | null;
   };
+  /** Populated for signed-in students — drives the live journey rail. */
+  studentPortalJourney?: StudentPortalJourney | null;
   setupMessage: string | null;
   /** Master role: per-university breakdown */
   masterUniversities?: MasterUniversityRow[];
   totalConsultants?: number;
 };
+
+/**
+ * Reads application payment + visit fields without using `findFirst({ select: … })` on `Application`.
+ * Stale `prisma generate` (e.g. Windows EPERM) can leave a client that rejects newer fields; raw SQL still works
+ * once the DB has the columns. If the DB is older, we fall back to `paymentStatus` only.
+ */
+async function fetchStudentApplicationJourney(userId: string): Promise<{
+  hasApplication: boolean;
+  paymentStatus: ApplicationPaymentStatus | null;
+  admissionVisitAt: Date | null;
+  campusTourAt: Date | null;
+}> {
+  try {
+    const rows = await prisma.$queryRaw<
+      Array<{
+        paymentStatus: ApplicationPaymentStatus;
+        admissionVisitAt: Date | null;
+        campusTourAt: Date | null;
+      }>
+    >(
+      Prisma.sql`SELECT "paymentStatus", "admissionVisitAt", "campusTourAt" FROM "Application" WHERE "userId" = ${userId} LIMIT 1`,
+    );
+    const row = rows[0];
+    if (!row) {
+      return { hasApplication: false, paymentStatus: null, admissionVisitAt: null, campusTourAt: null };
+    }
+    return {
+      hasApplication: true,
+      paymentStatus: row.paymentStatus,
+      admissionVisitAt: row.admissionVisitAt,
+      campusTourAt: row.campusTourAt,
+    };
+  } catch {
+    const app = await prisma.application.findFirst({
+      where: { userId },
+      select: { paymentStatus: true },
+    });
+    if (!app) {
+      return { hasApplication: false, paymentStatus: null, admissionVisitAt: null, campusTourAt: null };
+    }
+    return {
+      hasApplication: true,
+      paymentStatus: app.paymentStatus,
+      admissionVisitAt: null,
+      campusTourAt: null,
+    };
+  }
+}
 
 function buildStudentWhere(session: SessionPayload): Prisma.UserWhereInput {
   const where: Prisma.UserWhereInput = {
@@ -89,6 +148,15 @@ export async function getDashboardSnapshot(session: SessionPayload): Promise<Das
     const university = me?.university ?? null;
 
     if (isStudent(session.roles) && !isMaster(session.roles)) {
+      const application = await fetchStudentApplicationJourney(session.sub);
+      const ps = application.paymentStatus;
+      const registrationPaid =
+        ps === ApplicationPaymentStatus.REGISTRATION_PAID ||
+        ps === ApplicationPaymentStatus.PROGRAM_PENDING ||
+        ps === ApplicationPaymentStatus.PROGRAM_PAID;
+      const programPaid = ps === ApplicationPaymentStatus.PROGRAM_PAID;
+      const visitsScheduled = Boolean(application.admissionVisitAt && application.campusTourAt);
+
       return {
         ...empty,
         greetingName,
@@ -109,6 +177,13 @@ export async function getDashboardSnapshot(session: SessionPayload): Promise<Das
           pendingInvite: Boolean(me?.inviteToken),
           universityName: university?.name ?? null,
           universityLogoUrl: university?.logoUrl ?? null,
+        },
+        studentPortalJourney: {
+          pendingInvite: Boolean(me?.inviteToken),
+          hasApplication: application.hasApplication,
+          registrationPaid,
+          programPaid,
+          visitsScheduled,
         },
       };
     }

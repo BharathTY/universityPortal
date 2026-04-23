@@ -8,6 +8,7 @@
     "start": "next start -p 7777",
     "lint": "eslint",
     "test": "tsx tests/run-tests.ts",
+    "verify": "npx tsc --noEmit && eslint --max-warnings 0 && tsx tests/run-tests.ts && next build",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",

@@ -73,7 +73,6 @@ export function AdmissionsDashboard({
   leads,
   total,
   page,
-  pageSize,
   totalPages,
   selectedYearId,
   selectedStreamId,

@@ -220,10 +220,10 @@ async function main() {
   await prisma.academicYear.deleteMany({});
   await prisma.stream.deleteMany({});
 
-  const year2024 = await prisma.academicYear.create({
+  await prisma.academicYear.create({
     data: { universityId: uni1.id, label: "2024", sortOrder: 0 },
   });
-  const year2025 = await prisma.academicYear.create({
+  await prisma.academicYear.create({
     data: { universityId: uni1.id, label: "2025", sortOrder: 1 },
   });
   const year2026 = await prisma.academicYear.create({
@@ -233,16 +233,16 @@ async function main() {
   const streamBtech = await prisma.stream.create({
     data: { universityId: uni1.id, name: "B.Tech", sortOrder: 0 },
   });
-  const streamBca = await prisma.stream.create({
+  await prisma.stream.create({
     data: { universityId: uni1.id, name: "BCA", sortOrder: 1 },
   });
-  const streamMca = await prisma.stream.create({
+  await prisma.stream.create({
     data: { universityId: uni1.id, name: "MCA", sortOrder: 2 },
   });
   const streamMba = await prisma.stream.create({
     data: { universityId: uni1.id, name: "MBA", sortOrder: 3 },
   });
-  const streamMtech = await prisma.stream.create({
+  await prisma.stream.create({
     data: { universityId: uni1.id, name: "M.Tech", sortOrder: 4 },
   });
 

@@ -119,6 +119,7 @@ export function ConsultantInPageUniversitySection({ roles, variant }: Props) {
               <div className="flex items-start gap-3">
                 {u.logoUrl ? (
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--muted)]/30 p-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary remote logo URLs */}
                     <img src={u.logoUrl} alt={`${u.name} logo`} className="max-h-full max-w-full object-contain" />
                   </span>
                 ) : (

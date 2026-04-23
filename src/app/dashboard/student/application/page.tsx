@@ -225,7 +225,7 @@ export default function StudentApplicationPage() {
         return;
       }
 
-      await new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve) => {
         const rzp = new window.Razorpay!({
           key: orderData.keyId,
           amount: orderData.amount,
