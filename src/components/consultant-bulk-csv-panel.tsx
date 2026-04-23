@@ -8,6 +8,8 @@ type Props = {
   universityName: string;
   universityCode: string;
   streams: BulkCsvStream[];
+  /** When set, leads are created against this batch (batch leads page). */
+  batchId?: string;
   /** Called after a successful bulk API response (e.g. refresh parent list). */
   onSuccess?: () => void | Promise<void>;
   /** When false, skip the section title (e.g. modal supplies its own heading). */
@@ -79,7 +81,10 @@ export function ConsultantBulkCsvPanel(props: Props) {
     const res = await fetch("/api/consultant/leads/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows: rowsParsed }),
+      body: JSON.stringify({
+        rows: rowsParsed,
+        ...(props.batchId ? { batchId: props.batchId } : {}),
+      }),
     });
     const data = (await res.json().catch(() => ({}))) as {
       error?: string;

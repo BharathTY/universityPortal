@@ -55,27 +55,34 @@ export async function loadBatchLeadsViewModel(batchId: string, session: SessionP
 
   const token = await ensureBatchLeadPunchToken(batch.id);
 
-  let bulkConsultant: BatchLeadsBulkConsultant | null = null;
+  /** University used for bulk CSV (streams / API) — partner active uni, org staff JWT, or batch owner’s org for master. */
+  let bulkUniversityId: string | null = null;
   if (isConsultant(session.roles)) {
-    const { universityId } = await resolveConsultantActiveUniversityId(session);
-    if (universityId) {
-      const [university, streams] = await Promise.all([
-        prisma.university.findUnique({
-          where: { id: universityId },
-          select: { name: true, code: true },
-        }),
-        prisma.stream.findMany({
-          where: { universityId },
-          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-          select: { id: true, name: true },
-        }),
-      ]);
-      bulkConsultant = {
-        universityName: university?.name ?? "University",
-        universityCode: university?.code ?? "",
-        streams,
-      };
-    }
+    bulkUniversityId = (await resolveConsultantActiveUniversityId(session)).universityId;
+  } else if (isUniversity(session.roles) && session.universityId) {
+    bulkUniversityId = session.universityId;
+  } else if (isMaster(session.roles) && batch.owner?.universityId) {
+    bulkUniversityId = batch.owner.universityId;
+  }
+
+  let bulkConsultant: BatchLeadsBulkConsultant | null = null;
+  if (bulkUniversityId) {
+    const [university, streams] = await Promise.all([
+      prisma.university.findUnique({
+        where: { id: bulkUniversityId },
+        select: { name: true, code: true },
+      }),
+      prisma.stream.findMany({
+        where: { universityId: bulkUniversityId },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: { id: true, name: true },
+      }),
+    ]);
+    bulkConsultant = {
+      universityName: university?.name ?? "University",
+      universityCode: university?.code ?? "",
+      streams,
+    };
   }
 
   const canSeePartner = canSeeAdmissionLeadAssignedPartnerName(session.roles);

@@ -16,6 +16,7 @@ export default async function BatchDetailPage(props: PageProps) {
 
   return (
     <LeadsView
+      batchId={vm.batch.id}
       batchTitle={vm.batch.title}
       batchCode={vm.batch.code}
       referralFormPath={vm.referralFormPath}

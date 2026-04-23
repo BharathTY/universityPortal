@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import QRCode from "qrcode";
 import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
@@ -9,6 +10,7 @@ import type { BatchLeadListRow, BatchLeadsBulkConsultant } from "@/lib/batch-lea
 export type { BatchLeadListRow, BatchLeadsBulkConsultant };
 
 type LeadsViewProps = {
+  batchId: string;
   batchTitle: string;
   batchCode: string;
   /** Public path without origin, e.g. `/ref/abc…` — used for brochure QR and Lead Punch. */
@@ -36,6 +38,7 @@ function formatLeadWhen(iso: string) {
 }
 
 export function LeadsView({
+  batchId,
   batchTitle,
   batchCode,
   referralFormPath,
@@ -43,6 +46,7 @@ export function LeadsView({
   leads = [],
   showAssignedPartnerColumn = false,
 }: LeadsViewProps) {
+  const router = useRouter();
   const [punchOpen, setPunchOpen] = React.useState(false);
   const [bulkOpen, setBulkOpen] = React.useState(false);
   const [qrDataUrl, setQrDataUrl] = React.useState<string | null>(null);
@@ -111,7 +115,7 @@ export function LeadsView({
             title={
               bulkConsultant
                 ? undefined
-                : "Bulk CSV is available when you are signed in as an admission partner with a linked university."
+                : "Bulk CSV needs a linked organisation: sign in as university staff, an admission partner with a university, or open a batch whose owner belongs to your org."
             }
             onClick={() => bulkConsultant && setBulkOpen(true)}
             className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--accent-blue-hover)] disabled:cursor-not-allowed disabled:opacity-50"
@@ -145,10 +149,12 @@ export function LeadsView({
             </p>
             <div className="mt-4">
               <ConsultantBulkCsvPanel
+                batchId={batchId}
                 universityName={bulkConsultant.universityName}
                 universityCode={bulkConsultant.universityCode}
                 streams={bulkConsultant.streams}
                 showTitle={false}
+                onSuccess={() => router.refresh()}
               />
             </div>
             <button

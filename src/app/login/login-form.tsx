@@ -6,6 +6,20 @@ import { useRouter } from "next/navigation";
 const REMEMBER_KEY = "qsp_auth_remember";
 const EMAIL_KEY = "qsp_auth_email";
 
+/** Seed accounts from `prisma/seed.ts` — database must be seeded. */
+const DEMO_ACCOUNTS = [
+  { label: "Master admin", email: "master@university.local" },
+  { label: "Admin", email: "admin@university.local" },
+  { label: "University staff", email: "university@university.local" },
+  { label: "Consultant", email: "consultant@university.local" },
+  { label: "Counsellor", email: "counsellor@university.local" },
+  { label: "Qspiders branch", email: "branch@university.local" },
+  { label: "Student (demo)", email: "student@university.local" },
+] as const;
+
+const showDemoLogins =
+  process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_SHOW_DEMO_LOGINS === "true";
+
 function MailIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -54,12 +68,27 @@ export function LoginForm() {
     }
   }, []);
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
+  function persistRememberChoice(normalized: string) {
     try {
-      const normalized = email.trim().toLowerCase();
+      if (remember) {
+        localStorage.setItem(REMEMBER_KEY, "1");
+        localStorage.setItem(EMAIL_KEY, normalized);
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
+        localStorage.removeItem(EMAIL_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** Request OTP; when the API returns a code (dev / SHOW_OTP_ON_SCREEN), verify immediately and go to dashboard. */
+  async function quickSignIn(targetEmail: string) {
+    setError(null);
+    setEmail(targetEmail);
+    setLoading(true);
+    const normalized = targetEmail.trim().toLowerCase();
+    try {
       const res = await fetch("/api/auth/request-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -70,17 +99,35 @@ export function LoginForm() {
         setError(data.error || "Something went wrong");
         return;
       }
-      try {
-        if (remember) {
-          localStorage.setItem(REMEMBER_KEY, "1");
-          localStorage.setItem(EMAIL_KEY, normalized);
-        } else {
-          localStorage.removeItem(REMEMBER_KEY);
-          localStorage.removeItem(EMAIL_KEY);
+      persistRememberChoice(normalized);
+
+      if (data.otp && /^\d{6}$/.test(data.otp)) {
+        try {
+          sessionStorage.setItem(`otpPreview:${normalized}`, data.otp);
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* ignore */
+        const verifyRes = await fetch("/api/auth/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: normalized, code: data.otp }),
+          credentials: "same-origin",
+        });
+        const verifyData = (await verifyRes.json().catch(() => ({}))) as { error?: string };
+        if (!verifyRes.ok) {
+          setError(verifyData.error || "Sign-in failed");
+          return;
+        }
+        try {
+          sessionStorage.removeItem(`otpPreview:${normalized}`);
+        } catch {
+          /* ignore */
+        }
+        router.push("/dashboard");
+        router.refresh();
+        return;
       }
+
       if (data.otp && typeof window !== "undefined") {
         try {
           sessionStorage.setItem(`otpPreview:${normalized}`, data.otp);
@@ -92,6 +139,11 @@ export function LoginForm() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    await quickSignIn(email);
   }
 
   return (
@@ -135,6 +187,33 @@ export function LoginForm() {
           Can&apos;t access email?
         </a>
       </div>
+
+      {showDemoLogins ? (
+        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/90 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Demo logins</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Click an account to fill the email and continue. In development the one-time code is returned by the
+            server, so you are signed in in one step after the seed has been run (
+            <code className="rounded bg-slate-200/80 px-1 text-[0.7rem]">npm run db:seed</code>
+            ).
+          </p>
+          <ul className="mt-3 max-h-52 space-y-1.5 overflow-y-auto pr-0.5 sm:max-h-none">
+            {DEMO_ACCOUNTS.map((a) => (
+              <li key={a.email}>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => void quickSignIn(a.email)}
+                  className="flex w-full flex-col items-stretch gap-0.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm shadow-sm transition hover:border-[#1e6fe6] hover:bg-blue-50/60 disabled:opacity-50 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                >
+                  <span className="font-medium text-slate-800">{a.label}</span>
+                  <span className="break-all font-mono text-xs text-slate-600">{a.email}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <button
         type="submit"
