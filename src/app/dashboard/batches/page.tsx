@@ -3,7 +3,7 @@ import { BatchListClient, type BatchListItem } from "@/app/dashboard/batches/bat
 import { ConsultantInPageUniversitySection } from "@/components/consultant-in-page-university-section";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isConsultantOnly, isMaster } from "@/lib/roles";
+import { isConsultantOnly, isMaster, isUniversity } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +14,15 @@ export default async function ManageBatchesPage() {
 
   try {
     const consultantOwnBatches = !isMaster(session.roles) && isConsultantOnly(session.roles);
+    const universityScoped =
+      !isMaster(session.roles) && isUniversity(session.roles) && Boolean(session.universityId);
+
     const rows = await prisma.batch.findMany({
-      ...(consultantOwnBatches ? { where: { ownerId: session.sub } } : {}),
+      ...(consultantOwnBatches
+        ? { where: { ownerId: session.sub } }
+        : universityScoped
+          ? { where: { owner: { universityId: session.universityId } } }
+        : {}),
       orderBy: { batchStartDate: "desc" },
       include: { owner: { select: { email: true } } },
     });

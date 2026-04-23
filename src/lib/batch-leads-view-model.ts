@@ -1,8 +1,14 @@
+import { Prisma } from "@prisma/client";
 import type { SessionPayload } from "@/lib/auth";
 import { ensureBatchLeadPunchToken } from "@/lib/batch-lead-punch-token";
 import { resolveConsultantActiveUniversityId } from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
-import { canSeeAdmissionLeadAssignedPartnerName, isConsultant, isMaster } from "@/lib/roles";
+import {
+  canSeeAdmissionLeadAssignedPartnerName,
+  isConsultant,
+  isMaster,
+  isUniversity,
+} from "@/lib/roles";
 
 export type BatchLeadsBulkConsultant = {
   universityName: string;
@@ -26,10 +32,24 @@ export type BatchLeadListRow = {
 export async function loadBatchLeadsViewModel(batchId: string, session: SessionPayload) {
   const batch = await prisma.batch.findUnique({
     where: { id: batchId },
-    select: { id: true, title: true, code: true, ownerId: true },
+    select: {
+      id: true,
+      title: true,
+      code: true,
+      ownerId: true,
+      owner: { select: { universityId: true } },
+    },
   });
   if (!batch) return { kind: "not-found" as const };
-  if (!isMaster(session.roles) && batch.ownerId !== session.sub) {
+
+  const isOwner = batch.ownerId === session.sub;
+  const sameOrgUniversityStaff =
+    isUniversity(session.roles) &&
+    !isMaster(session.roles) &&
+    Boolean(session.universityId) &&
+    batch.owner?.universityId === session.universityId;
+
+  if (!isMaster(session.roles) && !isOwner && !sameOrgUniversityStaff) {
     return { kind: "forbidden" as const };
   }
 
@@ -59,22 +79,32 @@ export async function loadBatchLeadsViewModel(batchId: string, session: SessionP
   }
 
   const canSeePartner = canSeeAdmissionLeadAssignedPartnerName(session.roles);
-  const leadsRaw = await prisma.admissionLead.findMany({
-    where: { batchId: batch.id },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      mobile: true,
-      admissionState: true,
-      pipelineStatus: true,
-      createdAt: true,
-      assignedPartnerDisplayName: true,
-    },
-  });
+
+  /** Raw SQL avoids PrismaClientValidationError when the generated client is stale vs `schema.prisma` (e.g. Windows EPERM on `prisma generate`). */
+  let leadsRaw: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    mobile: string;
+    admissionState: string | null;
+    pipelineStatus: string;
+    createdAt: Date;
+    assignedPartnerDisplayName: string | null;
+  }>;
+  try {
+    leadsRaw = await prisma.$queryRaw(
+      Prisma.sql`
+        SELECT "id", "firstName", "lastName", "email", "mobile", "admissionState", "pipelineStatus", "createdAt", "assignedPartnerDisplayName"
+        FROM "AdmissionLead"
+        WHERE "batchId" = ${batch.id}
+        ORDER BY "createdAt" DESC
+        LIMIT 200
+      `,
+    );
+  } catch {
+    leadsRaw = [];
+  }
 
   const leads: BatchLeadListRow[] = leadsRaw.map((l) => ({
     id: l.id,

@@ -1,11 +1,14 @@
 "use client";
 
-import * as React from "react";
-import { ThemeProvider as NextThemesProvider } from "next-themes";
+import { ClientThemeProvider } from "@wrksz/themes/client";
 
+/**
+ * @wrksz/themes avoids the React 19 warning from next-themes, which inlined a
+ * `<script>` inside a client component (scripts in the React tree are flagged in dev).
+ */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (
-    <NextThemesProvider
+    <ClientThemeProvider
       attribute="class"
       defaultTheme="system"
       enableSystem
@@ -13,6 +16,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       enableColorScheme={false}
     >
       {children}
-    </NextThemesProvider>
+    </ClientThemeProvider>
   );
 }
