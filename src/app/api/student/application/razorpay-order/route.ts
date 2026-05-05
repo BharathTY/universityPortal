@@ -5,9 +5,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isStudent } from "@/lib/roles";
 import { getRazorpayKeyIdPublic, isRazorpayConfigured, razorpayCreateOrder } from "@/lib/razorpay-server";
-
-const REGISTRATION_PAISE = 2500 * 100;
-const PROGRAM_PAISE = 50_000 * 100;
+import { PROGRAM_PAISE, registrationPaiseForPath, type StudentAdmissionPath } from "@/lib/student-application-fees";
 
 const bodySchema = z.object({
   applicationId: z.string().min(1),
@@ -47,7 +45,7 @@ export async function POST(req: Request) {
 
   const app = await prisma.application.findFirst({
     where: { id: parsed.data.applicationId, userId: session.sub },
-    select: { id: true, paymentStatus: true },
+    select: { id: true, paymentStatus: true, admissionPath: true },
   });
   if (!app) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 });
@@ -60,16 +58,26 @@ export async function POST(req: Request) {
     app.paymentStatus === ApplicationPaymentStatus.REGISTRATION_PAID ||
     app.paymentStatus === ApplicationPaymentStatus.PROGRAM_PENDING;
 
-  if ((parsed.data.kind === "registration" || parsed.data.kind === "custom") && !canPayRegistration) {
-    return NextResponse.json({ error: "Registration or custom fee is already recorded" }, { status: 409 });
+  if (parsed.data.kind === "registration" && !canPayRegistration) {
+    return NextResponse.json({ error: "Registration is already recorded" }, { status: 409 });
+  }
+  if (parsed.data.kind === "custom" && !canPayRegistration) {
+    return NextResponse.json({ error: "Custom registration payment is already recorded" }, { status: 409 });
   }
   if (parsed.data.kind === "program" && !canPayProgram) {
     return NextResponse.json({ error: "Program fee is not available yet or already paid" }, { status: 409 });
   }
 
+  if (parsed.data.kind === "registration" && !app.admissionPath) {
+    return NextResponse.json(
+      { error: "Choose national exam or direct admission before paying the registration fee." },
+      { status: 400 },
+    );
+  }
+
   let amountPaise: number;
   if (parsed.data.kind === "registration") {
-    amountPaise = REGISTRATION_PAISE;
+    amountPaise = registrationPaiseForPath(app.admissionPath as StudentAdmissionPath | null);
   } else if (parsed.data.kind === "program") {
     amountPaise = PROGRAM_PAISE;
   } else {

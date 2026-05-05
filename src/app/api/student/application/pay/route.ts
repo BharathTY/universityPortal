@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { sendPaymentSuccessEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { isStudent } from "@/lib/roles";
+import { registrationPaiseForPath, type StudentAdmissionPath } from "@/lib/student-application-fees";
 
 const bodySchema = z.object({
   applicationId: z.string().min(1),
@@ -40,10 +41,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 });
   }
 
-  const registrationFee = 2500;
   const programFee = 50000;
 
   if (parsed.data.step === "registration") {
+    if (
+      app.paymentStatus !== ApplicationPaymentStatus.NONE &&
+      app.paymentStatus !== ApplicationPaymentStatus.REGISTRATION_PENDING
+    ) {
+      return NextResponse.json({ error: "Registration fee already recorded" }, { status: 409 });
+    }
+    if (!app.admissionPath) {
+      return NextResponse.json(
+        { error: "Choose national exam or direct admission before paying the registration fee." },
+        { status: 400 },
+      );
+    }
+    const registrationFee = registrationPaiseForPath(app.admissionPath as StudentAdmissionPath) / 100;
     const updated = await prisma.application.update({
       where: { id: app.id },
       data: {
@@ -62,6 +75,16 @@ export async function POST(req: Request) {
       console.error("sendPaymentSuccessEmail", e);
     }
     return NextResponse.json({ ok: true, application: updated, mock: { charged: registrationFee } });
+  }
+
+  if (app.paymentStatus === ApplicationPaymentStatus.PROGRAM_PAID) {
+    return NextResponse.json({ error: "Program fee already paid" }, { status: 409 });
+  }
+  if (
+    app.paymentStatus !== ApplicationPaymentStatus.REGISTRATION_PAID &&
+    app.paymentStatus !== ApplicationPaymentStatus.PROGRAM_PENDING
+  ) {
+    return NextResponse.json({ error: "Pay registration fee before program fee" }, { status: 400 });
   }
 
   const updated = await prisma.application.update({

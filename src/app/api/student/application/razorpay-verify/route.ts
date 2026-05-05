@@ -6,9 +6,7 @@ import { sendPaymentSuccessEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { isStudent } from "@/lib/roles";
 import { razorpayFetchPayment, razorpayVerifyPaymentSignature } from "@/lib/razorpay-server";
-
-const REGISTRATION_PAISE = 2500 * 100;
-const PROGRAM_PAISE = 50_000 * 100;
+import { PROGRAM_PAISE, registrationPaiseForPath, type StudentAdmissionPath } from "@/lib/student-application-fees";
 
 const bodySchema = z.object({
   applicationId: z.string().min(1),
@@ -73,7 +71,8 @@ export async function POST(req: Request) {
 
   let amountOk = false;
   if (parsed.data.kind === "registration") {
-    amountOk = pay.amount === REGISTRATION_PAISE;
+    const expected = registrationPaiseForPath(app.admissionPath as StudentAdmissionPath | null);
+    amountOk = pay.amount === expected;
   } else if (parsed.data.kind === "program") {
     amountOk = pay.amount === PROGRAM_PAISE;
   } else {

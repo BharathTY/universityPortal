@@ -231,6 +231,12 @@ enum ApplicationStatus {
   COMPLETED
 }
 
+/// Student-selected admission route (sets registration fee tier).
+enum ApplicationAdmissionPath {
+  NATIONAL_EXAM
+  DIRECT_ADMISSION
+}
+
 model Application {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -252,6 +258,14 @@ model Application {
 
   paymentStatus   ApplicationPaymentStatus @default(NONE)
   admissionReview AdmissionReviewStatus @default(PENDING)
+
+  /// National-entrance vs direct-application path; required before standard registration checkout.
+  admissionPath ApplicationAdmissionPath?
+
+  /// Admission visit date as entered (DD/MM/YYYY), with slot and address (see `admissionVisitAt` derived).
+  admissionVisitDateText  String?
+  admissionVisitTimeSlot  String?
+  admissionVisitAddress   String?
 
   /// Scheduled admission counselling / office visit (student-selected).
   admissionVisitAt DateTime?

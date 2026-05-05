@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import type { StudentAdmissionPath } from "@/lib/student-application-fees";
+import { registrationRupeesForPath } from "@/lib/student-application-fees";
 
 type LeadPayload = {
   firstName: string;
@@ -23,6 +25,10 @@ type AppData = {
   status: string;
   paymentStatus: string;
   admissionReview: string;
+  admissionPath: string | null;
+  admissionVisitDateText: string | null;
+  admissionVisitTimeSlot: string | null;
+  admissionVisitAddress: string | null;
   admissionVisitAt: string | null;
   campusTourAt: string | null;
   razorpayConfigured?: boolean;
@@ -37,6 +43,17 @@ function isoToDatetimeLocalValue(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function isoToVisitParts(iso: string | null): { dateText: string; slot: "AM" | "PM" | "" } {
+  if (!iso) return { dateText: "", slot: "" };
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { dateText: "", slot: "" };
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const dateText = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  const h = d.getHours();
+  const slot: "AM" | "PM" = h < 12 ? "AM" : "PM";
+  return { dateText, slot };
 }
 
 declare global {
@@ -76,7 +93,9 @@ export default function StudentApplicationPage() {
   const [refPhone, setRefPhone] = React.useState("");
   const [refEmail, setRefEmail] = React.useState("");
 
-  const [visitAdmission, setVisitAdmission] = React.useState("");
+  const [visitDateText, setVisitDateText] = React.useState("");
+  const [visitSlot, setVisitSlot] = React.useState<"" | "AM" | "PM">("");
+  const [visitAddress, setVisitAddress] = React.useState("");
   const [visitTour, setVisitTour] = React.useState("");
 
   const [payBusy, setPayBusy] = React.useState(false);
@@ -108,6 +127,14 @@ export default function StudentApplicationPage() {
   }, []);
 
   React.useEffect(() => {
+    if (!app) return;
+    if (app.paymentStatus === "PROGRAM_PAID") {
+      const hasVisits = Boolean(app.admissionVisitAt && app.campusTourAt);
+      setStep((s) => (s <= 2 ? (hasVisits ? 4 : 3) : s));
+    }
+  }, [app?.id, app?.paymentStatus, app?.admissionVisitAt, app?.campusTourAt]);
+
+  React.useEffect(() => {
     if (!app?.user) return;
     const name = app.user.name?.trim() ?? "";
     const parts = name.split(/\s+/).filter(Boolean);
@@ -122,13 +149,20 @@ export default function StudentApplicationPage() {
     setRefLn(L?.referralLastName ?? "");
     setRefPhone(L?.referralPhone ?? "");
     setRefEmail(L?.referralEmail ?? "");
-    setVisitAdmission(isoToDatetimeLocalValue(app.admissionVisitAt));
+    const fallback = isoToVisitParts(app.admissionVisitAt);
+    setVisitDateText(app.admissionVisitDateText?.trim() || fallback.dateText);
+    setVisitSlot(
+      (app.admissionVisitTimeSlot === "AM" || app.admissionVisitTimeSlot === "PM"
+        ? app.admissionVisitTimeSlot
+        : fallback.slot) || "",
+    );
+    setVisitAddress(app.admissionVisitAddress?.trim() ?? "");
     setVisitTour(isoToDatetimeLocalValue(app.campusTourAt));
   }, [app]);
 
   async function saveStep1(e: React.FormEvent) {
     e.preventDefault();
-    if (!app) return;
+    if (!app || app.paymentStatus === "PROGRAM_PAID") return;
     setError(null);
     const body: Record<string, unknown> = {
       firstName,
@@ -156,6 +190,29 @@ export default function StudentApplicationPage() {
     }
     await loadApp({ silent: true });
     setStep(2);
+  }
+
+  async function saveAdmissionPath(path: StudentAdmissionPath) {
+    if (!app) return;
+    if (app.admissionPath || app.paymentStatus === "PROGRAM_PAID") return;
+    if (app.paymentStatus !== "NONE" && app.paymentStatus !== "REGISTRATION_PENDING") return;
+    setPayBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/student/application", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admissionPath: path }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Could not save admission path");
+        return;
+      }
+      await loadApp({ silent: true });
+    } finally {
+      setPayBusy(false);
+    }
   }
 
   async function payMock(method: "razorpay" | "upi" | "card", stepKind: "registration" | "program") {
@@ -280,15 +337,19 @@ export default function StudentApplicationPage() {
     e.preventDefault();
     if (!app) return;
     setError(null);
-    if (!visitAdmission.trim() || !visitTour.trim()) {
-      setError("Please choose both an admission visit slot and a campus tour slot.");
+    if (!visitDateText.trim() || !visitSlot || !visitAddress.trim() || !visitTour.trim()) {
+      setError(
+        "Please enter admission visit date (DD/MM/YYYY), AM or PM slot, visit address, and a campus tour date and time.",
+      );
       return;
     }
     const res = await fetch("/api/student/application", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        admissionVisitAt: visitAdmission,
+        admissionVisitDateText: visitDateText.trim(),
+        admissionVisitTimeSlot: visitSlot,
+        admissionVisitAddress: visitAddress.trim(),
         campusTourAt: visitTour,
       }),
     });
@@ -333,6 +394,12 @@ export default function StudentApplicationPage() {
     app.paymentStatus === "PROGRAM_PAID";
   const programPaid = app.paymentStatus === "PROGRAM_PAID";
   const showProgramFeeBlock = registrationPaid && !programPaid;
+  const path =
+    app.admissionPath === "NATIONAL_EXAM" || app.admissionPath === "DIRECT_ADMISSION"
+      ? (app.admissionPath as StudentAdmissionPath)
+      : null;
+  const regRupees = path != null ? registrationRupeesForPath(path) : null;
+  const regLabel = regRupees != null ? `₹${regRupees.toLocaleString("en-IN")}` : null;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
@@ -368,6 +435,14 @@ export default function StudentApplicationPage() {
             </p>
           </div>
 
+          {programPaid ? (
+            <p className="rounded-lg border border-[var(--border)] bg-[var(--muted)]/30 px-3 py-2 text-sm text-[var(--foreground-muted)]">
+              Your programme fee is paid — you can move on to visit scheduling or open your confirmation. These details
+              stay on file for reference.
+            </p>
+          ) : null}
+
+          <fieldset disabled={programPaid} className={programPaid ? "min-w-0 space-y-6 opacity-60" : "min-w-0 space-y-6"}>
           {L ? (
             <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">Programme</p>
@@ -497,10 +572,12 @@ export default function StudentApplicationPage() {
               </div>
             </div>
           </div>
+          </fieldset>
 
           <button
             type="submit"
-            className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white"
+            disabled={programPaid}
+            className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             Continue to fees
           </button>
@@ -523,30 +600,69 @@ export default function StudentApplicationPage() {
             </p>
           )}
 
+          {canPayRegistration && !app.admissionPath ? (
+            <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--muted)]/20 p-4">
+              <h3 className="text-sm font-semibold text-[var(--foreground)]">Admission path</h3>
+              <p className="text-sm text-[var(--foreground-muted)]">
+                Choose how you are applying. National-exam route uses a lower registration fee (₹999); direct
+                admission uses ₹10,000 before the programme fee.
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <button
+                  type="button"
+                  disabled={payBusy}
+                  onClick={() => void saveAdmissionPath("NATIONAL_EXAM")}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-3 text-left text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/40 disabled:opacity-50"
+                >
+                  National exam route — ₹999 registration
+                </button>
+                <button
+                  type="button"
+                  disabled={payBusy}
+                  onClick={() => void saveAdmissionPath("DIRECT_ADMISSION")}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-3 text-left text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]/40 disabled:opacity-50"
+                >
+                  Direct admission — ₹10,000 registration
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {app.admissionPath && canPayRegistration ? (
+            <p className="text-sm text-[var(--foreground-muted)]">
+              Admission path:{" "}
+              <strong className="text-[var(--foreground)]">
+                {app.admissionPath === "NATIONAL_EXAM" ? "National exam" : "Direct admission"}
+              </strong>
+              {regLabel ? ` · Registration ${regLabel}` : null}
+            </p>
+          ) : null}
+
           <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--muted)]/20 p-4">
             <h3 className="text-sm font-semibold text-[var(--foreground)]">Registration</h3>
             <p className="text-sm text-[var(--foreground-muted)]">
-              Standard registration fee: <strong className="text-[var(--foreground)]">₹2,500</strong>
+              Registration fee for your path:{" "}
+              <strong className="text-[var(--foreground)]">{regLabel ?? "Choose an admission path first"}</strong>
             </p>
             <div className="flex flex-wrap gap-2">
               {razorpayReady ? (
                 <button
                   type="button"
-                  disabled={payBusy || !canPayRegistration}
+                  disabled={payBusy || !canPayRegistration || !app.admissionPath}
                   onClick={() => void startRazorpay("registration")}
                   className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                 >
-                  Pay ₹2,500 with Razorpay
+                  {regLabel ? `Pay ${regLabel} with Razorpay` : "Pay registration with Razorpay"}
                 </button>
               ) : (
                 <>
                   <button
                     type="button"
-                    disabled={payBusy || !canPayRegistration}
+                    disabled={payBusy || !canPayRegistration || !app.admissionPath}
                     onClick={() => void payMock("razorpay", "registration")}
-                    className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold"
+                    className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:opacity-50"
                   >
-                    Simulated pay (dev)
+                    Simulated registration pay (dev)
                   </button>
                 </>
               )}
@@ -554,8 +670,8 @@ export default function StudentApplicationPage() {
             <div className="mt-4 border-t border-[var(--border)] pt-4">
               <p className="text-sm font-medium text-[var(--foreground)]">Custom payment (Razorpay)</p>
               <p className="mt-1 text-xs text-[var(--foreground-muted)]">
-                Enter an amount in rupees (minimum ₹1). This completes your registration payment step for the amount
-                you choose.
+                Enter an amount in rupees (minimum ₹1). Completes your registration step without choosing a standard
+                path fee (for exceptions or legacy amounts).
               </p>
               <div className="mt-2 flex flex-wrap items-end gap-2">
                 <label className="text-sm">
@@ -583,6 +699,16 @@ export default function StudentApplicationPage() {
               </div>
             </div>
           </div>
+
+          {app.admissionPath === "NATIONAL_EXAM" && registrationPaid && !programPaid ? (
+            <div className="rounded-xl border border-[var(--accent-blue)]/40 bg-[var(--accent-blue)]/10 p-4 text-sm text-[var(--foreground-muted)]">
+              <p className="font-semibold text-[var(--foreground)]">National exam &amp; scholarship (coming next)</p>
+              <p className="mt-1">
+                The MCQ exam, prep access, and scholarship eligibility flows will plug in here. For now, continue with
+                the programme fee when you are ready.
+              </p>
+            </div>
+          ) : null}
 
           {showProgramFeeBlock ? (
             <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--muted)]/20 p-4">
@@ -639,16 +765,42 @@ export default function StudentApplicationPage() {
         <form onSubmit={(e) => void saveVisits(e)} className="mt-8 space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
           <h2 className="text-lg font-semibold text-[var(--foreground)]">College visits</h2>
           <p className="text-sm text-[var(--foreground-muted)]">
-            Schedule your admission counselling visit and a campus tour. Times are saved in your local timezone.
+            Schedule your admission counselling visit (date, half-day slot, and address) and a campus tour. Tour time
+            uses your local timezone.
           </p>
           <div>
-            <label className="text-sm font-medium">Admission visit — date &amp; time *</label>
+            <label className="text-sm font-medium">Admission visit — date (DD/MM/YYYY) *</label>
             <input
-              type="datetime-local"
+              type="text"
               required
-              value={visitAdmission}
-              onChange={(e) => setVisitAdmission(e.target.value)}
+              value={visitDateText}
+              onChange={(e) => setVisitDateText(e.target.value)}
+              placeholder="e.g. 15/08/2026"
               className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Preferred slot *</label>
+            <select
+              required
+              value={visitSlot}
+              onChange={(e) => setVisitSlot(e.target.value as "" | "AM" | "PM")}
+              className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+            >
+              <option value="">Select AM or PM</option>
+              <option value="AM">Morning (AM)</option>
+              <option value="PM">Afternoon (PM)</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Visit address *</label>
+            <textarea
+              required
+              value={visitAddress}
+              onChange={(e) => setVisitAddress(e.target.value)}
+              rows={3}
+              placeholder="Campus / office address or meeting point"
+              className="mt-1 w-full max-w-lg rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
             />
           </div>
           <div>
@@ -681,10 +833,25 @@ export default function StudentApplicationPage() {
           <p className="text-sm text-[var(--foreground-muted)]">
             Status: {app.status} · Review: {app.admissionReview} · Payment: {app.paymentStatus}
           </p>
-          {app.admissionVisitAt ? (
+          {app.admissionPath ? (
             <p className="text-sm text-[var(--foreground-muted)]">
-              Admission visit: {new Date(app.admissionVisitAt).toLocaleString()}
+              Admission path: {app.admissionPath === "NATIONAL_EXAM" ? "National exam" : "Direct admission"}
             </p>
+          ) : null}
+          {app.admissionVisitDateText || app.admissionVisitAt ? (
+            <div className="text-sm text-[var(--foreground-muted)]">
+              <p className="font-medium text-[var(--foreground)]">Admission visit</p>
+              {app.admissionVisitDateText ? (
+                <p>
+                  Date: {app.admissionVisitDateText}
+                  {app.admissionVisitTimeSlot ? ` · ${app.admissionVisitTimeSlot}` : null}
+                </p>
+              ) : null}
+              {app.admissionVisitAddress ? <p>Address: {app.admissionVisitAddress}</p> : null}
+              {app.admissionVisitAt ? (
+                <p className="text-xs">Calendar time (local): {new Date(app.admissionVisitAt).toLocaleString()}</p>
+              ) : null}
+            </div>
           ) : null}
           {app.campusTourAt ? (
             <p className="text-sm text-[var(--foreground-muted)]">
