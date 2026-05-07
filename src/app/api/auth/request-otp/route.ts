@@ -9,18 +9,6 @@ const bodySchema = z.object({
   email: z.string().email(),
 });
 
-const rateBucket = new Map<string, number[]>();
-
-function checkRateLimit(email: string, maxPerWindow: number, windowMs: number): boolean {
-  const now = Date.now();
-  const times = rateBucket.get(email) ?? [];
-  const recent = times.filter((t) => now - t < windowMs);
-  if (recent.length >= maxPerWindow) return false;
-  recent.push(now);
-  rateBucket.set(email, recent);
-  return true;
-}
-
 export async function POST(req: Request) {
   let json: unknown;
   try {
@@ -49,11 +37,6 @@ export async function POST(req: Request) {
         },
         { status: 403 },
       );
-    }
-
-    const windowMs = 15 * 60 * 1000;
-    if (!checkRateLimit(email, 5, windowMs)) {
-      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
     await prisma.otpCode.deleteMany({ where: { email } });
