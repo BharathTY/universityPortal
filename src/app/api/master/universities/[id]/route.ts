@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireMasterApi } from "@/lib/master-session";
@@ -16,6 +17,7 @@ const patchSchema = z.object({
   phone: phoneSchema.optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
   logoUrl: z.union([z.string().url().max(2000), z.literal("")]).optional().nullable(),
+  applicationFee: z.coerce.number().nonnegative().max(999_999_999).optional(),
 });
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -77,6 +79,9 @@ export async function PATCH(req: Request, ctx: RouteContext) {
         ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
         ...(parsed.data.logoUrl !== undefined
           ? { logoUrl: parsed.data.logoUrl === "" ? null : parsed.data.logoUrl }
+          : {}),
+        ...(parsed.data.applicationFee !== undefined
+          ? { applicationFee: new Prisma.Decimal(parsed.data.applicationFee.toFixed(2)) }
           : {}),
       },
     });

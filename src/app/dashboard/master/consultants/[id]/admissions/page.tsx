@@ -81,7 +81,7 @@ export default async function MasterConsultantAdmissionsPage(props: PageProps) {
               <tr>
                 <th className="px-3 py-2">Student</th>
                 <th className="px-3 py-2">University</th>
-                <th className="px-3 py-2">Course</th>
+                <th className="px-3 py-2">Degree</th>
                 <th className="px-3 py-2">State</th>
                 <th className="px-3 py-2">Assigned partner (snapshot)</th>
                 <th className="px-3 py-2">Created</th>
@@ -124,7 +124,7 @@ export default async function MasterConsultantAdmissionsPage(props: PageProps) {
               <tr>
                 <th className="px-3 py-2">Student</th>
                 <th className="px-3 py-2">University</th>
-                <th className="px-3 py-2">Course</th>
+                <th className="px-3 py-2">Degree</th>
                 <th className="px-3 py-2">Status</th>
               </tr>
             </thead>

@@ -215,6 +215,99 @@ University Portal`;
   await transporter.sendMail({ from, to: params.to, subject, text, html });
 }
 
+/** Sent when a partner adds a lead — prospect can be notified (optional funnel step). */
+export async function sendAdmissionLeadWelcomeEmail(params: {
+  to: string;
+  name: string;
+  universityName: string;
+  partnerLabel: string;
+}): Promise<void> {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.EMAIL_FROM || "noreply@localhost";
+
+  const subject = "You have been registered as a prospective student";
+  const text = `Hello ${params.name},
+
+You have been added as a prospect with ${params.universityName} through ${params.partnerLabel}.
+
+If you did not expect this email, you can ignore it.
+
+Thanks,
+University Portal`;
+
+  const html = `<p>Hello <strong>${escapeHtml(params.name)}</strong>,</p>
+<p>You have been added as a prospect with <strong>${escapeHtml(params.universityName)}</strong> through <strong>${escapeHtml(params.partnerLabel)}</strong>.</p>
+<p>If you did not expect this email, you can ignore it.</p>
+<p>Thanks,<br/>University Portal</p>`;
+
+  if (!host || !user || !pass) {
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[Lead welcome dev] To: ${params.to}\n${text}`);
+    }
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  await transporter.sendMail({ from, to: params.to, subject, text, html });
+}
+
+export async function sendCounsellorPortalInviteEmail(params: {
+  to: string;
+  acceptUrl: string;
+  inviterName: string;
+  universityLabels: string;
+}): Promise<void> {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.EMAIL_FROM || "noreply@localhost";
+
+  const subject = "You are invited as a counsellor on University Portal";
+  const text = `Hello,
+
+${params.inviterName} has invited you to join as a counsellor on University Portal.
+
+Universities: ${params.universityLabels}
+
+Open this link to accept and set your password (or sign in later with email + OTP):
+${params.acceptUrl}
+
+Thanks,
+University Portal`;
+
+  const html = `<p><strong>${escapeHtml(params.inviterName)}</strong> has invited you to join as a <strong>counsellor</strong> on University Portal.</p>
+<p><strong>Universities:</strong> ${escapeHtml(params.universityLabels)}</p>
+<p><a href="${params.acceptUrl}">Accept invitation</a></p>
+<p>You can set a password on the acceptance page, or use email + one-time code (OTP) at login.</p>
+<p>Thanks,<br/>University Portal</p>`;
+
+  if (!host || !user || !pass) {
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[Counsellor invite dev] To: ${params.to}\n${text}`);
+    }
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  await transporter.sendMail({ from, to: params.to, subject, text, html });
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")

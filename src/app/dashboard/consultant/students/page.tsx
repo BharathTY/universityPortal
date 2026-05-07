@@ -13,6 +13,7 @@ import {
   ROLES,
   formatTeamMemberRole,
 } from "@/lib/roles";
+import { InviteCounsellorsTrigger } from "@/app/dashboard/consultant/students/invite-counsellors-trigger";
 import { InviteStudentForm } from "@/app/dashboard/consultant/students/invite-student-form";
 
 const PARTNER_ROSTER_SLUGS = [
@@ -56,8 +57,12 @@ export default async function ConsultantStudentsPage() {
   const canInvite = isConsultant(session.roles);
 
   let teamMembers: Awaited<ReturnType<typeof loadTeamMembers>> = [];
+  let consultantInviteUniversities: { id: string; name: string; code: string }[] = [];
   if (isConsultantOnly(session.roles)) {
-    teamMembers = await loadTeamMembers(session.sub);
+    const ids = await getAllowedConsultantUniversityIds(session.sub);
+    const [members, uniOpts] = await Promise.all([loadTeamMembers(session.sub), loadConsultantUniversityOptions(ids)]);
+    teamMembers = sortTeamMembers(members, session.sub);
+    consultantInviteUniversities = uniOpts;
   }
 
   const title =
@@ -73,9 +78,9 @@ export default async function ConsultantStudentsPage() {
       <p className="mt-2 max-w-3xl text-[var(--foreground-muted)]">
         {isConsultantOnly(session.roles) ? (
           <>
-            Manage <strong className="text-[var(--foreground)]">team members</strong> (counsellors, managers, partners)
-            and <strong className="text-[var(--foreground)]">students</strong> you support. Invite students by email;
-            they must accept before OTP login.
+            Manage <strong className="text-[var(--foreground)]">team members</strong> you work with and{" "}
+            <strong className="text-[var(--foreground)]">students</strong> linked after you convert leads. Invite
+            counsellors with the button below; they receive email to accept and set a password.
           </>
         ) : (
           <>
@@ -87,41 +92,18 @@ export default async function ConsultantStudentsPage() {
       </p>
 
       {isConsultantOnly(session.roles) ? (
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <div>
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Invite student</h2>
-            <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-              Adds a student linked to your organisation; they receive an accept link, then OTP login.
-            </p>
-            <div className="mt-4">{canInvite ? <InviteStudentForm /> : null}</div>
-          </div>
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Counsellor & manager</h2>
-            <p className="mt-2 text-sm text-[var(--foreground-muted)]">
-              Staff accounts for <strong className="text-[var(--foreground)]">counsellor</strong>,{" "}
-              <strong className="text-[var(--foreground)]">manager</strong>, and{" "}
-              <strong className="text-[var(--foreground)]">branch</strong> partners are created by your{" "}
-              <strong className="text-[var(--foreground)]">master administrator</strong> under{" "}
-              <strong className="text-[var(--foreground)]">Master → Admission partners</strong>. Contact them to add or
-              change team access.
-            </p>
-          </div>
-        </div>
-      ) : (
-        canInvite && (
-          <div className="mt-8">
-            <InviteStudentForm />
-          </div>
-        )
-      )}
-
-      {isConsultantOnly(session.roles) ? (
         <>
-          <h2 className="mt-12 text-lg font-semibold text-[var(--foreground)]">Team members</h2>
-          <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-            Counsellors, managers, and admission partners who share at least one of your assigned universities (not your
-            own row).
-          </p>
+          <div className="mt-8 flex flex-col gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">Team members</h2>
+              <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-muted)]">
+                Admission partners assigned by your master administrator appear first; counsellors you invite are listed
+                below with the universities you assign.
+              </p>
+            </div>
+            <InviteCounsellorsTrigger universities={consultantInviteUniversities} />
+          </div>
+
           <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40 text-[var(--foreground-muted)]">
@@ -147,10 +129,12 @@ export default async function ConsultantStudentsPage() {
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                           m.accountStatus === "ACTIVE"
                             ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
-                            : "bg-[var(--muted)] text-[var(--foreground-muted)]"
+                            : m.inviteToken
+                              ? "bg-amber-500/15 text-amber-800 dark:text-amber-200"
+                              : "bg-[var(--muted)] text-[var(--foreground-muted)]"
                         }`}
                       >
-                        {m.accountStatus === "ACTIVE" ? "Active" : "Inactive"}
+                        {m.inviteToken ? "Invited" : m.accountStatus === "ACTIVE" ? "Active" : "Inactive"}
                       </span>
                     </td>
                   </tr>
@@ -164,17 +148,36 @@ export default async function ConsultantStudentsPage() {
             ) : null}
           </div>
 
+          <div className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">Invite counsellor</h2>
+            <p className="mt-2 text-sm text-[var(--foreground-muted)]">
+              Additional <strong className="text-[var(--foreground)]">counsellor</strong>,{" "}
+              <strong className="text-[var(--foreground)]">manager</strong>, and{" "}
+              <strong className="text-[var(--foreground)]">branch</strong> accounts can also be created by your{" "}
+              <strong className="text-[var(--foreground)]">master administrator</strong> under{" "}
+              <strong className="text-[var(--foreground)]">Master → Admission partners</strong>.
+            </p>
+          </div>
+
           <h2 className="mt-12 text-lg font-semibold text-[var(--foreground)]">Students you manage</h2>
           <p className="mt-1 text-sm text-[var(--foreground-muted)]">
             Use <strong className="text-[var(--foreground)]">View</strong> and{" "}
             <strong className="text-[var(--foreground)]">Edit</strong> on each row for details.
           </p>
         </>
-      ) : null}
+      ) : (
+        canInvite && (
+          <div className="mt-8">
+            <InviteStudentForm />
+          </div>
+        )
+      )}
 
       <div
         className={
-          isConsultantOnly(session.roles) ? "mt-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm" : "mt-8 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm"
+          isConsultantOnly(session.roles)
+            ? "mt-12 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm"
+            : "mt-8 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm"
         }
       >
         <table className="w-full text-left text-sm">
@@ -269,6 +272,29 @@ function uniSummary(m: {
   return "—";
 }
 
+type TeamMemberRow = Awaited<ReturnType<typeof loadTeamMembers>>[number];
+
+function sortTeamMembers(rows: TeamMemberRow[], sessionSub: string): TeamMemberRow[] {
+  return [...rows].sort((a, b) => {
+    const invA = a.reportsToConsultantId === sessionSub ? 1 : 0;
+    const invB = b.reportsToConsultantId === sessionSub ? 1 : 0;
+    if (invA !== invB) return invA - invB;
+    const consA = a.roles.some((r) => r.role.slug === ROLES.consultant) ? 0 : 1;
+    const consB = b.roles.some((r) => r.role.slug === ROLES.consultant) ? 0 : 1;
+    if (consA !== consB) return consA - consB;
+    return (a.email ?? "").localeCompare(b.email ?? "");
+  });
+}
+
+async function loadConsultantUniversityOptions(ids: string[]) {
+  if (ids.length === 0) return [];
+  return prisma.university.findMany({
+    where: { id: { in: ids } },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, code: true },
+  });
+}
+
 async function loadTeamMembers(currentUserId: string) {
   const myUniIds = await getAllowedConsultantUniversityIds(currentUserId);
   if (myUniIds.length === 0) return [];
@@ -289,6 +315,8 @@ async function loadTeamMembers(currentUserId: string) {
       name: true,
       branchName: true,
       accountStatus: true,
+      inviteToken: true,
+      reportsToConsultantId: true,
       university: { select: { name: true, code: true } },
       roles: { include: { role: { select: { slug: true } } } },
       consultantUniversities: {

@@ -65,6 +65,24 @@ export async function resolveConsultantActiveUniversityId(
   return { universityId: unis[0]?.id ?? allowed[0]! };
 }
 
+/** When `requestedId` is allowed for this consultant, use it; else same as active resolution. */
+export async function resolveScopedConsultantUniversityId(
+  session: SessionPayload,
+  requestedId?: string | null,
+): Promise<{ universityId: string | null }> {
+  if (!isConsultant(session.roles)) {
+    return { universityId: session.universityId };
+  }
+  const allowed = await getAllowedConsultantUniversityIds(session.sub);
+  if (allowed.length === 0) {
+    return { universityId: null };
+  }
+  if (requestedId && allowed.includes(requestedId)) {
+    return { universityId: requestedId };
+  }
+  return await resolveConsultantActiveUniversityId(session);
+}
+
 export async function assertConsultantUniversityMembership(
   userId: string,
   universityId: string,

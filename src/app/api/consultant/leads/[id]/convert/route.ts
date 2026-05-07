@@ -5,22 +5,32 @@ import {
   LeadPipelineStatus,
 } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
+import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
-import { ROLES } from "@/lib/roles";
+import { isConsultant, ROLES } from "@/lib/roles";
+import { nextApplicationReferenceCode } from "@/lib/application-reference";
 import { sendStudentRegistrationEmail } from "@/lib/email";
-import { requireConsultantUniversity } from "@/lib/consultant-api";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 /** Creates a student user + application from a lead (consultant-owned). */
 export async function POST(_req: Request, ctx: Ctx) {
-  const gate = await requireConsultantUniversity();
-  if (!gate.ok) return gate.response;
-  const { session, universityId } = gate;
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isConsultant(session.roles)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const allowed = await getAllowedConsultantUniversityIds(session.sub);
+  if (allowed.length === 0) {
+    return NextResponse.json({ error: "No universities assigned" }, { status: 400 });
+  }
   const { id: leadId } = await ctx.params;
 
   const lead = await prisma.admissionLead.findFirst({
-    where: { id: leadId, universityId, createdByUserId: session.sub },
+    where: { id: leadId, universityId: { in: allowed }, createdByUserId: session.sub },
     select: {
       id: true,
       email: true,
@@ -30,7 +40,7 @@ export async function POST(_req: Request, ctx: Ctx) {
       pipelineStatus: true,
       universityId: true,
       batchId: true,
-      university: { select: { name: true } },
+      university: { select: { name: true, code: true } },
       stream: { select: { name: true } },
     },
   });
@@ -38,6 +48,7 @@ export async function POST(_req: Request, ctx: Ctx) {
   if (!lead) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
+  const universityId = lead.universityId;
   if (lead.pipelineStatus !== LeadPipelineStatus.NEW) {
     return NextResponse.json({ error: "Lead is not eligible for conversion" }, { status: 400 });
   }
@@ -71,6 +82,8 @@ export async function POST(_req: Request, ctx: Ctx) {
   const fullName = `${lead.firstName} ${lead.lastName}`.trim();
 
   const result = await prisma.$transaction(async (tx) => {
+    const referenceCode = await nextApplicationReferenceCode(tx, universityId, lead.university.code);
+
     const student = await tx.user.create({
       data: {
         email,
@@ -91,6 +104,7 @@ export async function POST(_req: Request, ctx: Ctx) {
         universityId,
         batchId: batch?.id ?? null,
         leadId: lead.id,
+        referenceCode,
         status: ApplicationStatus.REGISTRATION_FEE_PENDING,
         paymentStatus: ApplicationPaymentStatus.REGISTRATION_PENDING,
         admissionReview: AdmissionReviewStatus.PENDING,
@@ -109,7 +123,7 @@ export async function POST(_req: Request, ctx: Ctx) {
     await sendStudentRegistrationEmail({
       to: email,
       name: fullName,
-      applicationId: result.application.id,
+      applicationId: result.application.referenceCode ?? result.application.id,
       universityName: lead.university.name,
       courseName: lead.stream.name,
     });

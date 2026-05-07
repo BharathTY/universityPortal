@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 
@@ -17,13 +16,10 @@ export type AdmissionLeadRow = {
   createdAt: string;
   academicYear: { label: string };
   stream: { name: string };
-  /** Partner name / guide, or "(By University)" for college-created leads. */
-  admissionAttribution: string;
 };
 
 type AdmissionsDashboardProps = {
   universityId: string;
-  /** Route segment for this list (`admissions` vs `uni-admissions`) — keeps filters on the correct page. */
   listPathSegment?: "admissions" | "uni-admissions";
   breadcrumbLabel?: string;
   pageTitle?: string;
@@ -48,6 +44,23 @@ const statusLabel: Record<string, string> = {
   WITHDRAWN: "Withdrawn",
 };
 
+const LEAD_STATUS_OPTIONS = [
+  "NEW",
+  "CONTACTED",
+  "QUALIFIED",
+  "ADMITTED",
+  "REJECTED",
+  "WITHDRAWN",
+] as const;
+
+type HistoryEntry = {
+  id: string;
+  fromStatus: string;
+  toStatus: string;
+  createdAt: string;
+  changedBy: { name: string | null; email: string } | null;
+};
+
 function formatDateTime(iso: string) {
   try {
     return new Intl.DateTimeFormat("en-GB", {
@@ -67,7 +80,7 @@ export function AdmissionsDashboard({
   listPathSegment = "admissions",
   breadcrumbLabel = "Admissions",
   pageTitle = "Admissions",
-  pageSubtitle = "Admission leads — filter by academic year and stream.",
+  pageSubtitle = "Admission leads — filter by academic year and degree.",
   years,
   streams,
   leads,
@@ -79,6 +92,14 @@ export function AdmissionsDashboard({
 }: AdmissionsDashboardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [busyLeadId, setBusyLeadId] = React.useState<string | null>(null);
+  const [statusError, setStatusError] = React.useState<string | null>(null);
+
+  const [historyLeadId, setHistoryLeadId] = React.useState<string | null>(null);
+  const [historyLeadName, setHistoryLeadName] = React.useState("");
+  const [historyEntries, setHistoryEntries] = React.useState<HistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = React.useState(false);
+  const [historyError, setHistoryError] = React.useState<string | null>(null);
 
   function setFilter(next: { yearId?: string | null; streamId?: string | null; page?: number }) {
     const p = new URLSearchParams(searchParams.toString());
@@ -96,7 +117,51 @@ export function AdmissionsDashboard({
     router.push(`/dashboard/university/${universityId}/${listPathSegment}?${p.toString()}`);
   }
 
-  const leadPunchHref = `/dashboard/university/${universityId}/admissions/leads/new`;
+  async function onStatusChange(leadId: string, nextStatus: string, prevStatus: string) {
+    if (nextStatus === prevStatus) return;
+    setStatusError(null);
+    setBusyLeadId(leadId);
+    try {
+      const res = await fetch(`/api/university/${universityId}/admission-leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admissionStatus: nextStatus }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setStatusError(data.error ?? "Could not update status");
+        return;
+      }
+      router.refresh();
+    } finally {
+      setBusyLeadId(null);
+    }
+  }
+
+  async function openHistory(leadId: string, leadLabel: string) {
+    setHistoryLeadId(leadId);
+    setHistoryLeadName(leadLabel);
+    setHistoryEntries([]);
+    setHistoryError(null);
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/university/${universityId}/admission-leads/${leadId}/status-history`);
+      const data = (await res.json().catch(() => ({}))) as { error?: string; entries?: HistoryEntry[] };
+      if (!res.ok) {
+        setHistoryError(data.error ?? "Could not load history");
+        return;
+      }
+      setHistoryEntries(data.entries ?? []);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  function closeHistory() {
+    setHistoryLeadId(null);
+    setHistoryEntries([]);
+    setHistoryError(null);
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -106,18 +171,18 @@ export function AdmissionsDashboard({
         <span className="font-medium text-[var(--foreground)]">{breadcrumbLabel}</span>
       </nav>
 
-      <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mt-6">
         <div>
           <h1 className="text-2xl font-bold text-[var(--foreground)]">{pageTitle}</h1>
           <p className="mt-1 text-sm text-[var(--foreground-muted)]">{pageSubtitle}</p>
         </div>
-        <Link
-          href={leadPunchHref}
-          className="inline-flex items-center justify-center rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--accent-blue-hover)]"
-        >
-          Lead punch
-        </Link>
       </div>
+
+      {statusError ? (
+        <p className="mt-4 text-sm text-red-600" role="alert">
+          {statusError}
+        </p>
+      ) : null}
 
       <div className="mt-8 space-y-4">
         <div>
@@ -152,7 +217,7 @@ export function AdmissionsDashboard({
         </div>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">Streams</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">Degree</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <button
               type="button"
@@ -191,25 +256,24 @@ export function AdmissionsDashboard({
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="bg-[var(--muted)]/50 text-[var(--foreground-muted)]">
               <tr>
                 <th className="px-4 py-3 font-medium">First name</th>
                 <th className="px-4 py-3 font-medium">Last name</th>
                 <th className="px-4 py-3 font-medium">Mobile</th>
                 <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium">Admission consultant</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Year / stream</th>
+                <th className="px-4 py-3 font-medium">Year / degree</th>
                 <th className="px-4 py-3 font-medium">Created</th>
               </tr>
             </thead>
             <tbody>
               {leads.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-14 text-center text-[var(--foreground-muted)]">
-                    No leads match these filters. Use <strong className="text-[var(--foreground)]">Lead punch</strong> to
-                    add a lead. Academic years and streams are set up from the Master portal (Universities).
+                  <td colSpan={7} className="px-4 py-14 text-center text-[var(--foreground-muted)]">
+                    No leads match these filters. Academic years and degrees are set up from the Master portal
+                    (Universities).
                   </td>
                 </tr>
               ) : (
@@ -219,18 +283,34 @@ export function AdmissionsDashboard({
                     <td className="px-4 py-3 text-[var(--foreground)]">{row.lastName}</td>
                     <td className="px-4 py-3 tabular-nums text-[var(--foreground-muted)]">{row.mobile}</td>
                     <td className="px-4 py-3 text-[var(--foreground-muted)]">{row.email}</td>
-                    <td className="max-w-[14rem] truncate px-4 py-3 text-sm text-[var(--foreground-muted)]" title={row.admissionAttribution}>
-                      {row.admissionAttribution}
-                    </td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">
-                        {statusLabel[row.admissionStatus] ?? row.admissionStatus}
-                      </span>
+                      <div className="flex min-w-[11rem] flex-col gap-1.5">
+                        <select
+                          value={row.admissionStatus}
+                          disabled={busyLeadId === row.id}
+                          onChange={(e) => void onStatusChange(row.id, e.target.value, row.admissionStatus)}
+                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-xs font-medium text-[var(--foreground)] disabled:opacity-50"
+                          aria-label={`Status for ${row.firstName} ${row.lastName}`}
+                        >
+                          {LEAD_STATUS_OPTIONS.map((v) => (
+                            <option key={v} value={v}>
+                              {statusLabel[v] ?? v}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => void openHistory(row.id, `${row.firstName} ${row.lastName}`.trim())}
+                          className="w-fit text-xs font-medium text-[var(--primary)] underline underline-offset-2 hover:no-underline"
+                        >
+                          Status history
+                        </button>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-[var(--foreground-muted)]">
                       {row.academicYear.label} · {row.stream.name}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-[var(--foreground-muted)]">
+                    <td className="whitespace-nowrap px-4 py-3 text-[var(--foreground-muted)]">
                       {formatDateTime(row.createdAt)}
                     </td>
                   </tr>
@@ -266,6 +346,63 @@ export function AdmissionsDashboard({
           </div>
         ) : null}
       </div>
+
+      {historyLeadId ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lead-status-history-title"
+            className="max-h-[85vh] w-full max-w-lg overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-xl"
+          >
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+              <h2 id="lead-status-history-title" className="text-base font-semibold text-[var(--foreground)]">
+                Status history
+              </h2>
+              <button
+                type="button"
+                onClick={closeHistory}
+                className="rounded-lg px-2 py-1 text-sm text-[var(--foreground-muted)] hover:bg-[var(--muted)]"
+              >
+                Close
+              </button>
+            </div>
+            <p className="border-b border-[var(--border)] px-4 py-2 text-sm text-[var(--foreground-muted)]">
+              {historyLeadName}
+            </p>
+            <div className="max-h-[55vh] overflow-y-auto px-4 py-3">
+              {historyLoading ? (
+                <p className="text-sm text-[var(--foreground-muted)]">Loading…</p>
+              ) : historyError ? (
+                <p className="text-sm text-red-600">{historyError}</p>
+              ) : historyEntries.length === 0 ? (
+                <p className="text-sm text-[var(--foreground-muted)]">
+                  No changes yet. Updates appear here when you change status from this screen.
+                </p>
+              ) : (
+                <ul className="space-y-3 text-sm">
+                  {historyEntries.map((e) => (
+                    <li
+                      key={e.id}
+                      className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                    >
+                      <p className="font-medium text-[var(--foreground)]">
+                        {statusLabel[e.fromStatus] ?? e.fromStatus} → {statusLabel[e.toStatus] ?? e.toStatus}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">{formatDateTime(e.createdAt)}</p>
+                      <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+                        {e.changedBy
+                          ? e.changedBy.name?.trim() || e.changedBy.email
+                          : "—"}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

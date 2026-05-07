@@ -98,11 +98,11 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
     return (
       <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">
         <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-[var(--foreground)]">
-          Add at least one academic year and one program stream for this university from the{" "}
+          Add at least one academic year and one degree (program) for this university from the{" "}
           <Link className="font-medium underline" href={masterIntake}>
             Master portal — Universities
           </Link>{" "}
-          (open the university card → Academic years / Streams).
+          (open the university card → Academic years / Degree).
         </p>
         <Link href={back} className="mt-6 inline-block text-sm font-medium text-[var(--primary)] underline">
           Back to admissions
@@ -191,7 +191,7 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-[var(--foreground)]">Program (stream)</label>
+            <label className="block text-sm font-medium text-[var(--foreground)]">Degree</label>
             <select
               value={streamId}
               onChange={(e) => setStreamId(e.target.value)}

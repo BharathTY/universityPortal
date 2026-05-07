@@ -44,7 +44,7 @@ export function StreamsManager({ universityId, initialStreams }: Props) {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-bold text-[var(--foreground)]">Streams</h1>
+      <h1 className="text-2xl font-bold text-[var(--foreground)]">Degrees</h1>
       <p className="mt-2 text-sm text-[var(--foreground-muted)]">
         Programs such as B.Tech, BCA, MCA — used as filters when viewing admissions.
       </p>
@@ -52,7 +52,7 @@ export function StreamsManager({ universityId, initialStreams }: Props) {
       <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="flex-1">
           <label htmlFor="stream-name" className="block text-sm font-medium text-[var(--foreground)]">
-            Add stream
+            Add degree
           </label>
           <input
             id="stream-name"
@@ -68,14 +68,14 @@ export function StreamsManager({ universityId, initialStreams }: Props) {
           disabled={busy}
           className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[var(--accent-blue-hover)] disabled:opacity-50"
         >
-          {busy ? "Saving…" : "Add stream"}
+          {busy ? "Saving…" : "Add degree"}
         </button>
       </form>
       {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
 
       <ul className="mt-10 divide-y divide-[var(--border)] rounded-2xl border border-[var(--border)] bg-[var(--card)]">
         {streams.length === 0 ? (
-          <li className="px-4 py-8 text-center text-sm text-[var(--foreground-muted)]">No streams yet.</li>
+          <li className="px-4 py-8 text-center text-sm text-[var(--foreground-muted)]">No degrees yet.</li>
         ) : (
           streams.map((s) => (
             <li key={s.id} className="flex items-center justify-between px-4 py-3 text-sm">

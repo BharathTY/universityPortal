@@ -1,8 +1,10 @@
 import { LeadPipelineStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getSession } from "@/lib/auth";
+import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
-import { requireConsultantUniversity } from "@/lib/consultant-api";
+import { isConsultant } from "@/lib/roles";
 
 const patchSchema = z.object({
   firstName: z.string().min(1).max(120).trim().optional(),
@@ -16,9 +18,17 @@ const patchSchema = z.object({
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: Request, ctx: Ctx) {
-  const gate = await requireConsultantUniversity();
-  if (!gate.ok) return gate.response;
-  const { session, universityId } = gate;
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isConsultant(session.roles)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const allowed = await getAllowedConsultantUniversityIds(session.sub);
+  if (allowed.length === 0) {
+    return NextResponse.json({ error: "No universities assigned" }, { status: 400 });
+  }
   const { id } = await ctx.params;
 
   let json: unknown;
@@ -34,11 +44,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   const existing = await prisma.admissionLead.findFirst({
-    where: { id, universityId, createdByUserId: session.sub },
+    where: { id, universityId: { in: allowed }, createdByUserId: session.sub },
   });
   if (!existing) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
+  const universityId = existing.universityId;
 
   if (existing.pipelineStatus === LeadPipelineStatus.CONVERTED && parsed.data.pipelineStatus === LeadPipelineStatus.LOST) {
     return NextResponse.json({ error: "Cannot mark a converted lead as lost" }, { status: 400 });

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
+import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
 
 type Stream = { id: string; name: string };
 
@@ -27,12 +29,21 @@ type LeadRow = {
 };
 
 type Props = {
+  universityId: string;
   universityName: string;
   universityCode: string;
   streams: Stream[];
+  /** POST `/api/auth/active-university` when the scoped university changes (multi-university consultants). */
+  setActiveUniversityOnMount?: boolean;
+  showBulkUpload?: boolean;
+  hubLayout?: boolean;
 };
 
 export function ConsultantLeadsClient(props: Props) {
+  const showBulk = props.showBulkUpload ?? false;
+  const setActive = props.setActiveUniversityOnMount ?? false;
+  const router = useRouter();
+
   const [loading, setLoading] = React.useState(true);
   const [rows, setRows] = React.useState<LeadRow[]>([]);
   const [error, setError] = React.useState<string | null>(null);
@@ -55,7 +66,8 @@ export function ConsultantLeadsClient(props: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/consultant/leads`);
+      const qs = new URLSearchParams({ universityId: props.universityId });
+      const res = await fetch(`/api/consultant/leads?${qs.toString()}`);
       const data = (await res.json().catch(() => ({}))) as { error?: string; leads?: LeadRow[] };
       if (!res.ok) {
         setError(data.error ?? "Could not load leads");
@@ -69,7 +81,24 @@ export function ConsultantLeadsClient(props: Props) {
 
   React.useEffect(() => {
     void load();
-  }, []);
+  }, [props.universityId]);
+
+  React.useEffect(() => {
+    const first = props.streams[0]?.id ?? "";
+    setStreamId((prev) => (props.streams.some((s) => s.id === prev) ? prev : first));
+  }, [props.streams]);
+
+  React.useEffect(() => {
+    if (!setActive || !props.universityId) return;
+    void (async () => {
+      await fetch("/api/auth/active-university", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ universityId: props.universityId }),
+      });
+      router.refresh();
+    })();
+  }, [setActive, props.universityId, router]);
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -78,6 +107,7 @@ export function ConsultantLeadsClient(props: Props) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        universityId: props.universityId,
         firstName: fn,
         lastName: ln,
         email,
@@ -150,18 +180,30 @@ export function ConsultantLeadsClient(props: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <nav className="text-sm text-[var(--foreground-muted)]">
-        <Link href="/dashboard/university" className="text-[var(--primary)] underline-offset-2 hover:underline">
-          Universities
-        </Link>
-        <span className="mx-1.5">/</span>
-        <span className="font-medium text-[var(--foreground)]">Partner leads</span>
-      </nav>
-      <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Leads</h1>
-      <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-        {props.universityName} ({props.universityCode})
-      </p>
+    <div className={props.hubLayout ? "" : "mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8"}>
+      {!props.hubLayout ? (
+        <>
+          <nav className="text-sm text-[var(--foreground-muted)]">
+            <Link href="/dashboard/university" className="text-[var(--primary)] underline-offset-2 hover:underline">
+              Universities
+            </Link>
+            <span className="mx-1.5">/</span>
+            <span className="font-medium text-[var(--foreground)]">Partner leads</span>
+          </nav>
+          <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Leads</h1>
+          <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+            {props.universityName} ({props.universityCode})
+          </p>
+        </>
+      ) : (
+        <h2 className="text-xl font-bold text-[var(--foreground)]">Partner leads</h2>
+      )}
+
+      {props.hubLayout ? (
+        <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+          {props.universityName} ({props.universityCode})
+        </p>
+      ) : null}
 
       {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
 
@@ -210,12 +252,16 @@ export function ConsultantLeadsClient(props: Props) {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Stream</label>
+              <label className="text-sm font-medium">Degree Type</label>
               <select
+                required
                 value={streamId}
                 onChange={(e) => setStreamId(e.target.value)}
                 className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
               >
+                {props.streams.length === 0 ? (
+                  <option value="">No programs configured</option>
+                ) : null}
                 {props.streams.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -224,14 +270,22 @@ export function ConsultantLeadsClient(props: Props) {
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium">Looking admission in which state</label>
-              <input
+              <label className="text-sm font-medium">State</label>
+              <select
                 required
                 value={admissionState}
                 onChange={(e) => setAdmissionState(e.target.value)}
-                placeholder="e.g. Karnataka"
                 className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-              />
+              >
+                <option value="" disabled>
+                  Select state
+                </option>
+                {INDIAN_STATES_AND_UT.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="sm:col-span-2">
               <label className="text-sm font-medium">Nationality (optional)</label>
@@ -284,21 +338,24 @@ export function ConsultantLeadsClient(props: Props) {
 
           <button
             type="submit"
-            className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white"
+            disabled={props.streams.length === 0 || !streamId}
+            className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
             Add lead
           </button>
         </form>
       </section>
 
-      <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
-        <ConsultantBulkCsvPanel
-          universityName={props.universityName}
-          universityCode={props.universityCode}
-          streams={props.streams}
-          onSuccess={() => void load()}
-        />
-      </section>
+      {showBulk ? (
+        <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+          <ConsultantBulkCsvPanel
+            universityName={props.universityName}
+            universityCode={props.universityCode}
+            streams={props.streams}
+            onSuccess={() => void load()}
+          />
+        </section>
+      ) : null}
 
       <section className="mt-10">
         <h2 className="text-lg font-semibold text-[var(--foreground)]">Your leads</h2>
@@ -317,7 +374,7 @@ export function ConsultantLeadsClient(props: Props) {
                   <th className="px-3 py-2">Referral</th>
                   <th className="px-3 py-2">Branch</th>
                   <th className="px-3 py-2">University</th>
-                  <th className="px-3 py-2">Course</th>
+                  <th className="px-3 py-2">Degree Type</th>
                   <th className="px-3 py-2">Created</th>
                   {showAssignedPartnerCol ? <th className="px-3 py-2">Assigned partner</th> : null}
                   <th className="px-3 py-2">Status</th>

@@ -2,7 +2,6 @@ import type { Prisma } from "@prisma/client";
 import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { ROLES } from "@/lib/roles";
 import { assertUniversityScope } from "@/lib/university-scope";
 import {
   AdmissionsDashboard,
@@ -15,27 +14,6 @@ type PageProps = {
   params: Promise<{ universityId: string }>;
   searchParams: Promise<{ year?: string; stream?: string; page?: string; pageSize?: string }>;
 };
-
-function admissionAttributionLabel(row: {
-  consultantCode: string;
-  assignedPartnerDisplayName: string | null;
-  consultantRole: { slug: string };
-  createdBy: {
-    name: string | null;
-    email: string;
-  } | null;
-}): string {
-  if (row.consultantRole.slug === ROLES.university) {
-    return "(By University)";
-  }
-  return (
-    row.assignedPartnerDisplayName?.trim() ||
-    row.createdBy?.name?.trim() ||
-    row.createdBy?.email ||
-    row.consultantCode ||
-    "—"
-  );
-}
 
 export default async function UniversityAdmissionsPage(props: PageProps) {
   const session = await requireAuth();
@@ -80,13 +58,6 @@ export default async function UniversityAdmissionsPage(props: PageProps) {
       include: {
         academicYear: { select: { label: true } },
         stream: { select: { name: true } },
-        consultantRole: { select: { slug: true } },
-        createdBy: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
       },
     }),
   ]);
@@ -103,12 +74,6 @@ export default async function UniversityAdmissionsPage(props: PageProps) {
     createdAt: r.createdAt.toISOString(),
     academicYear: r.academicYear,
     stream: r.stream,
-    admissionAttribution: admissionAttributionLabel({
-      consultantCode: r.consultantCode,
-      assignedPartnerDisplayName: r.assignedPartnerDisplayName,
-      consultantRole: r.consultantRole,
-      createdBy: r.createdBy,
-    }),
   }));
 
   return (
@@ -123,7 +88,7 @@ export default async function UniversityAdmissionsPage(props: PageProps) {
       totalPages={totalPages}
       selectedYearId={selectedYearId}
       selectedStreamId={selectedStreamId}
-      pageSubtitle="All admission leads for your institution — partner and university team — filter by academic year and stream."
+      pageSubtitle="All admission leads for your institution — partner and university team — filter by academic year and degree."
     />
   );
 }

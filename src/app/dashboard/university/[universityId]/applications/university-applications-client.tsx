@@ -8,6 +8,7 @@ type Stream = { id: string; name: string };
 
 type AppRow = {
   id: string;
+  displayId: string;
   studentName: string;
   mobile: string;
   course: string;
@@ -52,7 +53,7 @@ export function UniversityApplicationsClient(props: Props) {
         <span className="font-medium text-[var(--foreground)]">Applications</span>
       </nav>
       <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">{props.universityName}</h1>
-      <p className="mt-1 text-sm text-[var(--foreground-muted)]">Applications linked to leads — filter by year and stream.</p>
+      <p className="mt-1 text-sm text-[var(--foreground-muted)]">Applications linked to leads — filter by year and degree.</p>
 
       <div className="mt-6 flex flex-wrap gap-2">
         <select
@@ -72,7 +73,7 @@ export function UniversityApplicationsClient(props: Props) {
           onChange={(e) => setFilter({ stream: e.target.value || null })}
           className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
         >
-          <option value="">All streams</option>
+          <option value="">All degrees</option>
           {props.streams.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
@@ -88,7 +89,7 @@ export function UniversityApplicationsClient(props: Props) {
               <th className="px-3 py-2">Application ID</th>
               <th className="px-3 py-2">Student</th>
               <th className="px-3 py-2">Mobile</th>
-              <th className="px-3 py-2">Course</th>
+              <th className="px-3 py-2">Degree</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Lead created</th>
             </tr>
@@ -96,7 +97,7 @@ export function UniversityApplicationsClient(props: Props) {
           <tbody>
             {props.applications.map((a) => (
               <tr key={a.id} className="border-b border-[var(--border)] last:border-0">
-                <td className="px-3 py-2 font-mono text-xs">{a.id}</td>
+                <td className="px-3 py-2 font-mono text-xs">{a.displayId}</td>
                 <td className="px-3 py-2">{a.studentName}</td>
                 <td className="px-3 py-2">{a.mobile}</td>
                 <td className="px-3 py-2">{a.course}</td>

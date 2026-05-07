@@ -99,7 +99,7 @@ export async function POST(req: Request) {
         to: session.email,
         name: app.user.name ?? app.user.email,
         amountLabel: `₹${(pay.amount / 100).toLocaleString("en-IN")} (Razorpay · ${parsed.data.kind})`,
-        applicationId: app.id,
+        applicationId: app.referenceCode ?? app.id,
       });
     } catch (e) {
       console.error("sendPaymentSuccessEmail", e);
@@ -131,7 +131,7 @@ export async function POST(req: Request) {
       to: session.email,
       name: app.user.name ?? app.user.email,
       amountLabel: `₹${(pay.amount / 100).toLocaleString("en-IN")} (Razorpay · program)`,
-      applicationId: app.id,
+      applicationId: app.referenceCode ?? app.id,
     });
   } catch (e) {
     console.error("sendPaymentSuccessEmail", e);

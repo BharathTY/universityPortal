@@ -27,66 +27,65 @@ export default async function MasterUniversitiesListPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl">Universities</h1>
-          <p className="mt-2 text-[var(--foreground-muted)]">
-            Create and manage university organisations and portal access. Academic years and program streams are
-            configured here per university (intake catalogue). University staff use Admissions only for day-to-day
-            leads.
-          </p>
+          <Link
+            href="/dashboard/master/universities/new"
+            className="inline-flex shrink-0 items-center justify-center rounded-lg bg-[var(--accent-blue)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--accent-blue-hover)]"
+          >
+            Add university
+          </Link>
         </div>
-        <Link
-          href="/dashboard/master/universities/new"
-          className="inline-flex items-center justify-center rounded-lg bg-[var(--accent-blue)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--accent-blue-hover)]"
-        >
-          Add university
-        </Link>
+        <p className="mt-2 text-[var(--foreground-muted)]">
+          Create and manage university organisations and portal access. Academic years and programs (degrees) are
+          configured here per university (intake catalogue). University staff use Admissions only for day-to-day leads.
+        </p>
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {universities.map((u) => (
           <article
             key={u.id}
-            className="flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm"
+            className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm"
           >
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">{u.name}</h2>
-            <p className="mt-1 font-mono text-xs text-[var(--foreground-muted)]">{u.code}</p>
-            <dl className="mt-4 space-y-2 text-sm text-[var(--foreground-muted)]">
-              <div className="flex justify-between gap-2">
-                <dt>Email</dt>
-                <dd className="text-right text-[var(--foreground)]">{u.email ?? "—"}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>Phone</dt>
-                <dd className="text-right text-[var(--foreground)]">{u.phone ?? "—"}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>Status</dt>
-                <dd>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      u.status === "ACTIVE"
-                        ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
-                        : "bg-[var(--muted)] text-[var(--foreground-muted)]"
-                    }`}
-                  >
-                    {u.status === "ACTIVE" ? "Active" : "Inactive"}
-                  </span>
-                </dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>Created</dt>
-                <dd className="tabular-nums">{formatDate(u.createdAt)}</dd>
-              </div>
-            </dl>
-            <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--border)] pt-4">
-              <Link
-                href={`/dashboard/university/${u.id}/admissions`}
-                className="rounded-lg bg-[var(--accent-blue)] px-3 py-1.5 text-xs font-semibold text-white"
-              >
-                Admissions
-              </Link>
+            <Link
+              href={`/dashboard/university/${u.id}/admissions`}
+              className="block flex-1 p-5 transition hover:bg-[var(--muted)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+            >
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">{u.name}</h2>
+              <p className="mt-1 font-mono text-xs text-[var(--foreground-muted)]">{u.code}</p>
+              <dl className="mt-4 space-y-2 text-sm text-[var(--foreground-muted)]">
+                <div className="flex justify-between gap-2">
+                  <dt>Email</dt>
+                  <dd className="text-right text-[var(--foreground)]">{u.email ?? "—"}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt>Phone</dt>
+                  <dd className="text-right text-[var(--foreground)]">{u.phone ?? "—"}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt>Status</dt>
+                  <dd>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        u.status === "ACTIVE"
+                          ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
+                          : "bg-[var(--muted)] text-[var(--foreground-muted)]"
+                      }`}
+                    >
+                      {u.status === "ACTIVE" ? "Active" : "Inactive"}
+                    </span>
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt>Created</dt>
+                  <dd className="tabular-nums">{formatDate(u.createdAt)}</dd>
+                </div>
+              </dl>
+              <p className="mt-3 text-xs text-[var(--primary)]">Open admissions →</p>
+            </Link>
+            <div className="flex flex-wrap gap-2 border-t border-[var(--border)] px-5 py-4">
               <Link
                 href={`/dashboard/university/${u.id}/admissions/academic-years`}
                 className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold"
@@ -97,7 +96,7 @@ export default async function MasterUniversitiesListPage() {
                 href={`/dashboard/university/${u.id}/admissions/streams`}
                 className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold"
               >
-                Streams
+                Degree
               </Link>
               <Link
                 href={`/dashboard/master/universities/${u.id}/edit`}

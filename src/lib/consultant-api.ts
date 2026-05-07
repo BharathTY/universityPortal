@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { resolveConsultantActiveUniversityId } from "@/lib/consultant-universities";
+import { resolveScopedConsultantUniversityId } from "@/lib/consultant-universities";
 import { isConsultant } from "@/lib/roles";
 
-export async function requireConsultantUniversity(): Promise<
+export async function requireConsultantUniversity(
+  scopedUniversityId?: string | null,
+): Promise<
   | { ok: true; session: NonNullable<Awaited<ReturnType<typeof getSession>>>; universityId: string }
   | { ok: false; response: NextResponse }
 > {
@@ -14,7 +16,7 @@ export async function requireConsultantUniversity(): Promise<
   if (!isConsultant(session.roles)) {
     return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
-  const { universityId } = await resolveConsultantActiveUniversityId(session);
+  const { universityId } = await resolveScopedConsultantUniversityId(session, scopedUniversityId);
   if (!universityId) {
     return {
       ok: false,

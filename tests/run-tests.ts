@@ -110,12 +110,12 @@ async function main() {
     const labels = nav.flatMap((g) => g.items.map((i) => i.label));
     assert.ok(labels.includes("Admission partners"));
   });
-  await test("consultant: no Home dashboard; Work shows Universities hub + Partner leads", () => {
+  await test("consultant: no Home dashboard; Work shows Universities hub (leads combined)", () => {
     const nav = buildDashboardNav([ROLES.consultant]);
     assert.ok(!nav.some((g) => g.title === "Home"));
     const items = nav.flatMap((g) => g.items);
     assert.ok(items.some((i) => i.href === "/dashboard/university" && i.label === "Universities"));
-    assert.ok(items.some((i) => i.href === "/dashboard/consultant/leads" && i.label === "Partner leads"));
+    assert.ok(!items.some((i) => i.href === "/dashboard/consultant/leads"));
     assert.strictEqual(
       items.some((i) => i.label === "Leads"),
       false,
@@ -223,7 +223,7 @@ async function main() {
     assert.strictEqual(canAccessLeadsAndBatches(roles), true);
     const items = buildDashboardNav(roles).flatMap((g) => g.items);
     assert.ok(items.some((i) => i.href === "/dashboard/university"));
-    assert.ok(items.some((i) => i.href === "/dashboard/consultant/leads"));
+    assert.ok(!items.some((i) => i.href === "/dashboard/consultant/leads"));
     assert.ok(items.some((i) => i.href === "/dashboard/consultant/students"));
   });
 

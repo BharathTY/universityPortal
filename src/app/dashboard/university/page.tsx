@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ConsultantInPageUniversitySection } from "@/components/consultant-in-page-university-section";
+import { ConsultantUniversityHubClient } from "@/app/dashboard/university/consultant-university-hub-client";
 import { requireAuth } from "@/lib/auth";
-import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
+import {
+  getAllowedConsultantUniversityIds,
+  resolveConsultantActiveUniversityId,
+} from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
 import { isConsultantOnly, isMaster, isUniversity } from "@/lib/roles";
 
@@ -29,9 +32,42 @@ export default async function UniversityHubPage() {
       );
     }
 
+    const { universityId } = await resolveConsultantActiveUniversityId(session);
+    if (!universityId) {
+      redirect("/dashboard");
+    }
+    const [uniRows, university, streams] = await Promise.all([
+      prisma.university.findMany({
+        where: { id: { in: ids } },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, code: true, logoUrl: true },
+      }),
+      prisma.university.findUnique({
+        where: { id: universityId },
+        select: { id: true, name: true, code: true },
+      }),
+      prisma.stream.findMany({
+        where: { universityId },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: { id: true, name: true },
+      }),
+    ]);
+
+    if (!university) {
+      redirect("/dashboard");
+    }
+
     return (
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        <ConsultantInPageUniversitySection roles={session.roles} variant="hub" />
+        <ConsultantUniversityHubClient
+          initial={{
+            universityId: university.id,
+            universityName: university.name,
+            universityCode: university.code,
+            streams,
+            universities: uniRows,
+          }}
+        />
       </div>
     );
   }

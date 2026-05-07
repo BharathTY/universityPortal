@@ -57,10 +57,7 @@ export function buildDashboardNav(roles: string[], options?: BuildDashboardNavOp
     return [
       {
         title: "Work",
-        items: [
-          { href: "/dashboard/university", label: "Universities", icon: "building" },
-          { href: "/dashboard/consultant/leads", label: "Partner leads", icon: "briefcase" },
-        ],
+        items: [{ href: "/dashboard/university", label: "Universities", icon: "building" }],
       },
       {
         title: "Users",

@@ -69,7 +69,7 @@ export async function POST(req: Request) {
         to: session.email,
         name: app.user.name ?? app.user.email,
         amountLabel: `₹${registrationFee.toLocaleString("en-IN")} (${parsed.data.method})`,
-        applicationId: app.id,
+        applicationId: app.referenceCode ?? app.id,
       });
     } catch (e) {
       console.error("sendPaymentSuccessEmail", e);
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
       to: session.email,
       name: app.user.name ?? app.user.email,
       amountLabel: `₹${programFee.toLocaleString("en-IN")} (${parsed.data.method})`,
-      applicationId: app.id,
+        applicationId: app.referenceCode ?? app.id,
     });
   } catch (e) {
     console.error("sendPaymentSuccessEmail", e);

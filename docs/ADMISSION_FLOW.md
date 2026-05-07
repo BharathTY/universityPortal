@@ -11,7 +11,7 @@ flowchart LR
   D --> F[Exam / scholarship — Phase 2]
   F --> G[Program ₹50,000]
   E --> G
-  G --> H[Visit: date / slot / address + tour]
+  G --> H[Visit: datetime + boarding + visitors]
   H --> I[Completed]
 ```
 
@@ -23,8 +23,10 @@ flowchart LR
 
 ## Visit capture
 
-- **Admission visit:** `DD/MM/YYYY`, `AM`/`PM`, free-text **address**; server derives `admissionVisitAt` for calendar use.
-- **Campus tour:** `datetime-local` (unchanged).
+- **Single combined visit:** one `datetime-local` for admission counselling + campus tour (`admissionVisitAt`); `campusTourAt` is cleared for new saves.
+- **Boarding address:** current address text (`boardingAddress`).
+- **Visitors:** integer count 1–500 (`visitVisitorCount`).
+- **Legacy:** older rows may still have structured DD/MM/YYYY + slot + `admissionVisitAddress` and/or a separate `campusTourAt`; the API still accepts those fields for backward compatibility.
 
 ## University vs partner leads
 

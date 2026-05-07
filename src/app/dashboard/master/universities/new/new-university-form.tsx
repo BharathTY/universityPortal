@@ -10,6 +10,7 @@ export function NewUniversityForm() {
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
+  const [applicationFee, setApplicationFee] = React.useState("0");
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -23,6 +24,7 @@ export function NewUniversityForm() {
           name,
           email,
           phone,
+          applicationFee: Number(applicationFee),
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -71,6 +73,21 @@ export function NewUniversityForm() {
           placeholder="+91 98765 43210"
           className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
         />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-[var(--foreground)]">Application fee</label>
+        <input
+          type="number"
+          required
+          min={0}
+          step="0.01"
+          value={applicationFee}
+          onChange={(e) => setApplicationFee(e.target.value)}
+          className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+        />
+        <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+          Default application amount for this university (major currency units).
+        </p>
       </div>
       <p className="text-sm text-[var(--foreground-muted)]">
         A secure password is generated automatically and emailed to the address above when you submit.

@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { sendAccountCredentialsEmail } from "@/lib/email";
@@ -17,6 +18,7 @@ const createSchema = z.object({
   name: z.string().min(2).max(200).trim(),
   email: z.string().email().max(254).trim(),
   phone: phoneSchema,
+  applicationFee: z.coerce.number().nonnegative().max(999_999_999),
 });
 
 export async function POST(req: Request) {
@@ -62,6 +64,7 @@ export async function POST(req: Request) {
         email,
         phone: parsed.data.phone,
         status: "ACTIVE",
+        applicationFee: new Prisma.Decimal(parsed.data.applicationFee.toFixed(2)),
       },
     });
 

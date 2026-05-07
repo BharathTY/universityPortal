@@ -64,11 +64,11 @@ export function NewConsultantForm({ universities }: Props) {
         <label className="block text-sm font-medium text-[var(--foreground)]">Account type</label>
         <select
           value={partnerRole}
-          onChange={(e) => setPartnerRole(e.target.value as "consultant" | "qspiders_branch")}
-          className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+          disabled
+          title="Account type is fixed to standard admission partner. Contact engineering for branch accounts."
+          className="mt-1 w-full cursor-not-allowed rounded-lg border border-[var(--border)] bg-[var(--muted)]/50 px-3 py-2 text-[var(--foreground)] opacity-80"
         >
           <option value="consultant">Standard admission partner</option>
-          <option value="qspiders_branch">Qspiders branch (same portal; branch name on leads)</option>
         </select>
       </div>
       {partnerRole === "qspiders_branch" ? (

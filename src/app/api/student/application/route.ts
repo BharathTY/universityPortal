@@ -11,6 +11,8 @@ const patchSchema = z.object({
   firstName: z.string().min(1).max(120).optional(),
   lastName: z.string().min(1).max(120).optional(),
   phone: z.string().min(5).max(32).optional(),
+  /** Optional alternate contact; empty clears stored value. */
+  phoneAlternate: z.union([z.string().max(32), z.literal("")]).optional().nullable(),
   nationality: z.string().max(120).optional().nullable(),
   admissionState: z.string().min(1).max(120).optional(),
   specialization: z.string().max(200).optional().nullable(),
@@ -22,9 +24,12 @@ const patchSchema = z.object({
   admissionVisitDateText: z.string().max(64).optional().nullable(),
   admissionVisitTimeSlot: z.enum(["AM", "PM"]).optional().nullable(),
   admissionVisitAddress: z.string().max(500).optional().nullable(),
-  /** ISO-like string from `<input type="datetime-local" />` — campus tour only preferred; admission visit uses structured fields. */
+  /** ISO-like string from `<input type="datetime-local" />` — combined visit (admission + tour). */
   admissionVisitAt: z.string().max(64).optional().nullable(),
   campusTourAt: z.string().max(64).optional().nullable(),
+  /** Current / boarding address; used with combined visit datetime and visitor count. */
+  boardingAddress: z.string().max(1000).optional().nullable(),
+  visitVisitorCount: z.number().int().min(1).max(500).optional().nullable(),
 });
 
 function parseVisitAt(value: string | null | undefined): Date | null {
@@ -45,7 +50,7 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
     include: {
       university: { select: { name: true, code: true } },
-      user: { select: { name: true, phone: true, email: true } },
+      user: { select: { name: true, phone: true, phoneAlternate: true, email: true } },
       lead: {
         select: {
           firstName: true,
@@ -75,6 +80,7 @@ export async function GET() {
   return NextResponse.json({
     application: {
       id: row.id,
+      referenceCode: row.referenceCode,
       status: row.status,
       paymentStatus: row.paymentStatus,
       admissionReview: row.admissionReview,
@@ -84,6 +90,8 @@ export async function GET() {
       admissionVisitAddress: row.admissionVisitAddress,
       admissionVisitAt: row.admissionVisitAt?.toISOString() ?? null,
       campusTourAt: row.campusTourAt?.toISOString() ?? null,
+      boardingAddress: row.boardingAddress,
+      visitVisitorCount: row.visitVisitorCount,
       university: row.university,
       user: row.user,
       lead: row.lead,
@@ -131,6 +139,9 @@ export async function PATCH(req: Request) {
     data: {
       ...(name ? { name } : {}),
       ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone } : {}),
+      ...(parsed.data.phoneAlternate !== undefined
+        ? { phoneAlternate: parsed.data.phoneAlternate?.trim() || null }
+        : {}),
     },
   });
 
@@ -181,10 +192,46 @@ export async function PATCH(req: Request) {
   }
 
   const appUpdate: Prisma.ApplicationUpdateInput = {};
+
+  const combinedVisitSave =
+    parsed.data.boardingAddress !== undefined || parsed.data.visitVisitorCount !== undefined;
+
+  if (combinedVisitSave) {
+    if (parsed.data.boardingAddress === undefined || parsed.data.visitVisitorCount === undefined) {
+      return NextResponse.json(
+        { error: "Boarding address and number of visitors are required with the visit date" },
+        { status: 400 },
+      );
+    }
+    const d = parseVisitAt(parsed.data.admissionVisitAt);
+    if (!parsed.data.admissionVisitAt?.trim() || d === null) {
+      return NextResponse.json(
+        { error: "Visit date and time is required (admission and campus tour combined)" },
+        { status: 400 },
+      );
+    }
+    const board = parsed.data.boardingAddress.trim();
+    if (!board) {
+      return NextResponse.json({ error: "Boarding address (current address) is required" }, { status: 400 });
+    }
+    const cnt = parsed.data.visitVisitorCount;
+    if (cnt == null || cnt < 1) {
+      return NextResponse.json({ error: "Number of visitors must be at least 1" }, { status: 400 });
+    }
+    appUpdate.admissionVisitAt = d;
+    appUpdate.campusTourAt = null;
+    appUpdate.admissionVisitDateText = null;
+    appUpdate.admissionVisitTimeSlot = null;
+    appUpdate.admissionVisitAddress = null;
+    appUpdate.boardingAddress = board;
+    appUpdate.visitVisitorCount = cnt;
+  }
+
   const structKeys =
-    parsed.data.admissionVisitDateText !== undefined ||
-    parsed.data.admissionVisitTimeSlot !== undefined ||
-    parsed.data.admissionVisitAddress !== undefined;
+    !combinedVisitSave &&
+    (parsed.data.admissionVisitDateText !== undefined ||
+      parsed.data.admissionVisitTimeSlot !== undefined ||
+      parsed.data.admissionVisitAddress !== undefined);
 
   if (structKeys) {
     const dt = parsed.data.admissionVisitDateText;
@@ -215,7 +262,7 @@ export async function PATCH(req: Request) {
       appUpdate.admissionVisitAddress = addr.trim();
       appUpdate.admissionVisitAt = visitDate;
     }
-  } else if (parsed.data.admissionVisitAt !== undefined) {
+  } else if (!combinedVisitSave && parsed.data.admissionVisitAt !== undefined) {
     const d = parseVisitAt(parsed.data.admissionVisitAt);
     if (parsed.data.admissionVisitAt && parsed.data.admissionVisitAt.trim() !== "" && d === null) {
       return NextResponse.json({ error: "Invalid admission visit date" }, { status: 400 });
@@ -223,7 +270,7 @@ export async function PATCH(req: Request) {
     appUpdate.admissionVisitAt = d;
   }
 
-  if (parsed.data.campusTourAt !== undefined) {
+  if (!combinedVisitSave && parsed.data.campusTourAt !== undefined) {
     const d = parseVisitAt(parsed.data.campusTourAt);
     if (parsed.data.campusTourAt && parsed.data.campusTourAt.trim() !== "" && d === null) {
       return NextResponse.json({ error: "Invalid campus tour date" }, { status: 400 });

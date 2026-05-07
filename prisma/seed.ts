@@ -306,46 +306,56 @@ async function main() {
   });
 
   await prisma.application.deleteMany({});
-  await prisma.application.createMany({
-    data: [
-      {
-        userId: students[0]!.id,
-        universityId: uni1.id,
-        batchId: batchJan.id,
-        status: ApplicationStatus.PROGRAM_FEE_PENDING,
+  const appRefSeg = uni1.code.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const appSeeds = [
+    {
+      userId: students[0]!.id,
+      universityId: uni1.id,
+      batchId: batchJan.id,
+      status: ApplicationStatus.PROGRAM_FEE_PENDING,
+    },
+    {
+      userId: students[1]!.id,
+      universityId: uni1.id,
+      batchId: batchJan.id,
+      status: ApplicationStatus.REGISTRATION_FEE_PENDING,
+    },
+    {
+      userId: students[2]!.id,
+      universityId: uni1.id,
+      batchId: batchJan.id,
+      status: ApplicationStatus.REGISTRATION_FEE_PENDING,
+    },
+    {
+      userId: students[3]!.id,
+      universityId: uni1.id,
+      batchId: batchJan.id,
+      status: ApplicationStatus.PROGRAM_FEE_PENDING,
+    },
+    {
+      userId: students[4]!.id,
+      universityId: uni1.id,
+      batchId: batchJan.id,
+      status: ApplicationStatus.PROGRAM_FEE_PENDING,
+    },
+    {
+      userId: students[5]!.id,
+      universityId: uni1.id,
+      batchId: batchJan.id,
+      status: ApplicationStatus.COMPLETED,
+    },
+  ] as const;
+
+  let appIdx = 0;
+  for (const row of appSeeds) {
+    appIdx += 1;
+    await prisma.application.create({
+      data: {
+        ...row,
+        referenceCode: `APP-${appRefSeg}-${String(appIdx).padStart(6, "0")}`,
       },
-      {
-        userId: students[1]!.id,
-        universityId: uni1.id,
-        batchId: batchJan.id,
-        status: ApplicationStatus.REGISTRATION_FEE_PENDING,
-      },
-      {
-        userId: students[2]!.id,
-        universityId: uni1.id,
-        batchId: batchJan.id,
-        status: ApplicationStatus.REGISTRATION_FEE_PENDING,
-      },
-      {
-        userId: students[3]!.id,
-        universityId: uni1.id,
-        batchId: batchJan.id,
-        status: ApplicationStatus.PROGRAM_FEE_PENDING,
-      },
-      {
-        userId: students[4]!.id,
-        universityId: uni1.id,
-        batchId: batchJan.id,
-        status: ApplicationStatus.PROGRAM_FEE_PENDING,
-      },
-      {
-        userId: students[5]!.id,
-        universityId: uni1.id,
-        batchId: batchJan.id,
-        status: ApplicationStatus.COMPLETED,
-      },
-    ],
-  });
+    });
+  }
 
   const adminUser = await prisma.user.upsert({
     where: { email: "admin@university.local" },

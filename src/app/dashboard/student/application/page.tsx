@@ -22,6 +22,7 @@ type LeadPayload = {
 
 type AppData = {
   id: string;
+  referenceCode?: string | null;
   status: string;
   paymentStatus: string;
   admissionReview: string;
@@ -31,9 +32,11 @@ type AppData = {
   admissionVisitAddress: string | null;
   admissionVisitAt: string | null;
   campusTourAt: string | null;
+  boardingAddress: string | null;
+  visitVisitorCount: number | null;
   razorpayConfigured?: boolean;
   university: { name: string; code: string } | null;
-  user: { name: string | null; phone: string | null; email: string };
+  user: { name: string | null; phone: string | null; phoneAlternate: string | null; email: string };
   lead: LeadPayload | null;
 };
 
@@ -43,17 +46,6 @@ function isoToDatetimeLocalValue(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function isoToVisitParts(iso: string | null): { dateText: string; slot: "AM" | "PM" | "" } {
-  if (!iso) return { dateText: "", slot: "" };
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return { dateText: "", slot: "" };
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const dateText = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-  const h = d.getHours();
-  const slot: "AM" | "PM" = h < 12 ? "AM" : "PM";
-  return { dateText, slot };
 }
 
 declare global {
@@ -85,6 +77,7 @@ export default function StudentApplicationPage() {
   const [firstName, setFirstName] = React.useState("");
   const [lastName, setLastName] = React.useState("");
   const [phone, setPhone] = React.useState("");
+  const [altPhone, setAltPhone] = React.useState("");
   const [nationality, setNationality] = React.useState("");
   const [admissionState, setAdmissionState] = React.useState("");
   const [specialization, setSpecialization] = React.useState("");
@@ -93,10 +86,9 @@ export default function StudentApplicationPage() {
   const [refPhone, setRefPhone] = React.useState("");
   const [refEmail, setRefEmail] = React.useState("");
 
-  const [visitDateText, setVisitDateText] = React.useState("");
-  const [visitSlot, setVisitSlot] = React.useState<"" | "AM" | "PM">("");
-  const [visitAddress, setVisitAddress] = React.useState("");
-  const [visitTour, setVisitTour] = React.useState("");
+  const [visitDateTime, setVisitDateTime] = React.useState("");
+  const [boardingAddress, setBoardingAddress] = React.useState("");
+  const [visitorCount, setVisitorCount] = React.useState("1");
 
   const [payBusy, setPayBusy] = React.useState(false);
   const [customRupees, setCustomRupees] = React.useState("");
@@ -129,10 +121,23 @@ export default function StudentApplicationPage() {
   React.useEffect(() => {
     if (!app) return;
     if (app.paymentStatus === "PROGRAM_PAID") {
-      const hasVisits = Boolean(app.admissionVisitAt && app.campusTourAt);
+      const hasVisits = Boolean(
+        app.admissionVisitAt &&
+          (app.campusTourAt ||
+            (app.boardingAddress?.trim() &&
+              app.visitVisitorCount != null &&
+              app.visitVisitorCount >= 1)),
+      );
       setStep((s) => (s <= 2 ? (hasVisits ? 4 : 3) : s));
     }
-  }, [app?.id, app?.paymentStatus, app?.admissionVisitAt, app?.campusTourAt]);
+  }, [
+    app?.id,
+    app?.paymentStatus,
+    app?.admissionVisitAt,
+    app?.campusTourAt,
+    app?.boardingAddress,
+    app?.visitVisitorCount,
+  ]);
 
   React.useEffect(() => {
     if (!app?.user) return;
@@ -141,6 +146,7 @@ export default function StudentApplicationPage() {
     setFirstName(parts[0] ?? "");
     setLastName(parts.slice(1).join(" "));
     setPhone(app.user.phone ?? "");
+    setAltPhone(app.user.phoneAlternate ?? "");
     const L = app.lead;
     setNationality(L?.nationality ?? "");
     setAdmissionState(L?.admissionState?.trim() ?? "");
@@ -149,27 +155,45 @@ export default function StudentApplicationPage() {
     setRefLn(L?.referralLastName ?? "");
     setRefPhone(L?.referralPhone ?? "");
     setRefEmail(L?.referralEmail ?? "");
-    const fallback = isoToVisitParts(app.admissionVisitAt);
-    setVisitDateText(app.admissionVisitDateText?.trim() || fallback.dateText);
-    setVisitSlot(
-      (app.admissionVisitTimeSlot === "AM" || app.admissionVisitTimeSlot === "PM"
-        ? app.admissionVisitTimeSlot
-        : fallback.slot) || "",
+    const visitIso = app.admissionVisitAt ?? app.campusTourAt;
+    setVisitDateTime(isoToDatetimeLocalValue(visitIso));
+    setBoardingAddress(app.boardingAddress?.trim() ?? "");
+    setVisitorCount(
+      app.visitVisitorCount != null && app.visitVisitorCount >= 1 ? String(app.visitVisitorCount) : "1",
     );
-    setVisitAddress(app.admissionVisitAddress?.trim() ?? "");
-    setVisitTour(isoToDatetimeLocalValue(app.campusTourAt));
   }, [app]);
 
   async function saveStep1(e: React.FormEvent) {
     e.preventDefault();
-    if (!app || app.paymentStatus === "PROGRAM_PAID") return;
+    if (!app) return;
     setError(null);
-    const body: Record<string, unknown> = {
+
+    const paidProgram = app.paymentStatus === "PROGRAM_PAID";
+
+    const baseBody: Record<string, unknown> = {
       firstName,
       lastName,
       phone,
+      phoneAlternate: altPhone.trim() || null,
       nationality: nationality || null,
     };
+
+    if (paidProgram) {
+      const res = await fetch("/api/student/application", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(baseBody),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Could not save");
+        return;
+      }
+      await loadApp({ silent: true });
+      return;
+    }
+
+    const body: Record<string, unknown> = { ...baseBody };
     if (app.lead) {
       body.admissionState = admissionState.trim();
       body.specialization = specialization.trim() || null;
@@ -337,20 +361,27 @@ export default function StudentApplicationPage() {
     e.preventDefault();
     if (!app) return;
     setError(null);
-    if (!visitDateText.trim() || !visitSlot || !visitAddress.trim() || !visitTour.trim()) {
-      setError(
-        "Please enter admission visit date (DD/MM/YYYY), AM or PM slot, visit address, and a campus tour date and time.",
-      );
+    if (!visitDateTime.trim()) {
+      setError("Please choose a date and time for your visit.");
+      return;
+    }
+    const board = boardingAddress.trim();
+    if (!board) {
+      setError("Please enter your boarding address (current address).");
+      return;
+    }
+    const nVisitors = Number.parseInt(String(visitorCount).trim(), 10);
+    if (!Number.isFinite(nVisitors) || nVisitors < 1 || nVisitors > 500) {
+      setError("Number of visitors must be between 1 and 500.");
       return;
     }
     const res = await fetch("/api/student/application", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        admissionVisitDateText: visitDateText.trim(),
-        admissionVisitTimeSlot: visitSlot,
-        admissionVisitAddress: visitAddress.trim(),
-        campusTourAt: visitTour,
+        admissionVisitAt: visitDateTime,
+        boardingAddress: board,
+        visitVisitorCount: nVisitors,
       }),
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -529,6 +560,8 @@ export default function StudentApplicationPage() {
             </div>
           ) : null}
 
+          </fieldset>
+
           <div>
             <p className="text-sm font-semibold text-[var(--foreground)]">Your details</p>
             <p className="mt-1 text-xs text-[var(--foreground-muted)]">
@@ -563,6 +596,16 @@ export default function StudentApplicationPage() {
                 />
               </div>
               <div>
+                <label className="text-sm font-medium">Alternate phone (optional)</label>
+                <input
+                  type="tel"
+                  value={altPhone}
+                  onChange={(e) => setAltPhone(e.target.value)}
+                  placeholder="e.g. parent or secondary number"
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+              <div>
                 <label className="text-sm font-medium">Nationality</label>
                 <input
                   value={nationality}
@@ -572,14 +615,12 @@ export default function StudentApplicationPage() {
               </div>
             </div>
           </div>
-          </fieldset>
 
           <button
             type="submit"
-            disabled={programPaid}
-            className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white"
           >
-            Continue to fees
+            {programPaid ? "Save details" : "Continue to fees"}
           </button>
         </form>
       ) : null}
@@ -765,52 +806,40 @@ export default function StudentApplicationPage() {
         <form onSubmit={(e) => void saveVisits(e)} className="mt-8 space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
           <h2 className="text-lg font-semibold text-[var(--foreground)]">College visits</h2>
           <p className="text-sm text-[var(--foreground-muted)]">
-            Schedule your admission counselling visit (date, half-day slot, and address) and a campus tour. Tour time
-            uses your local timezone.
+            Schedule your admission counselling and campus tour in one visit. Time uses your local timezone.
           </p>
           <div>
-            <label className="text-sm font-medium">Admission visit — date (DD/MM/YYYY) *</label>
+            <label className="text-sm font-medium">Visit — date &amp; time *</label>
             <input
-              type="text"
+              type="datetime-local"
               required
-              value={visitDateText}
-              onChange={(e) => setVisitDateText(e.target.value)}
-              placeholder="e.g. 15/08/2026"
+              value={visitDateTime}
+              onChange={(e) => setVisitDateTime(e.target.value)}
               className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Preferred slot *</label>
-            <select
-              required
-              value={visitSlot}
-              onChange={(e) => setVisitSlot(e.target.value as "" | "AM" | "PM")}
-              className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-            >
-              <option value="">Select AM or PM</option>
-              <option value="AM">Morning (AM)</option>
-              <option value="PM">Afternoon (PM)</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-medium">Visit address *</label>
+            <label className="text-sm font-medium">Boarding address (current address) *</label>
             <textarea
               required
-              value={visitAddress}
-              onChange={(e) => setVisitAddress(e.target.value)}
+              value={boardingAddress}
+              onChange={(e) => setBoardingAddress(e.target.value)}
               rows={3}
-              placeholder="Campus / office address or meeting point"
+              placeholder="Your current address"
               className="mt-1 w-full max-w-lg rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Campus tour — date &amp; time *</label>
+            <label className="text-sm font-medium">Number of visitors *</label>
             <input
-              type="datetime-local"
+              type="number"
               required
-              value={visitTour}
-              onChange={(e) => setVisitTour(e.target.value)}
-              className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+              min={1}
+              max={500}
+              step={1}
+              value={visitorCount}
+              onChange={(e) => setVisitorCount(e.target.value)}
+              className="mt-1 w-full max-w-xs rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
             />
           </div>
           <div className="flex flex-wrap gap-3">
@@ -828,7 +857,8 @@ export default function StudentApplicationPage() {
         <div className="mt-8 space-y-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-6">
           <h2 className="text-lg font-semibold text-[var(--foreground)]">You&apos;re all set</h2>
           <p className="text-sm text-[var(--foreground-muted)]">
-            Application ID: <code className="text-[var(--foreground)]">{app.id}</code>
+            Application ID:{" "}
+            <code className="text-[var(--foreground)]">{app.referenceCode ?? app.id}</code>
           </p>
           <p className="text-sm text-[var(--foreground-muted)]">
             Status: {app.status} · Review: {app.admissionReview} · Payment: {app.paymentStatus}
@@ -838,9 +868,27 @@ export default function StudentApplicationPage() {
               Admission path: {app.admissionPath === "NATIONAL_EXAM" ? "National exam" : "Direct admission"}
             </p>
           ) : null}
-          {app.admissionVisitDateText || app.admissionVisitAt ? (
+          {app.admissionVisitAt ? (
             <div className="text-sm text-[var(--foreground-muted)]">
-              <p className="font-medium text-[var(--foreground)]">Admission visit</p>
+              <p className="font-medium text-[var(--foreground)]">Scheduled visit</p>
+              <p>{new Date(app.admissionVisitAt).toLocaleString()}</p>
+              {app.boardingAddress ? (
+                <p className="mt-2">
+                  <span className="font-medium text-[var(--foreground)]">Boarding address (current): </span>
+                  {app.boardingAddress}
+                </p>
+              ) : null}
+              {app.visitVisitorCount != null ? (
+                <p className="mt-1">
+                  <span className="font-medium text-[var(--foreground)]">Visitors: </span>
+                  {app.visitVisitorCount}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {app.admissionVisitDateText || app.admissionVisitAddress ? (
+            <div className="text-sm text-[var(--foreground-muted)]">
+              <p className="font-medium text-[var(--foreground)]">Earlier visit details (on file)</p>
               {app.admissionVisitDateText ? (
                 <p>
                   Date: {app.admissionVisitDateText}
@@ -848,18 +896,15 @@ export default function StudentApplicationPage() {
                 </p>
               ) : null}
               {app.admissionVisitAddress ? <p>Address: {app.admissionVisitAddress}</p> : null}
-              {app.admissionVisitAt ? (
-                <p className="text-xs">Calendar time (local): {new Date(app.admissionVisitAt).toLocaleString()}</p>
-              ) : null}
             </div>
           ) : null}
-          {app.campusTourAt ? (
+          {app.campusTourAt && !app.boardingAddress ? (
             <p className="text-sm text-[var(--foreground-muted)]">
-              Campus tour: {new Date(app.campusTourAt).toLocaleString()}
+              Campus tour (legacy): {new Date(app.campusTourAt).toLocaleString()}
             </p>
           ) : null}
           <button type="button" onClick={() => setStep(3)} className="text-sm text-[var(--primary)] underline">
-            Edit visit times
+            Edit visit schedule
           </button>
         </div>
       ) : null}

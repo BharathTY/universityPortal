@@ -66,6 +66,7 @@ export default async function UniversityApplicationsPage(props: PageProps) {
 
   const rows = applications.map((a) => ({
     id: a.id,
+    displayId: a.referenceCode ?? a.id,
     studentName: a.user.name ?? a.user.email,
     mobile: a.user.phone ?? "—",
     course: a.lead?.stream.name ?? "—",

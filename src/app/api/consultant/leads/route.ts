@@ -7,8 +7,10 @@ import { resolveAcademicYearIdForLead } from "@/lib/consultant-default-year";
 import { consultantCodeFromUserId } from "@/lib/consultant-code";
 import { requireConsultantUniversity } from "@/lib/consultant-api";
 import { canSeeAdmissionLeadAssignedPartnerName } from "@/lib/roles";
+import { sendAdmissionLeadWelcomeEmail } from "@/lib/email";
 
 const createSchema = z.object({
+  universityId: z.string().min(1).optional(),
   academicYearId: z.string().min(1).optional(),
   streamId: z.string().min(1),
   firstName: z.string().min(1).max(120).trim(),
@@ -24,11 +26,11 @@ const createSchema = z.object({
 });
 
 export async function GET(req: Request) {
-  const gate = await requireConsultantUniversity();
+  const url = new URL(req.url);
+  const scoped = url.searchParams.get("universityId")?.trim() || null;
+  const gate = await requireConsultantUniversity(scoped);
   if (!gate.ok) return gate.response;
   const { session, universityId } = gate;
-
-  const url = new URL(req.url);
   const pipelineRaw = url.searchParams.get("pipeline");
   const pipeline =
     pipelineRaw === "NEW" || pipelineRaw === "LOST" || pipelineRaw === "CONVERTED"
@@ -77,10 +79,6 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const gate = await requireConsultantUniversity();
-  if (!gate.ok) return gate.response;
-  const { session, universityId } = gate;
-
   let json: unknown;
   try {
     json = await req.json();
@@ -92,6 +90,10 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
+
+  const gate = await requireConsultantUniversity(parsed.data.universityId ?? null);
+  if (!gate.ok) return gate.response;
+  const { session, universityId } = gate;
 
   const [yearId, stream, roleRow, creator] = await Promise.all([
     resolveAcademicYearIdForLead(universityId, parsed.data.academicYearId ?? null),
@@ -167,6 +169,19 @@ export async function POST(req: Request) {
       assignedPartnerDisplayName,
     },
   });
+
+  const fullName = `${parsed.data.firstName} ${parsed.data.lastName}`.trim();
+  try {
+    await sendAdmissionLeadWelcomeEmail({
+      to: email,
+      name: fullName || parsed.data.firstName,
+      universityName: (await prisma.university.findUnique({ where: { id: universityId }, select: { name: true } }))
+        ?.name ?? "the university",
+      partnerLabel: assignedPartnerDisplayName,
+    });
+  } catch (e) {
+    console.error("sendAdmissionLeadWelcomeEmail", e);
+  }
 
   return NextResponse.json({ lead });
 }

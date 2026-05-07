@@ -11,6 +11,7 @@ type Props = {
     phone: string;
     status: "ACTIVE" | "INACTIVE";
     logoUrl: string;
+    applicationFee: string;
   };
 };
 
@@ -23,6 +24,7 @@ export function EditUniversityForm({ universityId, initial }: Props) {
   const [phone, setPhone] = React.useState(initial.phone);
   const [status, setStatus] = React.useState<"ACTIVE" | "INACTIVE">(initial.status);
   const [logoUrl, setLogoUrl] = React.useState(initial.logoUrl);
+  const [applicationFee, setApplicationFee] = React.useState(initial.applicationFee);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,7 +34,7 @@ export function EditUniversityForm({ universityId, initial }: Props) {
       const res = await fetch(`/api/master/universities/${universityId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, phone, status, logoUrl: logoUrl.trim() || "" }),
+        body: JSON.stringify({ name, email, phone, status, logoUrl: logoUrl.trim() || "", applicationFee: Number(applicationFee) }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
@@ -73,6 +75,18 @@ export function EditUniversityForm({ universityId, initial }: Props) {
           required
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
+          className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-[var(--foreground)]">Application fee</label>
+        <input
+          type="number"
+          required
+          min={0}
+          step="0.01"
+          value={applicationFee}
+          onChange={(e) => setApplicationFee(e.target.value)}
           className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
         />
       </div>

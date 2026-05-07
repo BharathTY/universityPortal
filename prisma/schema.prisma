@@ -20,6 +20,8 @@ model University {
   phone     String?
   /// Public URL for logo (shown on student overview, etc.)
   logoUrl   String?
+  /// Default registration / application fee amount (major currency units, e.g. INR).
+  applicationFee Decimal? @db.Decimal(12, 2)
   status    UniversityStatus @default(ACTIVE)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -150,6 +152,8 @@ model AdmissionLead {
 
   application Application?
 
+  statusHistory AdmissionLeadStatusHistory[]
+
   @@index([universityId])
   @@index([academicYearId])
   @@index([streamId])
@@ -161,11 +165,27 @@ model AdmissionLead {
   @@index([mobile])
 }
 
+model AdmissionLeadStatusHistory {
+  id              String              @id @default(cuid())
+  leadId          String
+  lead            AdmissionLead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  fromStatus      AdmissionLeadStatus
+  toStatus        AdmissionLeadStatus
+  changedByUserId String?
+  changedBy       User?               @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime            @default(now())
+
+  @@index([leadId])
+  @@index([changedByUserId])
+}
+
 model User {
   id        String     @id @default(cuid())
   email     String     @unique
   name      String?
   phone     String?
+  /// Optional second contact number (student-entered on application).
+  phoneAlternate String?
   /// Reserved for future password-based flows; sign-in is OTP-only.
   passwordHash String?
   accountStatus UserAccountStatus @default(ACTIVE)
@@ -185,6 +205,11 @@ model User {
   studentOf   User?   @relation("StudentToConsultant", fields: [studentOfId], references: [id], onDelete: SetNull)
   students    User[]  @relation("StudentToConsultant")
 
+  /// Admission partner invited by another consultant (Manage users → Invite counsellors). Null for master-created accounts.
+  reportsToConsultantId String?
+  reportsToConsultant   User?   @relation("ConsultantInvites", fields: [reportsToConsultantId], references: [id], onDelete: SetNull)
+  invitedTeamMembers    User[]  @relation("ConsultantInvites")
+
   /// Qspiders branch accounts: displayed on leads and in student comms.
   branchName String?
 
@@ -193,9 +218,11 @@ model User {
   applications  Application[]
   leadsCreated  AdmissionLead[] @relation("LeadCreator")
   consultantUniversities ConsultantUniversity[]
+  admissionLeadStatusHistory AdmissionLeadStatusHistory[]
 
   @@index([universityId])
   @@index([studentOfId])
+  @@index([reportsToConsultantId])
 }
 
 model Batch {
@@ -239,6 +266,8 @@ enum ApplicationAdmissionPath {
 
 model Application {
   id        String   @id @default(cuid())
+  /// Human-readable id for display (e.g. APP-QSPU1-000001). Internal `id` remains the primary key.
+  referenceCode String? @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -269,8 +298,13 @@ model Application {
 
   /// Scheduled admission counselling / office visit (student-selected).
   admissionVisitAt DateTime?
-  /// Scheduled campus tour (student-selected).
+  /// Scheduled campus tour (legacy); new flow uses a single `admissionVisitAt` only.
   campusTourAt     DateTime?
+
+  /// Student's current / boarding address (visit step).
+  boardingAddress    String?
+  /// Headcount for the scheduled visit.
+  visitVisitorCount  Int?
 
   /// Last Razorpay order id created for this application (used to validate payment web callback).
   lastRazorpayOrderId String?

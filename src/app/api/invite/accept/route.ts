@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { hashPassword } from "@/lib/password";
 
 const bodySchema = z.object({
   token: z.string().min(10),
+  password: z.string().min(8).max(128).optional().nullable(),
 });
 
 export async function POST(req: Request) {
@@ -20,6 +22,7 @@ export async function POST(req: Request) {
   }
 
   const token = parsed.data.token.trim();
+  const password = parsed.data.password?.trim();
 
   const user = await prisma.user.findUnique({
     where: { inviteToken: token },
@@ -29,11 +32,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid or expired invitation" }, { status: 400 });
   }
 
+  let passwordHash: string | undefined;
+  if (password && password.length > 0) {
+    passwordHash = await hashPassword(password);
+  }
+
   await prisma.user.update({
     where: { id: user.id },
     data: {
       inviteToken: null,
       inviteAcceptedAt: new Date(),
+      ...(passwordHash ? { passwordHash } : {}),
     },
   });
 

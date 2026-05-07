@@ -71,6 +71,8 @@ async function fetchStudentApplicationJourney(userId: string): Promise<{
   paymentStatus: ApplicationPaymentStatus | null;
   admissionVisitAt: Date | null;
   campusTourAt: Date | null;
+  boardingAddress: string | null;
+  visitVisitorCount: number | null;
 }> {
   try {
     const rows = await prisma.$queryRaw<
@@ -78,19 +80,30 @@ async function fetchStudentApplicationJourney(userId: string): Promise<{
         paymentStatus: ApplicationPaymentStatus;
         admissionVisitAt: Date | null;
         campusTourAt: Date | null;
+        boardingAddress: string | null;
+        visitVisitorCount: number | null;
       }>
     >(
-      Prisma.sql`SELECT "paymentStatus", "admissionVisitAt", "campusTourAt" FROM "Application" WHERE "userId" = ${userId} LIMIT 1`,
+      Prisma.sql`SELECT "paymentStatus", "admissionVisitAt", "campusTourAt", "boardingAddress", "visitVisitorCount" FROM "Application" WHERE "userId" = ${userId} LIMIT 1`,
     );
     const row = rows[0];
     if (!row) {
-      return { hasApplication: false, paymentStatus: null, admissionVisitAt: null, campusTourAt: null };
+      return {
+        hasApplication: false,
+        paymentStatus: null,
+        admissionVisitAt: null,
+        campusTourAt: null,
+        boardingAddress: null,
+        visitVisitorCount: null,
+      };
     }
     return {
       hasApplication: true,
       paymentStatus: row.paymentStatus,
       admissionVisitAt: row.admissionVisitAt,
       campusTourAt: row.campusTourAt,
+      boardingAddress: row.boardingAddress,
+      visitVisitorCount: row.visitVisitorCount,
     };
   } catch {
     const app = await prisma.application.findFirst({
@@ -98,13 +111,22 @@ async function fetchStudentApplicationJourney(userId: string): Promise<{
       select: { paymentStatus: true },
     });
     if (!app) {
-      return { hasApplication: false, paymentStatus: null, admissionVisitAt: null, campusTourAt: null };
+      return {
+        hasApplication: false,
+        paymentStatus: null,
+        admissionVisitAt: null,
+        campusTourAt: null,
+        boardingAddress: null,
+        visitVisitorCount: null,
+      };
     }
     return {
       hasApplication: true,
       paymentStatus: app.paymentStatus,
       admissionVisitAt: null,
       campusTourAt: null,
+      boardingAddress: null,
+      visitVisitorCount: null,
     };
   }
 }
@@ -155,7 +177,13 @@ export async function getDashboardSnapshot(session: SessionPayload): Promise<Das
         ps === ApplicationPaymentStatus.PROGRAM_PENDING ||
         ps === ApplicationPaymentStatus.PROGRAM_PAID;
       const programPaid = ps === ApplicationPaymentStatus.PROGRAM_PAID;
-      const visitsScheduled = Boolean(application.admissionVisitAt && application.campusTourAt);
+      const visitsScheduled = Boolean(
+        application.admissionVisitAt &&
+          (application.campusTourAt ||
+            (application.boardingAddress?.trim() &&
+              application.visitVisitorCount != null &&
+              application.visitVisitorCount >= 1)),
+      );
 
       return {
         ...empty,
