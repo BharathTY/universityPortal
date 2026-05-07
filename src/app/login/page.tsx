@@ -5,7 +5,7 @@ export default function LoginPage() {
   return (
     <AuthPageShell
       title="Welcome back"
-      subtitle="Please login to your account. We’ll email you a one-time code to sign in."
+      subtitle="Enter your email to sign in."
     >
       <LoginForm />
       <AuthFooterLink

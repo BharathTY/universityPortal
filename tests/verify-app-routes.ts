@@ -92,7 +92,6 @@ export function verifyAppRoutes(): void {
   const staticMustExist = [
     "/",
     "/login",
-    "/login/verify",
     "/invite/accept",
     "/dashboard",
     "/dashboard/student",

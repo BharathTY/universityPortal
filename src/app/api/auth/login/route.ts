@@ -2,51 +2,33 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { verifyOtp } from "@/lib/otp";
 import { COOKIE_NAME, createSessionToken } from "@/lib/auth";
 import { initialSessionUniversityIdForUser } from "@/lib/consultant-universities";
 
 const schema = z.object({
   email: z.string().email(),
-  code: z.string().length(6).regex(/^\d+$/),
 });
 
+/**
+ * Email-only login (no OTP). Creates the user if missing, assigns DEFAULT_ROLE_SLUG,
+ * and sets the UP_SESSION cookie.
+ */
 export async function POST(req: Request) {
+  let json: unknown;
   try {
-    let json: unknown;
-    try {
-      json = await req.json();
-    } catch {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-    }
+    json = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
 
-    const parsed = schema.safeParse(json);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
-    }
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+  }
 
-    const email = parsed.data.email.toLowerCase();
-    const code = parsed.data.code;
+  const email = parsed.data.email.toLowerCase();
 
-    const otp = await prisma.otpCode.findFirst({
-      where: { email },
-      orderBy: { createdAt: "desc" },
-    });
-
-    if (!otp || otp.expiresAt < new Date()) {
-      return NextResponse.json(
-        { error: "Invalid or expired code" },
-        { status: 400 },
-      );
-    }
-
-    const ok = await verifyOtp(code, otp.codeHash);
-    if (!ok) {
-      return NextResponse.json({ error: "Invalid code" }, { status: 400 });
-    }
-
-    await prisma.otpCode.deleteMany({ where: { email } });
-
+  try {
     const defaultSlug = process.env.DEFAULT_ROLE_SLUG || "student";
 
     let user = await prisma.user.findUnique({
@@ -67,10 +49,7 @@ export async function POST(req: Request) {
     if (!user) {
       const role = await prisma.role.findUnique({ where: { slug: defaultSlug } });
       if (!role) {
-        return NextResponse.json(
-          { error: "Default role not configured" },
-          { status: 500 },
-        );
+        return NextResponse.json({ error: "Default role not configured" }, { status: 500 });
       }
       user = await prisma.user.create({
         data: {
@@ -97,7 +76,6 @@ export async function POST(req: Request) {
     }
 
     const roles = user.roles.map((ur) => ur.role.slug);
-
     const universityId = await initialSessionUniversityIdForUser(user);
 
     const token = await createSessionToken({
@@ -119,11 +97,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error("verify-otp", e);
-    const msg = e instanceof Error ? e.message : "Unknown error";
+    console.error("auth/login", e);
+    const message = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json(
-      { error: "Internal Server Error", detail: msg },
+      { error: "Internal Server Error", detail: message },
       { status: 500 },
     );
   }
 }
+

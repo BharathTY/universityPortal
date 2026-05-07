@@ -82,60 +82,27 @@ export function LoginForm() {
     }
   }
 
-  /** Request OTP; when the API returns a code (dev / SHOW_OTP_ON_SCREEN), verify immediately and go to dashboard. */
+  /** Email-only sign-in; server sets session cookie and we redirect to dashboard. */
   async function quickSignIn(targetEmail: string) {
     setError(null);
     setEmail(targetEmail);
     setLoading(true);
     const normalized = targetEmail.trim().toLowerCase();
     try {
-      const res = await fetch("/api/auth/request-otp", {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: normalized }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; otp?: string };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
       if (!res.ok) {
-        setError(data.error || "Something went wrong");
+        const msg = data.error || "Something went wrong";
+        setError(data.detail ? `${msg}: ${data.detail}` : msg);
         return;
       }
       persistRememberChoice(normalized);
-
-      if (data.otp && /^\d{6}$/.test(data.otp)) {
-        try {
-          sessionStorage.setItem(`otpPreview:${normalized}`, data.otp);
-        } catch {
-          /* ignore */
-        }
-        const verifyRes = await fetch("/api/auth/verify-otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: normalized, code: data.otp }),
-          credentials: "same-origin",
-        });
-        const verifyData = (await verifyRes.json().catch(() => ({}))) as { error?: string };
-        if (!verifyRes.ok) {
-          setError(verifyData.error || "Sign-in failed");
-          return;
-        }
-        try {
-          sessionStorage.removeItem(`otpPreview:${normalized}`);
-        } catch {
-          /* ignore */
-        }
-        router.push("/dashboard");
-        router.refresh();
-        return;
-      }
-
-      if (data.otp && typeof window !== "undefined") {
-        try {
-          sessionStorage.setItem(`otpPreview:${normalized}`, data.otp);
-        } catch {
-          /* ignore */
-        }
-      }
-      router.push(`/login/verify?email=${encodeURIComponent(normalized)}`);
+      router.push("/dashboard");
+      router.refresh();
     } finally {
       setLoading(false);
     }
@@ -192,8 +159,7 @@ export function LoginForm() {
         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/90 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Demo logins</p>
           <p className="mt-1 text-xs text-slate-500">
-            Click an account to fill the email and continue. In development the one-time code is returned by the
-            server, so you are signed in in one step after the seed has been run (
+            Click an account to fill the email and continue. You&apos;ll be signed in after the seed has been run (
             <code className="rounded bg-slate-200/80 px-1 text-[0.7rem]">npm run db:seed</code>
             ).
           </p>
@@ -221,7 +187,7 @@ export function LoginForm() {
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1e6fe6] px-4 py-3.5 text-sm font-semibold text-white shadow-md transition hover:bg-[#1a62cc] disabled:opacity-60"
       >
         {loading ? (
-          "Sending code…"
+          "Signing in…"
         ) : (
           <>
             Continue
