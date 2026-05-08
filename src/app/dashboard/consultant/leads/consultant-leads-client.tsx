@@ -37,6 +37,10 @@ type Props = {
   setActiveUniversityOnMount?: boolean;
   showBulkUpload?: boolean;
   hubLayout?: boolean;
+  /** With `hubLayout`, show add-lead in a right-side panel instead of a card. */
+  addLeadInDrawer?: boolean;
+  leadDrawerOpen?: boolean;
+  onCloseLeadDrawer?: () => void;
 };
 
 export function ConsultantLeadsClient(props: Props) {
@@ -54,7 +58,7 @@ export function ConsultantLeadsClient(props: Props) {
   const [ln, setLn] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [mobile, setMobile] = React.useState("");
-  const [nat, setNat] = React.useState("");
+  const [nat, setNat] = React.useState("India");
   const [streamId, setStreamId] = React.useState(props.streams[0]?.id ?? "");
   const [admissionState, setAdmissionState] = React.useState("");
   const [refFn, setRefFn] = React.useState("");
@@ -130,13 +134,14 @@ export function ConsultantLeadsClient(props: Props) {
     setLn("");
     setEmail("");
     setMobile("");
-    setNat("");
+    setNat("India");
     setAdmissionState("");
     setRefFn("");
     setRefLn("");
     setRefPhone("");
     setRefEmail("");
     await load();
+    props.onCloseLeadDrawer?.();
   }
 
   async function markLost(id: string) {
@@ -179,6 +184,144 @@ export function ConsultantLeadsClient(props: Props) {
     return [parts.join(" "), r.referralPhone, r.referralEmail].filter(Boolean).join(" · ");
   }
 
+  const showInlineAdd = !props.hubLayout || !props.addLeadInDrawer;
+  const drawerAdd = Boolean(props.hubLayout && props.addLeadInDrawer);
+
+  const addLeadForm = (
+    <form onSubmit={onCreate} className={drawerAdd ? "space-y-6" : "mt-4 space-y-6"}>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="text-sm font-medium">First name</label>
+          <input
+            required
+            value={fn}
+            onChange={(e) => setFn(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium">Last name</label>
+          <input
+            required
+            value={ln}
+            onChange={(e) => setLn(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium">Email</label>
+          <input
+            required
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium">Mobile</label>
+          <input
+            required
+            value={mobile}
+            onChange={(e) => setMobile(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium">Degree Type</label>
+          <select
+            required
+            value={streamId}
+            onChange={(e) => setStreamId(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+          >
+            {props.streams.length === 0 ? <option value="">No programs configured</option> : null}
+            {props.streams.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-sm font-medium">State</label>
+          <select
+            required
+            value={admissionState}
+            onChange={(e) => setAdmissionState(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+          >
+            <option value="" disabled>
+              Select state
+            </option>
+            {INDIAN_STATES_AND_UT.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="text-sm font-medium">Nationality</label>
+          <input
+            value={nat}
+            onChange={(e) => setNat(e.target.value)}
+            placeholder="India"
+            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+          />
+          <p className="mt-1 text-xs text-[var(--foreground-muted)]">Defaults to India; change if needed.</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-4">
+        <h3 className="text-sm font-semibold text-[var(--foreground)]">Referral (optional)</h3>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="text-sm font-medium">First name</label>
+            <input
+              value={refFn}
+              onChange={(e) => setRefFn(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Last name</label>
+            <input
+              value={refLn}
+              onChange={(e) => setRefLn(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Contact</label>
+            <input
+              value={refPhone}
+              onChange={(e) => setRefPhone(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Email</label>
+            <input
+              type="email"
+              value={refEmail}
+              onChange={(e) => setRefEmail(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+            />
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        disabled={props.streams.length === 0 || !streamId}
+        className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+      >
+        Add lead
+      </button>
+    </form>
+  );
+
   return (
     <div className={props.hubLayout ? "" : "mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8"}>
       {!props.hubLayout ? (
@@ -207,144 +350,56 @@ export function ConsultantLeadsClient(props: Props) {
 
       {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
 
-      <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
-        <h2 className="text-lg font-semibold text-[var(--foreground)]">Add lead</h2>
-        <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-          Admission partner name is recorded automatically from your account.
+      {drawerAdd && !props.leadDrawerOpen ? (
+        <p className="mt-6 text-sm text-[var(--foreground-muted)]">
+          Click <strong className="text-[var(--foreground)]">+ Lead</strong> on a university card above to open the lead
+          form.
         </p>
-        <form onSubmit={onCreate} className="mt-4 space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="text-sm font-medium">First name</label>
-              <input
-                required
-                value={fn}
-                onChange={(e) => setFn(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Last name</label>
-              <input
-                required
-                value={ln}
-                onChange={(e) => setLn(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Email</label>
-              <input
-                required
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Mobile</label>
-              <input
-                required
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Degree Type</label>
-              <select
-                required
-                value={streamId}
-                onChange={(e) => setStreamId(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-              >
-                {props.streams.length === 0 ? (
-                  <option value="">No programs configured</option>
-                ) : null}
-                {props.streams.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium">State</label>
-              <select
-                required
-                value={admissionState}
-                onChange={(e) => setAdmissionState(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-              >
-                <option value="" disabled>
-                  Select state
-                </option>
-                {INDIAN_STATES_AND_UT.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="text-sm font-medium">Nationality (optional)</label>
-              <input
-                value={nat}
-                onChange={(e) => setNat(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-              />
-            </div>
-          </div>
+      ) : null}
 
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-4">
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">Referral (optional)</h3>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium">First name</label>
-                <input
-                  value={refFn}
-                  onChange={(e) => setRefFn(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Last name</label>
-                <input
-                  value={refLn}
-                  onChange={(e) => setRefLn(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Contact</label>
-                <input
-                  value={refPhone}
-                  onChange={(e) => setRefPhone(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Email</label>
-                <input
-                  type="email"
-                  value={refEmail}
-                  onChange={(e) => setRefEmail(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-            </div>
-          </div>
+      {showInlineAdd ? (
+        <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">Add lead</h2>
+          <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+            Admission partner name is recorded automatically from your account.
+          </p>
+          {addLeadForm}
+        </section>
+      ) : null}
 
+      {drawerAdd && props.leadDrawerOpen ? (
+        <div className="fixed inset-0 z-50 flex justify-end">
           <button
-            type="submit"
-            disabled={props.streams.length === 0 || !streamId}
-            className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            Add lead
-          </button>
-        </form>
-      </section>
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Close lead form"
+            onClick={() => props.onCloseLeadDrawer?.()}
+          />
+          <aside className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-[var(--border)] bg-[var(--card)] shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--foreground)]">Add lead</h2>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  {props.universityName} ({props.universityCode})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => props.onCloseLeadDrawer?.()}
+                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)]"
+              >
+                Close
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <p className="mb-4 text-sm text-[var(--foreground-muted)]">
+                Your partner name is stored automatically on the lead.
+              </p>
+              {addLeadForm}
+            </div>
+          </aside>
+        </div>
+      ) : null}
 
       {showBulk ? (
         <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">

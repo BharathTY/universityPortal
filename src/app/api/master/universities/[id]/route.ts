@@ -16,9 +16,14 @@ const patchSchema = z.object({
   email: z.string().email().max(254).trim().optional(),
   phone: phoneSchema.optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
-  logoUrl: z.union([z.string().url().max(2000), z.literal("")]).optional().nullable(),
+  logoUrl: z.union([z.string().max(2000), z.literal("")]).optional().nullable(),
   applicationFee: z.coerce.number().nonnegative().max(999_999_999).optional(),
 });
+
+function isValidLogoRef(s: string | null | undefined): boolean {
+  if (s === undefined || s === null || s === "") return true;
+  return /^https?:\/\//i.test(s) || s.startsWith("/uploads/");
+}
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -38,6 +43,10 @@ export async function PATCH(req: Request, ctx: RouteContext) {
   const parsed = patchSchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  }
+
+  if (!isValidLogoRef(parsed.data.logoUrl === "" ? null : parsed.data.logoUrl)) {
+    return NextResponse.json({ error: "Invalid logo URL" }, { status: 400 });
   }
 
   const university = await prisma.university.findUnique({ where: { id } });

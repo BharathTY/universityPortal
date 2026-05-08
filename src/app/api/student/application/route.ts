@@ -197,7 +197,7 @@ export async function PATCH(req: Request) {
     parsed.data.boardingAddress !== undefined || parsed.data.visitVisitorCount !== undefined;
 
   if (combinedVisitSave) {
-    if (parsed.data.boardingAddress === undefined || parsed.data.visitVisitorCount === undefined) {
+    if (parsed.data.boardingAddress == null || parsed.data.visitVisitorCount == null) {
       return NextResponse.json(
         { error: "Boarding address and number of visitors are required with the visit date" },
         { status: 400 },

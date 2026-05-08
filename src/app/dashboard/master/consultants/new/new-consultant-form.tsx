@@ -28,6 +28,14 @@ export function NewConsultantForm({ universities }: Props) {
     });
   }
 
+  function selectAllUniversities() {
+    setSelectedUniIds(new Set(universities.map((u) => u.id)));
+  }
+
+  function clearUniversities() {
+    setSelectedUniIds(new Set());
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -117,9 +125,24 @@ export function NewConsultantForm({ universities }: Props) {
       <div>
         <span className="block text-sm font-medium text-[var(--foreground)]">Assigned universities</span>
         <p className="mt-1 text-xs text-[var(--foreground-muted)]">
-          Select one or more. The partner can switch the active university from the header when more than one is
-          selected.
+          Select one, several, or all. Partners with multiple assignments can switch the active university in their hub.
         </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={selectAllUniversities}
+            className="rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]"
+          >
+            Select all
+          </button>
+          <button
+            type="button"
+            onClick={clearUniversities}
+            className="rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]"
+          >
+            Clear
+          </button>
+        </div>
         <ul className="mt-3 max-h-56 space-y-2 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
           {universities.length === 0 ? (
             <li className="text-sm text-[var(--foreground-muted)]">No universities available.</li>
@@ -160,7 +183,7 @@ export function NewConsultantForm({ universities }: Props) {
         disabled={busy}
         className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-blue-hover)] disabled:opacity-50"
       >
-        {busy ? "Saving…" : "Create & email credentials"}
+        {busy ? "Sending…" : "Send email & create"}
       </button>
     </form>
   );

@@ -4,6 +4,36 @@ import { redirect } from "next/navigation";
 
 export const COOKIE_NAME = "UP_SESSION";
 
+const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 7;
+
+/**
+ * Browser will reject `Secure` cookies on plain HTTP. Production defaults to `secure: true`.
+ * For HTTP deployments (e.g. http://server:7777), set `COOKIE_SECURE=false` in `.env`.
+ */
+export function buildSessionCookieOptions(maxAgeSec: number): {
+  httpOnly: boolean;
+  secure: boolean;
+  sameSite: "lax";
+  path: string;
+  maxAge: number;
+} {
+  const secure =
+    process.env.COOKIE_SECURE === "true"
+      ? true
+      : process.env.COOKIE_SECURE === "false"
+        ? false
+        : process.env.NODE_ENV === "production";
+  return {
+    httpOnly: true,
+    secure,
+    sameSite: "lax",
+    path: "/",
+    maxAge: maxAgeSec,
+  };
+}
+
+export const defaultSessionMaxAgeSec = SESSION_MAX_AGE_SEC;
+
 export type SessionPayload = {
   sub: string;
   email: string;

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ConsultantLeadsClient } from "@/app/dashboard/consultant/leads/consultant-leads-client";
@@ -24,6 +23,7 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
   const [universityCode, setUniversityCode] = React.useState(initial.universityCode);
   const [streams, setStreams] = React.useState(initial.streams);
   const [loadingScoped, setLoadingScoped] = React.useState(false);
+  const [leadDrawerOpen, setLeadDrawerOpen] = React.useState(false);
 
   async function applyUniversityScope(universityId: string) {
     setSelectedId(universityId);
@@ -51,14 +51,19 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
     }
   }
 
+  async function onPlusLead(universityId: string) {
+    await applyUniversityScope(universityId);
+    setLeadDrawerOpen(true);
+  }
+
   return (
     <>
       <section className="mb-10 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm sm:p-6">
         <div className="border-b border-[var(--border)] pb-5">
           <h1 className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl">Your universities</h1>
           <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-muted)]">
-            Open academic years or add partner leads. Leads below follow the university you choose with{" "}
-            <strong className="text-[var(--foreground)]">+ Lead</strong>.
+            Each card is a university you work with. Click <strong className="text-[var(--foreground)]">+ Lead</strong>{" "}
+            to capture a new prospect for that institution.
           </p>
         </div>
 
@@ -89,18 +94,12 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
                     <p className="text-sm text-[var(--foreground-muted)]">{u.code}</p>
                   </div>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3">
-                  <Link
-                    href={`/dashboard/university/${u.id}/admissions/academic-years`}
-                    className="text-sm font-medium text-[var(--primary)] underline underline-offset-2 hover:no-underline"
-                  >
-                    Academic years →
-                  </Link>
+                <div className="mt-4 border-t border-[var(--border)] pt-3">
                   <button
                     type="button"
                     disabled={loadingScoped}
-                    onClick={() => void applyUniversityScope(u.id)}
-                    className="rounded-lg border border-[var(--accent-blue)] bg-[var(--accent-blue)]/10 px-3 py-1 text-sm font-semibold text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/20 disabled:opacity-50"
+                    onClick={() => void onPlusLead(u.id)}
+                    className="w-full rounded-lg border border-[var(--accent-blue)] bg-[var(--accent-blue)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-blue-hover)] disabled:opacity-50"
                   >
                     + Lead
                   </button>
@@ -117,6 +116,9 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
         universityCode={universityCode}
         streams={streams}
         hubLayout
+        addLeadInDrawer
+        leadDrawerOpen={leadDrawerOpen}
+        onCloseLeadDrawer={() => setLeadDrawerOpen(false)}
         showBulkUpload={false}
         setActiveUniversityOnMount={false}
       />

@@ -15,6 +15,13 @@ function formatDate(d: Date) {
   }).format(d);
 }
 
+function formatFee(value: { toString(): string } | null): string {
+  if (value === null) return "—";
+  const n = Number(value.toString());
+  if (Number.isNaN(n)) return value.toString();
+  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default async function MasterUniversitiesListPage() {
   const session = await requireAuth();
   if (!isMaster(session.roles)) {
@@ -26,7 +33,7 @@ export default async function MasterUniversitiesListPage() {
   });
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
       <div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl">Universities</h1>
@@ -38,35 +45,54 @@ export default async function MasterUniversitiesListPage() {
           </Link>
         </div>
         <p className="mt-2 text-[var(--foreground-muted)]">
-          Create and manage university organisations and portal access. Academic years and programs (degrees) are
-          configured here per university (intake catalogue). University staff use Admissions only for day-to-day leads.
+          Create and manage university organisations. Configure academic years (YOP) and degree streams from each row.
         </p>
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {universities.map((u) => (
-          <article
-            key={u.id}
-            className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm"
-          >
-            <Link
-              href={`/dashboard/university/${u.id}/admissions`}
-              className="block flex-1 p-5 transition hover:bg-[var(--muted)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-            >
-              <h2 className="text-lg font-semibold text-[var(--foreground)]">{u.name}</h2>
-              <p className="mt-1 font-mono text-xs text-[var(--foreground-muted)]">{u.code}</p>
-              <dl className="mt-4 space-y-2 text-sm text-[var(--foreground-muted)]">
-                <div className="flex justify-between gap-2">
-                  <dt>Email</dt>
-                  <dd className="text-right text-[var(--foreground)]">{u.email ?? "—"}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt>Phone</dt>
-                  <dd className="text-right text-[var(--foreground)]">{u.phone ?? "—"}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt>Status</dt>
-                  <dd>
+      {universities.length === 0 ? (
+        <p className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-10 text-center text-sm text-[var(--foreground-muted)]">
+          No universities yet. Click <strong className="text-[var(--foreground)]">Add university</strong>.
+        </p>
+      ) : (
+        <div className="mt-8 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
+          <table className="w-full min-w-[1100px] text-left text-sm">
+            <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40">
+              <tr>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">University name</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Email</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Phone</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Application fee</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Logo</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Status</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Created</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {universities.map((u) => (
+                <tr key={u.id} className="border-b border-[var(--border)] last:border-0">
+                  <td className="px-3 py-3">
+                    <div className="font-medium text-[var(--foreground)]">{u.name}</div>
+                    <div className="font-mono text-xs text-[var(--foreground-muted)]">{u.code}</div>
+                  </td>
+                  <td className="max-w-[10rem] truncate px-3 py-3" title={u.email ?? ""}>
+                    {u.email ?? "—"}
+                  </td>
+                  <td className="px-3 py-3 tabular-nums">{u.phone ?? "—"}</td>
+                  <td className="px-3 py-3 tabular-nums">{formatFee(u.applicationFee)}</td>
+                  <td className="px-3 py-3">
+                    {u.logoUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element -- arbitrary logo URLs */
+                      <img
+                        src={u.logoUrl}
+                        alt=""
+                        className="h-10 w-10 rounded-md border border-[var(--border)] object-contain"
+                      />
+                    ) : (
+                      <span className="text-[var(--foreground-muted)]">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                         u.status === "ACTIVE"
@@ -76,45 +102,43 @@ export default async function MasterUniversitiesListPage() {
                     >
                       {u.status === "ACTIVE" ? "Active" : "Inactive"}
                     </span>
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt>Created</dt>
-                  <dd className="tabular-nums">{formatDate(u.createdAt)}</dd>
-                </div>
-              </dl>
-              <p className="mt-3 text-xs text-[var(--primary)]">Open admissions →</p>
-            </Link>
-            <div className="flex flex-wrap gap-2 border-t border-[var(--border)] px-5 py-4">
-              <Link
-                href={`/dashboard/university/${u.id}/admissions/academic-years`}
-                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold"
-              >
-                Academic years
-              </Link>
-              <Link
-                href={`/dashboard/university/${u.id}/admissions/streams`}
-                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold"
-              >
-                Degree
-              </Link>
-              <Link
-                href={`/dashboard/master/universities/${u.id}/edit`}
-                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold"
-              >
-                Edit
-              </Link>
-              <UniversityRowActions universityId={u.id} name={u.name} />
-            </div>
-          </article>
-        ))}
-      </div>
-
-      {universities.length === 0 ? (
-        <p className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-10 text-center text-sm text-[var(--foreground-muted)]">
-          No universities yet. Click <strong className="text-[var(--foreground)]">Add university</strong>.
-        </p>
-      ) : null}
+                  </td>
+                  <td className="px-3 py-3 tabular-nums text-[var(--foreground-muted)]">{formatDate(u.createdAt)}</td>
+                  <td className="px-3 py-3 align-top">
+                    <div className="flex max-w-[14rem] flex-col gap-1.5">
+                      <Link
+                        href={`/dashboard/university/${u.id}/admissions/academic-years`}
+                        className="text-[var(--primary)] underline-offset-2 hover:underline"
+                      >
+                        Add YOP
+                      </Link>
+                      <Link
+                        href={`/dashboard/university/${u.id}/admissions/streams`}
+                        className="text-[var(--primary)] underline-offset-2 hover:underline"
+                      >
+                        Add degree
+                      </Link>
+                      <Link
+                        href={`/dashboard/master/universities/${u.id}/edit`}
+                        className="text-[var(--primary)] underline-offset-2 hover:underline"
+                      >
+                        Edit
+                      </Link>
+                      <UniversityRowActions universityId={u.id} name={u.name} />
+                      <Link
+                        href={`/dashboard/university/${u.id}/admissions`}
+                        className="text-[var(--primary)] underline-offset-2 hover:underline"
+                      >
+                        Admissions
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

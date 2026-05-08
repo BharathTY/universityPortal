@@ -19,7 +19,13 @@ const createSchema = z.object({
   email: z.string().email().max(254).trim(),
   phone: phoneSchema,
   applicationFee: z.coerce.number().nonnegative().max(999_999_999),
+  logoUrl: z.string().max(2000).optional().nullable(),
 });
+
+function isValidLogoRef(s: string | null | undefined): boolean {
+  if (s === undefined || s === null || s === "") return true;
+  return /^https?:\/\//i.test(s) || s.startsWith("/uploads/");
+}
 
 export async function POST(req: Request) {
   const gate = await requireMasterApi();
@@ -35,6 +41,10 @@ export async function POST(req: Request) {
   const parsed = createSchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  }
+
+  if (!isValidLogoRef(parsed.data.logoUrl ?? undefined)) {
+    return NextResponse.json({ error: "Invalid logo URL" }, { status: 400 });
   }
 
   const email = parsed.data.email.toLowerCase();
@@ -65,6 +75,10 @@ export async function POST(req: Request) {
         phone: parsed.data.phone,
         status: "ACTIVE",
         applicationFee: new Prisma.Decimal(parsed.data.applicationFee.toFixed(2)),
+        logoUrl:
+          parsed.data.logoUrl && parsed.data.logoUrl.trim().length > 0
+            ? parsed.data.logoUrl.trim()
+            : null,
       },
     });
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { cookies } from "next/headers";
-import { COOKIE_NAME, createSessionToken, getSession } from "@/lib/auth";
+import { COOKIE_NAME, buildSessionCookieOptions, createSessionToken, defaultSessionMaxAgeSec, getSession } from "@/lib/auth";
 import { assertConsultantUniversityMembership } from "@/lib/consultant-universities";
 import { isConsultant } from "@/lib/roles";
 
@@ -46,13 +46,7 @@ export async function POST(req: Request) {
   });
 
   const cookieStore = await cookies();
-  cookieStore.set(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
+  cookieStore.set(COOKIE_NAME, token, buildSessionCookieOptions(defaultSessionMaxAgeSec));
 
   return NextResponse.json({ ok: true, universityId });
 }

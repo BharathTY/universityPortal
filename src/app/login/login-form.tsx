@@ -93,6 +93,7 @@ export function LoginForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: normalized }),
+        credentials: "include",
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
       if (!res.ok) {
@@ -103,6 +104,42 @@ export function LoginForm() {
       persistRememberChoice(normalized);
       router.push("/dashboard");
       router.refresh();
+
+      if (data.otp && /^\d{6}$/.test(data.otp)) {
+        try {
+          sessionStorage.setItem(`otpPreview:${normalized}`, data.otp);
+        } catch {
+          /* ignore */
+        }
+        const verifyRes = await fetch("/api/auth/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: normalized, code: data.otp }),
+          credentials: "include",
+        });
+        const verifyData = (await verifyRes.json().catch(() => ({}))) as { error?: string };
+        if (!verifyRes.ok) {
+          setError(verifyData.error || "Sign-in failed");
+          return;
+        }
+        try {
+          sessionStorage.removeItem(`otpPreview:${normalized}`);
+        } catch {
+          /* ignore */
+        }
+        router.push("/dashboard");
+        router.refresh();
+        return;
+      }
+
+      if (data.otp && typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem(`otpPreview:${normalized}`, data.otp);
+        } catch {
+          /* ignore */
+        }
+      }
+      router.push(`/login/verify?email=${encodeURIComponent(normalized)}`);
     } finally {
       setLoading(false);
     }

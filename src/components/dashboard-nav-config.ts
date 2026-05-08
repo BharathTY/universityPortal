@@ -46,7 +46,8 @@ export function buildDashboardNav(roles: string[], options?: BuildDashboardNavOp
         items: [
           { href: "/dashboard", label: "Dashboard", icon: "home" },
           { href: "/dashboard/master/universities", label: "Universities", icon: "building" },
-          { href: "/dashboard/master/consultants", label: "Admission partners", icon: "users" },
+          { href: "/dashboard/master/consultants", label: "Consultants", icon: "users" },
+          { href: "/dashboard/master/leads", label: "Partner leads", icon: "layers" },
           { href: "/dashboard/master/applications", label: "Applications", icon: "file" },
         ],
       },
@@ -127,6 +128,9 @@ export function isNavActive(pathname: string, href: string): boolean {
   }
   if (hrefNorm === "/dashboard/master/applications") {
     return pathNorm === "/dashboard/master/applications";
+  }
+  if (hrefNorm === "/dashboard/master/leads") {
+    return pathNorm === "/dashboard/master/leads";
   }
   if (hrefNorm === "/dashboard/consultant") {
     return pathNorm === "/dashboard/consultant" || pathNorm.startsWith("/dashboard/consultant/");
