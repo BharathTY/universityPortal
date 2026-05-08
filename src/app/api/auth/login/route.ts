@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { COOKIE_NAME, createSessionToken } from "@/lib/auth";
+import { COOKIE_NAME, buildSessionCookieOptions, createSessionToken, defaultSessionMaxAgeSec } from "@/lib/auth";
 import { initialSessionUniversityIdForUser } from "@/lib/consultant-universities";
 
 const schema = z.object({
@@ -10,8 +10,7 @@ const schema = z.object({
 });
 
 /**
- * Email-only login (no OTP). Creates the user if missing, assigns DEFAULT_ROLE_SLUG,
- * and sets the UP_SESSION cookie.
+ * Email-only login (no OTP). Disabled when REQUIRE_OTP_LOGIN=true.
  */
 export async function POST(req: Request) {
   let json: unknown;
@@ -24,6 +23,13 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+  }
+
+  if (process.env.REQUIRE_OTP_LOGIN === "true") {
+    return NextResponse.json(
+      { error: "This deployment uses email verification codes. Use Continue on the login page to receive a code." },
+      { status: 403 },
+    );
   }
 
   const email = parsed.data.email.toLowerCase();
@@ -87,13 +93,7 @@ export async function POST(req: Request) {
     });
 
     const cookieStore = await cookies();
-    cookieStore.set(COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
+    cookieStore.set(COOKIE_NAME, token, buildSessionCookieOptions(defaultSessionMaxAgeSec));
 
     return NextResponse.json({ ok: true });
   } catch (e) {
