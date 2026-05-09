@@ -15,7 +15,12 @@ const phoneSchema = z
   .regex(/^[\d+][\d\s().-/]{5,30}$/);
 
 const createSchema = z.object({
-  name: z.string().min(2).max(200).trim(),
+  name: z
+    .string()
+    .min(2)
+    .max(200)
+    .trim()
+    .refine((s) => !/^\d+$/.test(s), { message: "Name cannot be numbers only" }),
   email: z.string().email().max(254).trim(),
   phone: phoneSchema,
   applicationFee: z.coerce.number().nonnegative().max(999_999_999),
@@ -40,7 +45,15 @@ export async function POST(req: Request) {
 
   const parsed = createSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    const flat = parsed.error.flatten();
+    return NextResponse.json(
+      {
+        error: "Invalid input",
+        fieldErrors: flat.fieldErrors,
+        formErrors: flat.formErrors,
+      },
+      { status: 400 },
+    );
   }
 
   if (!isValidLogoRef(parsed.data.logoUrl ?? undefined)) {

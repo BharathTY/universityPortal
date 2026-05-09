@@ -29,7 +29,7 @@ export default async function MasterUniversitiesListPage() {
   }
 
   const universities = await prisma.university.findMany({
-    orderBy: { name: "asc" },
+    orderBy: { createdAt: "desc" },
   });
 
   return (

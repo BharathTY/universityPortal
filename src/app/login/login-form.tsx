@@ -48,7 +48,12 @@ function ArrowRightIcon({ className }: { className?: string }) {
   );
 }
 
-export function LoginForm() {
+type Props = {
+  /** When true, use 6-digit email codes (request-otp / verify). When false, email-only session (`/api/auth/login`). */
+  requireOtpLogin: boolean;
+};
+
+export function LoginForm({ requireOtpLogin }: Props) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [remember, setRemember] = useState(false);
@@ -82,64 +87,86 @@ export function LoginForm() {
     }
   }
 
-  /** Email-only sign-in; server sets session cookie and we redirect to dashboard. */
+  async function signInEmailOnly(emailNorm: string) {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailNorm }),
+      credentials: "include",
+    });
+    const data = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
+    if (!res.ok) {
+      const msg = data.error || "Something went wrong";
+      setError(data.detail ? `${msg}: ${data.detail}` : msg);
+      return;
+    }
+    persistRememberChoice(emailNorm);
+    router.push("/dashboard");
+    router.refresh();
+  }
+
+  async function signInWithOtp(emailNorm: string) {
+    const res = await fetch("/api/auth/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailNorm }),
+      credentials: "include",
+    });
+    const data = (await res.json().catch(() => ({}))) as { error?: string; otp?: string };
+    if (!res.ok) {
+      setError(data.error || "Something went wrong");
+      return;
+    }
+    persistRememberChoice(emailNorm);
+
+    if (data.otp && /^\d{6}$/.test(data.otp)) {
+      try {
+        sessionStorage.setItem(`otpPreview:${emailNorm}`, data.otp);
+      } catch {
+        /* ignore */
+      }
+      const verifyRes = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailNorm, code: data.otp }),
+        credentials: "include",
+      });
+      const verifyData = (await verifyRes.json().catch(() => ({}))) as { error?: string };
+      if (!verifyRes.ok) {
+        setError(verifyData.error || "Sign-in failed");
+        return;
+      }
+      try {
+        sessionStorage.removeItem(`otpPreview:${emailNorm}`);
+      } catch {
+        /* ignore */
+      }
+      router.push("/dashboard");
+      router.refresh();
+      return;
+    }
+
+    if (data.otp && typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(`otpPreview:${emailNorm}`, data.otp);
+      } catch {
+        /* ignore */
+      }
+    }
+    router.push(`/login/verify?email=${encodeURIComponent(emailNorm)}`);
+  }
+
   async function quickSignIn(targetEmail: string) {
     setError(null);
     setEmail(targetEmail);
     setLoading(true);
     const normalized = targetEmail.trim().toLowerCase();
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalized }),
-        credentials: "include",
-      });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
-      if (!res.ok) {
-        const msg = data.error || "Something went wrong";
-        setError(data.detail ? `${msg}: ${data.detail}` : msg);
-        return;
+      if (requireOtpLogin) {
+        await signInWithOtp(normalized);
+      } else {
+        await signInEmailOnly(normalized);
       }
-      persistRememberChoice(normalized);
-      router.push("/dashboard");
-      router.refresh();
-
-      if (data.otp && /^\d{6}$/.test(data.otp)) {
-        try {
-          sessionStorage.setItem(`otpPreview:${normalized}`, data.otp);
-        } catch {
-          /* ignore */
-        }
-        const verifyRes = await fetch("/api/auth/verify-otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: normalized, code: data.otp }),
-          credentials: "include",
-        });
-        const verifyData = (await verifyRes.json().catch(() => ({}))) as { error?: string };
-        if (!verifyRes.ok) {
-          setError(verifyData.error || "Sign-in failed");
-          return;
-        }
-        try {
-          sessionStorage.removeItem(`otpPreview:${normalized}`);
-        } catch {
-          /* ignore */
-        }
-        router.push("/dashboard");
-        router.refresh();
-        return;
-      }
-
-      if (data.otp && typeof window !== "undefined") {
-        try {
-          sessionStorage.setItem(`otpPreview:${normalized}`, data.otp);
-        } catch {
-          /* ignore */
-        }
-      }
-      router.push(`/login/verify?email=${encodeURIComponent(normalized)}`);
     } finally {
       setLoading(false);
     }
@@ -196,9 +223,10 @@ export function LoginForm() {
         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/90 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Demo logins</p>
           <p className="mt-1 text-xs text-slate-500">
-            Click an account to fill the email and continue. You&apos;ll be signed in after the seed has been run (
-            <code className="rounded bg-slate-200/80 px-1 text-[0.7rem]">npm run db:seed</code>
-            ).
+            Click an account to sign in.{" "}
+            {requireOtpLogin
+              ? "In development the one-time code may be returned by the API. Run the seed first."
+              : "Email-only sign-in is enabled (no verification code)."}
           </p>
           <ul className="mt-3 max-h-52 space-y-1.5 overflow-y-auto pr-0.5 sm:max-h-none">
             {DEMO_ACCOUNTS.map((a) => (
@@ -227,7 +255,7 @@ export function LoginForm() {
           "Signing in…"
         ) : (
           <>
-            Continue
+            {requireOtpLogin ? "Continue" : "Sign in"}
             <ArrowRightIcon className="h-5 w-5" />
           </>
         )}
@@ -236,6 +264,14 @@ export function LoginForm() {
       {error ? (
         <p className="text-center text-sm text-red-600" role="alert">
           {error}
+        </p>
+      ) : null}
+
+      {!requireOtpLogin ? (
+        <p className="text-center text-xs text-slate-500">
+          Anyone who knows a valid work email can access an account. Set{" "}
+          <code className="rounded bg-slate-100 px-1">REQUIRE_OTP_LOGIN=true</code> in{" "}
+          <code className="rounded bg-slate-100 px-1">.env</code> to require email verification codes.
         </p>
       ) : null}
     </form>

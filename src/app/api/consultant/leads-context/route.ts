@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     select: { id: true, name: true, code: true, logoUrl: true },
   });
 
-  const [university, streams] = await Promise.all([
+  const [university, streams, academicYears] = await Promise.all([
     prisma.university.findUnique({
       where: { id: universityId },
       select: { id: true, name: true, code: true },
@@ -37,6 +37,11 @@ export async function GET(req: Request) {
       where: { universityId },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: { id: true, name: true },
+    }),
+    prisma.academicYear.findMany({
+      where: { universityId },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      select: { id: true, label: true },
     }),
   ]);
 
@@ -49,6 +54,7 @@ export async function GET(req: Request) {
     universityName: university.name,
     universityCode: university.code,
     streams,
+    academicYears,
     allowedUniversityIds: allowed,
     universities: uniRows,
     defaultUniversityId: allowed[0] ?? null,

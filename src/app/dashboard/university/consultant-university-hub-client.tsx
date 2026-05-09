@@ -6,12 +6,14 @@ import { ConsultantLeadsClient } from "@/app/dashboard/consultant/leads/consulta
 
 type UniCard = { id: string; name: string; code: string; logoUrl: string | null };
 type Stream = { id: string; name: string };
+type AcademicYearOption = { id: string; label: string };
 
 type InitialContext = {
   universityId: string;
   universityName: string;
   universityCode: string;
   streams: Stream[];
+  academicYears: AcademicYearOption[];
   universities: UniCard[];
 };
 
@@ -22,6 +24,7 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
   const [universityName, setUniversityName] = React.useState(initial.universityName);
   const [universityCode, setUniversityCode] = React.useState(initial.universityCode);
   const [streams, setStreams] = React.useState(initial.streams);
+  const [academicYears, setAcademicYears] = React.useState(initial.academicYears);
   const [loadingScoped, setLoadingScoped] = React.useState(false);
   const [leadDrawerOpen, setLeadDrawerOpen] = React.useState(false);
 
@@ -34,11 +37,13 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
         universityName?: string;
         universityCode?: string;
         streams?: Stream[];
+        academicYears?: AcademicYearOption[];
       };
       if (res.ok && data.universityName && data.streams) {
         setUniversityName(data.universityName);
         setUniversityCode(data.universityCode ?? "");
         setStreams(data.streams);
+        setAcademicYears(data.academicYears ?? []);
       }
       await fetch("/api/auth/active-university", {
         method: "POST",
@@ -115,6 +120,7 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
         universityName={universityName}
         universityCode={universityCode}
         streams={streams}
+        academicYears={academicYears}
         hubLayout
         addLeadInDrawer
         leadDrawerOpen={leadDrawerOpen}

@@ -16,7 +16,13 @@ const createSchema = z.object({
   firstName: z.string().min(1).max(120).trim(),
   lastName: z.string().min(1).max(120).trim(),
   email: z.string().email().max(254).trim(),
-  mobile: z.string().min(5).max(32).trim(),
+  mobile: z
+    .string()
+    .trim()
+    .refine((s) => {
+      const digits = s.replace(/\D/g, "");
+      return digits.length >= 10 && digits.length <= 15;
+    }, { message: "Enter a valid mobile number (10–15 digits)" }),
   nationality: z.string().max(120).trim().optional().nullable(),
   admissionState: z.string().min(1).max(120).trim(),
   referralFirstName: z.string().max(120).trim().optional().nullable(),
@@ -88,7 +94,15 @@ export async function POST(req: Request) {
 
   const parsed = createSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    const flat = parsed.error.flatten();
+    return NextResponse.json(
+      {
+        error: "Invalid input",
+        fieldErrors: flat.fieldErrors,
+        formErrors: flat.formErrors,
+      },
+      { status: 400 },
+    );
   }
 
   const gate = await requireConsultantUniversity(parsed.data.universityId ?? null);
@@ -135,9 +149,28 @@ export async function POST(req: Request) {
   if (refE) {
     const ok = z.string().email().safeParse(refE);
     if (!ok.success) {
-      return NextResponse.json({ error: "Invalid referral email" }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: "Invalid input",
+          fieldErrors: { referralEmail: ["Enter a valid email address"] },
+          formErrors: [],
+        },
+        { status: 400 },
+      );
     }
     referralEmail = refE.toLowerCase();
+  }
+
+  const refPhone = parsed.data.referralPhone?.trim();
+  if (refPhone && refPhone.replace(/\D/g, "").length < 10) {
+    return NextResponse.json(
+      {
+        error: "Invalid input",
+        fieldErrors: { referralPhone: ["Enter a valid contact number (at least 10 digits)"] },
+        formErrors: [],
+      },
+      { status: 400 },
+    );
   }
 
   const assignedPartnerDisplayName = (creator?.name?.trim() || creator?.email?.trim() || "Admission partner").slice(

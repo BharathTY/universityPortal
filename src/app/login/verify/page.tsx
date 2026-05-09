@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { AuthPageShell } from "@/components/auth/AuthPageShell";
 import { VerifyForm } from "./verify-form";
@@ -8,6 +9,10 @@ type PageProps = {
 };
 
 export default async function LoginVerifyPage(props: PageProps) {
+  if (process.env.REQUIRE_OTP_LOGIN !== "true") {
+    redirect("/login");
+  }
+
   const sp = await props.searchParams;
   const email = sp.email?.trim();
   const subtitle = email

@@ -7,10 +7,19 @@ export type StreamRow = { id: string; name: string; sortOrder: number };
 
 type Props = {
   universityId: string;
+  universityName: string;
+  universityCode: string;
+  universitiesListHref: string;
   initialStreams: StreamRow[];
 };
 
-export function StreamsManager({ universityId, initialStreams }: Props) {
+export function StreamsManager({
+  universityId,
+  universityName,
+  universityCode,
+  universitiesListHref,
+  initialStreams,
+}: Props) {
   const [streams, setStreams] = React.useState(initialStreams);
   const [name, setName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -44,7 +53,18 @@ export function StreamsManager({ universityId, initialStreams }: Props) {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-bold text-[var(--foreground)]">Degrees</h1>
+      <nav className="text-sm text-[var(--foreground-muted)]" aria-label="Breadcrumb">
+        <Link href={universitiesListHref} className="text-[var(--primary)] underline underline-offset-2">
+          Universities
+        </Link>
+        <span className="mx-1.5">/</span>
+        <span className="font-medium text-[var(--foreground)]">
+          {universityName} ({universityCode})
+        </span>
+        <span className="mx-1.5">/</span>
+        <span className="font-medium text-[var(--foreground)]">Degrees</span>
+      </nav>
+      <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Degrees</h1>
       <p className="mt-2 text-sm text-[var(--foreground-muted)]">
         Programs such as B.Tech, BCA, MCA — used as filters when viewing admissions.
       </p>

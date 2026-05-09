@@ -7,6 +7,7 @@ import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
 import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
 
 type Stream = { id: string; name: string };
+type AcademicYearOption = { id: string; label: string };
 
 type LeadRow = {
   id: string;
@@ -33,6 +34,7 @@ type Props = {
   universityName: string;
   universityCode: string;
   streams: Stream[];
+  academicYears?: AcademicYearOption[];
   /** POST `/api/auth/active-university` when the scoped university changes (multi-university consultants). */
   setActiveUniversityOnMount?: boolean;
   showBulkUpload?: boolean;
@@ -43,16 +45,71 @@ type Props = {
   onCloseLeadDrawer?: () => void;
 };
 
+function looksLikeEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+}
+
+function mapApiFieldErrors(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (Array.isArray(v) && typeof v[0] === "string") out[k] = v[0]!;
+    else if (typeof v === "string") out[k] = v;
+  }
+  return out;
+}
+
+function validateLeadForm(input: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  mobile: string;
+  streamId: string;
+  academicYearId: string;
+  admissionState: string;
+  nationality: string;
+  refEmail: string;
+  refPhone: string;
+  academicYearsCount: number;
+  streamsCount: number;
+}): Record<string, string> {
+  const e: Record<string, string> = {};
+  if (!input.firstName.trim()) e.firstName = "First name is required";
+  if (!input.lastName.trim()) e.lastName = "Last name is required";
+  const em = input.email.trim();
+  if (!em) e.email = "Email is required";
+  else if (!looksLikeEmail(em)) e.email = "Enter a valid email address";
+  const mob = input.mobile.trim();
+  const digits = mob.replace(/\D/g, "");
+  if (!mob) e.mobile = "Mobile is required";
+  else if (digits.length < 10 || digits.length > 15) e.mobile = "Enter a valid mobile number (10–15 digits)";
+  if (input.streamsCount === 0 || !input.streamId) e.streamId = "Select a degree type";
+  if (input.academicYearsCount === 0) {
+    e.academicYearId = "No academic year (YOP) is configured for this university";
+  } else if (!input.academicYearId) {
+    e.academicYearId = "Select the year (YOP)";
+  }
+  if (!input.admissionState) e.admissionState = "Select state";
+  const nat = input.nationality.trim();
+  if (!nat) e.nationality = "Nationality is required";
+
+  const rE = input.refEmail.trim();
+  if (rE && !looksLikeEmail(rE)) e.referralEmail = "Enter a valid email address";
+  const rP = input.refPhone.trim();
+  if (rP && rP.replace(/\D/g, "").length < 10) e.referralPhone = "Enter at least 10 digits for contact";
+
+  return e;
+}
+
 export function ConsultantLeadsClient(props: Props) {
   const showBulk = props.showBulkUpload ?? false;
   const setActive = props.setActiveUniversityOnMount ?? false;
+  const academicYears = props.academicYears ?? [];
   const router = useRouter();
 
   const [loading, setLoading] = React.useState(true);
   const [rows, setRows] = React.useState<LeadRow[]>([]);
   const [error, setError] = React.useState<string | null>(null);
-
-  const [busyId, setBusyId] = React.useState<string | null>(null);
 
   const [fn, setFn] = React.useState("");
   const [ln, setLn] = React.useState("");
@@ -60,11 +117,17 @@ export function ConsultantLeadsClient(props: Props) {
   const [mobile, setMobile] = React.useState("");
   const [nat, setNat] = React.useState("India");
   const [streamId, setStreamId] = React.useState(props.streams[0]?.id ?? "");
+  const [academicYearId, setAcademicYearId] = React.useState(academicYears[0]?.id ?? "");
   const [admissionState, setAdmissionState] = React.useState("");
   const [refFn, setRefFn] = React.useState("");
   const [refLn, setRefLn] = React.useState("");
   const [refPhone, setRefPhone] = React.useState("");
   const [refEmail, setRefEmail] = React.useState("");
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
+
+  function borderFor(key: string) {
+    return fieldErrors[key] ? "border-red-500" : "border-[var(--border)]";
+  }
 
   async function load() {
     setLoading(true);
@@ -93,6 +156,11 @@ export function ConsultantLeadsClient(props: Props) {
   }, [props.streams]);
 
   React.useEffect(() => {
+    const first = academicYears[0]?.id ?? "";
+    setAcademicYearId((prev) => (academicYears.some((y) => y.id === prev) ? prev : first));
+  }, [academicYears]);
+
+  React.useEffect(() => {
     if (!setActive || !props.universityId) return;
     void (async () => {
       await fetch("/api/auth/active-university", {
@@ -107,26 +175,52 @@ export function ConsultantLeadsClient(props: Props) {
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    const clientErr = validateLeadForm({
+      firstName: fn,
+      lastName: ln,
+      email,
+      mobile,
+      streamId,
+      academicYearId,
+      admissionState,
+      nationality: nat,
+      refEmail,
+      refPhone,
+      academicYearsCount: academicYears.length,
+      streamsCount: props.streams.length,
+    });
+    if (Object.keys(clientErr).length > 0) {
+      setFieldErrors(clientErr);
+      return;
+    }
+    setFieldErrors({});
+
     const res = await fetch("/api/consultant/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         universityId: props.universityId,
-        firstName: fn,
-        lastName: ln,
-        email,
-        mobile,
-        nationality: nat || null,
+        academicYearId: academicYearId || undefined,
+        firstName: fn.trim(),
+        lastName: ln.trim(),
+        email: email.trim(),
+        mobile: mobile.trim(),
+        nationality: nat.trim() || null,
         streamId,
         admissionState,
-        referralFirstName: refFn || null,
-        referralLastName: refLn || null,
-        referralPhone: refPhone || null,
-        referralEmail: refEmail || null,
+        referralFirstName: refFn.trim() || null,
+        referralLastName: refLn.trim() || null,
+        referralPhone: refPhone.trim() || null,
+        referralEmail: refEmail.trim() || null,
       }),
     });
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      fieldErrors?: unknown;
+    };
     if (!res.ok) {
+      const apiFe = mapApiFieldErrors(data.fieldErrors);
+      if (Object.keys(apiFe).length > 0) setFieldErrors(apiFe);
       setError(data.error ?? "Could not create lead");
       return;
     }
@@ -140,38 +234,10 @@ export function ConsultantLeadsClient(props: Props) {
     setRefLn("");
     setRefPhone("");
     setRefEmail("");
+    setFieldErrors({});
+    setAcademicYearId(academicYears[0]?.id ?? "");
     await load();
     props.onCloseLeadDrawer?.();
-  }
-
-  async function markLost(id: string) {
-    setBusyId(id);
-    setError(null);
-    try {
-      const res = await fetch(`/api/consultant/leads/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pipelineStatus: "LOST" }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) setError(data.error ?? "Could not update");
-      else await load();
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function convert(id: string) {
-    setBusyId(id);
-    setError(null);
-    try {
-      const res = await fetch(`/api/consultant/leads/${id}/convert`, { method: "POST" });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) setError(data.error ?? "Could not convert");
-      else await load();
-    } finally {
-      setBusyId(null);
-    }
   }
 
   const showAssignedPartnerCol = rows.some((r) =>
@@ -187,53 +253,102 @@ export function ConsultantLeadsClient(props: Props) {
   const showInlineAdd = !props.hubLayout || !props.addLeadInDrawer;
   const drawerAdd = Boolean(props.hubLayout && props.addLeadInDrawer);
 
+  const canSubmitLead =
+    props.streams.length > 0 &&
+    Boolean(streamId) &&
+    academicYears.length > 0 &&
+    Boolean(academicYearId);
+
   const addLeadForm = (
-    <form onSubmit={onCreate} className={drawerAdd ? "space-y-6" : "mt-4 space-y-6"}>
+    <form onSubmit={onCreate} className={drawerAdd ? "space-y-6" : "mt-4 space-y-6"} noValidate>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="text-sm font-medium">First name</label>
           <input
-            required
             value={fn}
-            onChange={(e) => setFn(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+            onChange={(e) => {
+              setFn(e.target.value);
+              setFieldErrors((f) => {
+                const n = { ...f };
+                delete n.firstName;
+                return n;
+              });
+            }}
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("firstName")}`}
+            aria-invalid={Boolean(fieldErrors.firstName)}
           />
+          {fieldErrors.firstName ? <p className="mt-1 text-xs text-red-600">{fieldErrors.firstName}</p> : null}
         </div>
         <div>
           <label className="text-sm font-medium">Last name</label>
           <input
-            required
             value={ln}
-            onChange={(e) => setLn(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+            onChange={(e) => {
+              setLn(e.target.value);
+              setFieldErrors((f) => {
+                const n = { ...f };
+                delete n.lastName;
+                return n;
+              });
+            }}
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("lastName")}`}
+            aria-invalid={Boolean(fieldErrors.lastName)}
           />
+          {fieldErrors.lastName ? <p className="mt-1 text-xs text-red-600">{fieldErrors.lastName}</p> : null}
         </div>
         <div>
           <label className="text-sm font-medium">Email</label>
           <input
-            required
             type="email"
+            autoComplete="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setFieldErrors((f) => {
+                const n = { ...f };
+                delete n.email;
+                return n;
+              });
+            }}
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("email")}`}
+            aria-invalid={Boolean(fieldErrors.email)}
           />
+          {fieldErrors.email ? <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p> : null}
         </div>
         <div>
           <label className="text-sm font-medium">Mobile</label>
           <input
-            required
+            type="tel"
+            autoComplete="tel"
+            inputMode="tel"
             value={mobile}
-            onChange={(e) => setMobile(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+            onChange={(e) => {
+              setMobile(e.target.value);
+              setFieldErrors((f) => {
+                const n = { ...f };
+                delete n.mobile;
+                return n;
+              });
+            }}
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("mobile")}`}
+            aria-invalid={Boolean(fieldErrors.mobile)}
           />
+          {fieldErrors.mobile ? <p className="mt-1 text-xs text-red-600">{fieldErrors.mobile}</p> : null}
         </div>
         <div>
           <label className="text-sm font-medium">Degree Type</label>
           <select
-            required
             value={streamId}
-            onChange={(e) => setStreamId(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+            onChange={(e) => {
+              setStreamId(e.target.value);
+              setFieldErrors((f) => {
+                const n = { ...f };
+                delete n.streamId;
+                return n;
+              });
+            }}
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("streamId")}`}
+            aria-invalid={Boolean(fieldErrors.streamId)}
           >
             {props.streams.length === 0 ? <option value="">No programs configured</option> : null}
             {props.streams.map((s) => (
@@ -242,14 +357,46 @@ export function ConsultantLeadsClient(props: Props) {
               </option>
             ))}
           </select>
+          {fieldErrors.streamId ? <p className="mt-1 text-xs text-red-600">{fieldErrors.streamId}</p> : null}
+        </div>
+        <div>
+          <label className="text-sm font-medium">Year (YOP)</label>
+          <select
+            value={academicYearId}
+            onChange={(e) => {
+              setAcademicYearId(e.target.value);
+              setFieldErrors((f) => {
+                const n = { ...f };
+                delete n.academicYearId;
+                return n;
+              });
+            }}
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("academicYearId")}`}
+            aria-invalid={Boolean(fieldErrors.academicYearId)}
+          >
+            {academicYears.length === 0 ? <option value="">No years configured</option> : null}
+            {academicYears.map((y) => (
+              <option key={y.id} value={y.id}>
+                {y.label}
+              </option>
+            ))}
+          </select>
+          {fieldErrors.academicYearId ? <p className="mt-1 text-xs text-red-600">{fieldErrors.academicYearId}</p> : null}
         </div>
         <div>
           <label className="text-sm font-medium">State</label>
           <select
-            required
             value={admissionState}
-            onChange={(e) => setAdmissionState(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+            onChange={(e) => {
+              setAdmissionState(e.target.value);
+              setFieldErrors((f) => {
+                const n = { ...f };
+                delete n.admissionState;
+                return n;
+              });
+            }}
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("admissionState")}`}
+            aria-invalid={Boolean(fieldErrors.admissionState)}
           >
             <option value="" disabled>
               Select state
@@ -260,15 +407,25 @@ export function ConsultantLeadsClient(props: Props) {
               </option>
             ))}
           </select>
+          {fieldErrors.admissionState ? <p className="mt-1 text-xs text-red-600">{fieldErrors.admissionState}</p> : null}
         </div>
         <div className="sm:col-span-2">
           <label className="text-sm font-medium">Nationality</label>
           <input
             value={nat}
-            onChange={(e) => setNat(e.target.value)}
+            onChange={(e) => {
+              setNat(e.target.value);
+              setFieldErrors((f) => {
+                const n = { ...f };
+                delete n.nationality;
+                return n;
+              });
+            }}
             placeholder="India"
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("nationality")}`}
+            aria-invalid={Boolean(fieldErrors.nationality)}
           />
+          {fieldErrors.nationality ? <p className="mt-1 text-xs text-red-600">{fieldErrors.nationality}</p> : null}
           <p className="mt-1 text-xs text-[var(--foreground-muted)]">Defaults to India; change if needed.</p>
         </div>
       </div>
@@ -296,25 +453,47 @@ export function ConsultantLeadsClient(props: Props) {
             <label className="text-sm font-medium">Contact</label>
             <input
               value={refPhone}
-              onChange={(e) => setRefPhone(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+              onChange={(e) => {
+                setRefPhone(e.target.value);
+                setFieldErrors((f) => {
+                  const n = { ...f };
+                  delete n.referralPhone;
+                  return n;
+                });
+              }}
+              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("referralPhone")}`}
+              aria-invalid={Boolean(fieldErrors.referralPhone)}
             />
+            {fieldErrors.referralPhone ? (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.referralPhone}</p>
+            ) : null}
           </div>
           <div>
             <label className="text-sm font-medium">Email</label>
             <input
               type="email"
               value={refEmail}
-              onChange={(e) => setRefEmail(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+              onChange={(e) => {
+                setRefEmail(e.target.value);
+                setFieldErrors((f) => {
+                  const n = { ...f };
+                  delete n.referralEmail;
+                  return n;
+                });
+              }}
+              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("referralEmail")}`}
+              aria-invalid={Boolean(fieldErrors.referralEmail)}
             />
+            {fieldErrors.referralEmail ? (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.referralEmail}</p>
+            ) : null}
           </div>
         </div>
       </div>
 
       <button
         type="submit"
-        disabled={props.streams.length === 0 || !streamId}
+        disabled={!canSubmitLead}
         className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
       >
         Add lead
@@ -433,7 +612,6 @@ export function ConsultantLeadsClient(props: Props) {
                   <th className="px-3 py-2">Created</th>
                   {showAssignedPartnerCol ? <th className="px-3 py-2">Assigned partner</th> : null}
                   <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -459,32 +637,6 @@ export function ConsultantLeadsClient(props: Props) {
                       </td>
                     ) : null}
                     <td className="px-3 py-2">{r.pipelineStatus}</td>
-                    <td className="px-3 py-2 text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        {r.pipelineStatus === "NEW" ? (
-                          <>
-                            <button
-                              type="button"
-                              disabled={busyId === r.id}
-                              onClick={() => void convert(r.id)}
-                              className="text-[var(--primary)] underline"
-                            >
-                              Convert
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busyId === r.id}
-                              onClick={() => void markLost(r.id)}
-                              className="text-red-600 underline"
-                            >
-                              Lost
-                            </button>
-                          </>
-                        ) : (
-                          <span className="text-[var(--foreground-muted)]">—</span>
-                        )}
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>

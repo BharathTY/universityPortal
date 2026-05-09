@@ -2,12 +2,18 @@
 import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
+  const requireOtpLogin = process.env.REQUIRE_OTP_LOGIN === "true";
+
   return (
     <AuthPageShell
       title="Welcome back"
-      subtitle="Enter your email to sign in."
+      subtitle={
+        requireOtpLogin
+          ? "Enter your email. We’ll send a one-time code."
+          : "Enter your email to sign in."
+      }
     >
-      <LoginForm />
+      <LoginForm requireOtpLogin={requireOtpLogin} />
       <AuthFooterLink
         prompt="Don't have an account?"
         linkText="Sign up"

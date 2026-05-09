@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isMaster } from "@/lib/roles";
 import { assertUniversityScope } from "@/lib/university-scope";
 import { StreamsManager } from "@/app/dashboard/university/[universityId]/admissions/streams/streams-manager";
 
@@ -22,5 +23,15 @@ export default async function StreamsPage(props: PageProps) {
     select: { id: true, name: true, sortOrder: true },
   });
 
-  return <StreamsManager universityId={universityId} initialStreams={rows} />;
+  const universitiesListHref = isMaster(session.roles) ? "/dashboard/master/universities" : "/dashboard/university";
+
+  return (
+    <StreamsManager
+      universityId={universityId}
+      universityName={university.name}
+      universityCode={university.code}
+      universitiesListHref={universitiesListHref}
+      initialStreams={rows}
+    />
+  );
 }

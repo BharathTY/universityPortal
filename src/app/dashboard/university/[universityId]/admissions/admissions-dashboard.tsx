@@ -33,6 +33,8 @@ type AdmissionsDashboardProps = {
   totalPages: number;
   selectedYearId: string | null;
   selectedStreamId: string | null;
+  /** When true, status is display-only (e.g. master oversight). */
+  readOnlyLeadStatus?: boolean;
 };
 
 const statusLabel: Record<string, string> = {
@@ -89,6 +91,7 @@ export function AdmissionsDashboard({
   totalPages,
   selectedYearId,
   selectedStreamId,
+  readOnlyLeadStatus = false,
 }: AdmissionsDashboardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -284,28 +287,34 @@ export function AdmissionsDashboard({
                     <td className="px-4 py-3 tabular-nums text-[var(--foreground-muted)]">{row.mobile}</td>
                     <td className="px-4 py-3 text-[var(--foreground-muted)]">{row.email}</td>
                     <td className="px-4 py-3">
-                      <div className="flex min-w-[11rem] flex-col gap-1.5">
-                        <select
-                          value={row.admissionStatus}
-                          disabled={busyLeadId === row.id}
-                          onChange={(e) => void onStatusChange(row.id, e.target.value, row.admissionStatus)}
-                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-xs font-medium text-[var(--foreground)] disabled:opacity-50"
-                          aria-label={`Status for ${row.firstName} ${row.lastName}`}
-                        >
-                          {LEAD_STATUS_OPTIONS.map((v) => (
-                            <option key={v} value={v}>
-                              {statusLabel[v] ?? v}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => void openHistory(row.id, `${row.firstName} ${row.lastName}`.trim())}
-                          className="w-fit text-xs font-medium text-[var(--primary)] underline underline-offset-2 hover:no-underline"
-                        >
-                          Status history
-                        </button>
-                      </div>
+                      {readOnlyLeadStatus ? (
+                        <span className="text-sm font-medium text-[var(--foreground)]">
+                          {statusLabel[row.admissionStatus] ?? row.admissionStatus}
+                        </span>
+                      ) : (
+                        <div className="flex min-w-[11rem] flex-col gap-1.5">
+                          <select
+                            value={row.admissionStatus}
+                            disabled={busyLeadId === row.id}
+                            onChange={(e) => void onStatusChange(row.id, e.target.value, row.admissionStatus)}
+                            className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-xs font-medium text-[var(--foreground)] disabled:opacity-50"
+                            aria-label={`Status for ${row.firstName} ${row.lastName}`}
+                          >
+                            {LEAD_STATUS_OPTIONS.map((v) => (
+                              <option key={v} value={v}>
+                                {statusLabel[v] ?? v}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => void openHistory(row.id, `${row.firstName} ${row.lastName}`.trim())}
+                            className="w-fit text-xs font-medium text-[var(--primary)] underline underline-offset-2 hover:no-underline"
+                          >
+                            Status history
+                          </button>
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-[var(--foreground-muted)]">
                       {row.academicYear.label} · {row.stream.name}

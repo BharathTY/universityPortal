@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isMaster } from "@/lib/roles";
 import { assertUniversityScope } from "@/lib/university-scope";
 import {
   AdmissionsDashboard,
@@ -89,6 +90,7 @@ export default async function UniversityAdmissionsPage(props: PageProps) {
       selectedYearId={selectedYearId}
       selectedStreamId={selectedStreamId}
       pageSubtitle="All admission leads for your institution — partner and university team — filter by academic year and degree."
+      readOnlyLeadStatus={isMaster(session.roles)}
     />
   );
 }

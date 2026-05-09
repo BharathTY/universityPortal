@@ -36,7 +36,7 @@ export default async function UniversityHubPage() {
     if (!universityId) {
       redirect("/dashboard");
     }
-    const [uniRows, university, streams] = await Promise.all([
+    const [uniRows, university, streams, academicYears] = await Promise.all([
       prisma.university.findMany({
         where: { id: { in: ids } },
         orderBy: { name: "asc" },
@@ -50,6 +50,11 @@ export default async function UniversityHubPage() {
         where: { universityId },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         select: { id: true, name: true },
+      }),
+      prisma.academicYear.findMany({
+        where: { universityId },
+        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+        select: { id: true, label: true },
       }),
     ]);
 
@@ -65,6 +70,7 @@ export default async function UniversityHubPage() {
             universityName: university.name,
             universityCode: university.code,
             streams,
+            academicYears,
             universities: uniRows,
           }}
         />

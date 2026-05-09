@@ -12,6 +12,13 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
+  if (process.env.REQUIRE_OTP_LOGIN !== "true") {
+    return NextResponse.json(
+      { error: "One-time codes are disabled. Use email-only sign-in on the login page." },
+      { status: 403 },
+    );
+  }
+
   let json: unknown;
   try {
     json = await req.json();

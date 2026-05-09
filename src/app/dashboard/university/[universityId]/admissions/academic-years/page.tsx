@@ -24,12 +24,14 @@ export default async function AcademicYearsPage(props: PageProps) {
   });
 
   const canManageYears = isMaster(session.roles) || isUniversity(session.roles);
+  const universitiesListHref = isMaster(session.roles) ? "/dashboard/master/universities" : "/dashboard/university";
 
   return (
     <AcademicYearsManager
       universityId={universityId}
       universityName={university.name}
       universityCode={university.code}
+      universitiesListHref={universitiesListHref}
       initialYears={rows}
       canManageYears={canManageYears}
     />

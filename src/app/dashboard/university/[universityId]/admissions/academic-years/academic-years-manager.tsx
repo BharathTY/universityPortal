@@ -9,6 +9,8 @@ type Props = {
   universityId: string;
   universityName: string;
   universityCode: string;
+  /** Master list vs scoped university hub. */
+  universitiesListHref: string;
   initialYears: AcademicYearRow[];
   /** Master and university staff may create years; admission partners are read-only. */
   canManageYears: boolean;
@@ -18,6 +20,7 @@ export function AcademicYearsManager({
   universityId,
   universityName,
   universityCode,
+  universitiesListHref,
   initialYears,
   canManageYears,
 }: Props) {
@@ -55,7 +58,7 @@ export function AcademicYearsManager({
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
       <nav className="text-sm text-[var(--foreground-muted)]" aria-label="Breadcrumb">
-        <Link href="/dashboard/university" className="text-[var(--primary)] underline underline-offset-2">
+        <Link href={universitiesListHref} className="text-[var(--primary)] underline underline-offset-2">
           Universities
         </Link>
         <span className="mx-1.5">/</span>
