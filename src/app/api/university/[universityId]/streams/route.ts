@@ -4,8 +4,15 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAccessUniversityScopeAsync } from "@/lib/university-scope";
 
+/** Letters, digits, spaces, and punctuation (e.g. B.Tech, M.Sc., B.A. (Hons)) are allowed. */
 const createSchema = z.object({
-  name: z.string().min(2).max(64).trim(),
+  name: z.preprocess(
+    (val) => (typeof val === "string" ? val.trim() : val),
+    z
+      .string()
+      .min(1, { message: "Degree name is required" })
+      .max(120, { message: "Degree name is too long (max 120 characters)" }),
+  ),
   sortOrder: z.number().int().optional(),
 });
 
@@ -45,7 +52,8 @@ export async function POST(req: Request, ctx: RouteContext) {
 
   const parsed = createSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    const msg = parsed.error.issues[0]?.message ?? "Invalid input";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 
   const maxOrder = await prisma.stream.aggregate({

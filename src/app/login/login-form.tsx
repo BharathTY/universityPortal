@@ -1,24 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 const REMEMBER_KEY = "qsp_auth_remember";
 const EMAIL_KEY = "qsp_auth_email";
-
-/** Seed accounts from `prisma/seed.ts` — database must be seeded. */
-const DEMO_ACCOUNTS = [
-  { label: "Master admin", email: "master@university.local" },
-  { label: "Admin", email: "admin@university.local" },
-  { label: "University staff", email: "university@university.local" },
-  { label: "Consultant", email: "consultant@university.local" },
-  { label: "Counsellor", email: "counsellor@university.local" },
-  { label: "Qspiders branch", email: "branch@university.local" },
-  { label: "Student (demo)", email: "student@university.local" },
-] as const;
-
-const showDemoLogins =
-  process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_SHOW_DEMO_LOGINS === "true";
 
 function MailIcon({ className }: { className?: string }) {
   return (
@@ -34,28 +20,42 @@ function MailIcon({ className }: { className?: string }) {
   );
 }
 
-function ArrowRightIcon({ className }: { className?: string }) {
+function EyeIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path
-        d="M5 12h14M13 6l6 6-6 6"
-        stroke="currentColor"
-        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
+        d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
       />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function EyeOffIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M1 1l22 22" />
     </svg>
   );
 }
 
 type Props = {
-  /** When true, use 6-digit email codes (request-otp / verify). When false, email-only session (`/api/auth/login`). */
+  /** When true, use 6-digit email codes (request-otp / verify). When false, email (+ password when set on account). */
   requireOtpLogin: boolean;
 };
 
 export function LoginForm({ requireOtpLogin }: Props) {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,11 +87,14 @@ export function LoginForm({ requireOtpLogin }: Props) {
     }
   }
 
-  async function signInEmailOnly(emailNorm: string) {
+  async function signInEmailPassword(emailNorm: string, passwordValue: string) {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: emailNorm }),
+      body: JSON.stringify({
+        email: emailNorm,
+        ...(passwordValue.trim().length > 0 ? { password: passwordValue } : {}),
+      }),
       credentials: "include",
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
@@ -156,50 +159,79 @@ export function LoginForm({ requireOtpLogin }: Props) {
     router.push(`/login/verify?email=${encodeURIComponent(emailNorm)}`);
   }
 
-  async function quickSignIn(targetEmail: string) {
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
     setError(null);
-    setEmail(targetEmail);
     setLoading(true);
-    const normalized = targetEmail.trim().toLowerCase();
+    const normalized = email.trim().toLowerCase();
     try {
       if (requireOtpLogin) {
         await signInWithOtp(normalized);
       } else {
-        await signInEmailOnly(normalized);
+        await signInEmailPassword(normalized, password);
       }
     } finally {
       setLoading(false);
     }
   }
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    await quickSignIn(email);
-  }
+  const floatingLabelClass =
+    "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 origin-left text-[#2563eb] transition-all duration-200 " +
+    "peer-focus:top-2 peer-focus:-translate-y-0 peer-focus:text-xs " +
+    "peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:-translate-y-0 peer-[:not(:placeholder-shown)]:text-xs";
+
+  const inputClass =
+    "peer block w-full rounded-lg border-2 border-slate-200 bg-white px-3 pb-2.5 pt-5 text-slate-900 shadow-sm outline-none " +
+    "transition focus:border-[#2563eb] hover:border-slate-300";
 
   return (
-    <form onSubmit={onSubmit} className="mt-8 space-y-6">
-      <div>
-        <label htmlFor="email" className="block text-sm font-medium text-slate-600">
-          Email
+    <form onSubmit={onSubmit} className="mt-10 space-y-6">
+      <div className="relative">
+        <input
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+          placeholder=" "
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className={`${inputClass} pr-11`}
+          aria-invalid={Boolean(error)}
+        />
+        <label htmlFor="email" className={floatingLabelClass}>
+          E-mail
         </label>
-        <div className="relative mt-2">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-            <MailIcon className="h-5 w-5" />
-          </span>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-3 text-slate-900 shadow-sm outline-none ring-[#1e6fe6] placeholder:text-slate-400 focus:border-[#1e6fe6] focus:ring-2"
-            placeholder="Enter your email"
-          />
-        </div>
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+          <MailIcon className="h-5 w-5" />
+        </span>
       </div>
+
+      {!requireOtpLogin ? (
+        <div className="relative">
+          <input
+            id="password"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            placeholder=" "
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={`${inputClass} pr-11`}
+          />
+          <label htmlFor="password" className={floatingLabelClass}>
+            Password
+          </label>
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? <EyeOffIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+          </button>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
@@ -207,58 +239,24 @@ export function LoginForm({ requireOtpLogin }: Props) {
             type="checkbox"
             checked={remember}
             onChange={(e) => setRemember(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-[#1e6fe6] focus:ring-[#1e6fe6]"
+            className="h-4 w-4 rounded border-slate-300 text-[#2563eb] focus:ring-[#2563eb]"
           />
           Remember me
         </label>
         <a
           href="mailto:support@university.edu?subject=Login%20help"
-          className="text-sm font-medium text-[#1e6fe6] hover:underline"
+          className="text-sm font-medium text-[#2563eb] hover:underline"
         >
-          Can&apos;t access email?
+          Need help?
         </a>
       </div>
-
-      {showDemoLogins ? (
-        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/90 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Demo logins</p>
-          <p className="mt-1 text-xs text-slate-500">
-            Click an account to sign in.{" "}
-            {requireOtpLogin
-              ? "In development the one-time code may be returned by the API. Run the seed first."
-              : "Email-only sign-in is enabled (no verification code)."}
-          </p>
-          <ul className="mt-3 max-h-52 space-y-1.5 overflow-y-auto pr-0.5 sm:max-h-none">
-            {DEMO_ACCOUNTS.map((a) => (
-              <li key={a.email}>
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => void quickSignIn(a.email)}
-                  className="flex w-full flex-col items-stretch gap-0.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm shadow-sm transition hover:border-[#1e6fe6] hover:bg-blue-50/60 disabled:opacity-50 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-                >
-                  <span className="font-medium text-slate-800">{a.label}</span>
-                  <span className="break-all font-mono text-xs text-slate-600">{a.email}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
 
       <button
         type="submit"
         disabled={loading}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1e6fe6] px-4 py-3.5 text-sm font-semibold text-white shadow-md transition hover:bg-[#1a62cc] disabled:opacity-60"
+        className="w-full rounded-lg bg-[#2563eb] px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-[#1d4ed8] disabled:opacity-60"
       >
-        {loading ? (
-          "Signing in…"
-        ) : (
-          <>
-            {requireOtpLogin ? "Continue" : "Sign in"}
-            <ArrowRightIcon className="h-5 w-5" />
-          </>
-        )}
+        {loading ? "Signing in…" : requireOtpLogin ? "Continue" : "Sign in"}
       </button>
 
       {error ? (
@@ -267,13 +265,15 @@ export function LoginForm({ requireOtpLogin }: Props) {
         </p>
       ) : null}
 
-      {!requireOtpLogin ? (
+      {requireOtpLogin ? (
         <p className="text-center text-xs text-slate-500">
-          Anyone who knows a valid work email can access an account. Set{" "}
-          <code className="rounded bg-slate-100 px-1">REQUIRE_OTP_LOGIN=true</code> in{" "}
-          <code className="rounded bg-slate-100 px-1">.env</code> to require email verification codes.
+          We’ll email you a one-time code to complete sign-in.
         </p>
-      ) : null}
+      ) : (
+        <p className="text-center text-xs text-slate-500">
+          Accounts created with a password must enter it. Others can sign in with email only.
+        </p>
+      )}
     </form>
   );
 }

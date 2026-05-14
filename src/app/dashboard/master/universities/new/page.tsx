@@ -20,8 +20,8 @@ export default async function NewUniversityPage() {
       </Link>
       <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Add university</h1>
       <p className="mt-2 text-sm text-[var(--foreground-muted)]">
-        Creates the organisation and a university-admin user, then emails account details including an auto-generated
-        password. Sign-in uses OTP; the password is for your records.
+        Only <strong className="text-[var(--foreground)]">University name</strong> is required. Add an email if you want
+        to create the university-admin login now; you can also add contact details and fee later.
       </p>
       <div className="mt-8">
         <NewUniversityForm />

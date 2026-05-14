@@ -23,14 +23,14 @@ export async function GET(req: Request) {
   const universityId = requested && allowed.includes(requested) ? requested : allowed[0]!;
 
   const uniRows = await prisma.university.findMany({
-    where: { id: { in: allowed } },
+    where: { id: { in: allowed }, status: "ACTIVE" },
     orderBy: { name: "asc" },
     select: { id: true, name: true, code: true, logoUrl: true },
   });
 
   const [university, streams, academicYears] = await Promise.all([
-    prisma.university.findUnique({
-      where: { id: universityId },
+    prisma.university.findFirst({
+      where: { id: universityId, status: "ACTIVE" },
       select: { id: true, name: true, code: true },
     }),
     prisma.stream.findMany({

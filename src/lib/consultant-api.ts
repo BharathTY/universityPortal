@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { resolveScopedConsultantUniversityId } from "@/lib/consultant-universities";
+import { prisma } from "@/lib/prisma";
 import { isConsultant } from "@/lib/roles";
 
 export async function requireConsultantUniversity(
@@ -26,6 +27,22 @@ export async function requireConsultantUniversity(
             "Your account must be linked to at least one university. Ask a master admin to assign universities.",
         },
         { status: 400 },
+      ),
+    };
+  }
+  const uniActive = await prisma.university.findFirst({
+    where: { id: universityId, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (!uniActive) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        {
+          error:
+            "This university is inactive. You cannot add or manage leads for it until a master admin reactivates it.",
+        },
+        { status: 403 },
       ),
     };
   }

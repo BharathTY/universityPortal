@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { AuthMarketingPanel } from "./AuthMarketingPanel";
 
@@ -10,22 +9,38 @@ type AuthPageShellProps = {
   subtitle: string;
   /** Optional row above the title (e.g. back link). */
   navSlot?: ReactNode;
+  /** Extra classes for the main title (e.g. serif sizing). */
+  titleClassName?: string;
+  /** Extra classes for the left (form) column only. */
+  formColumnClassName?: string;
 };
 
-export function AuthPageShell({ children, title, subtitle, navSlot }: AuthPageShellProps) {
+export function AuthPageShell({
+  children,
+  title,
+  subtitle,
+  navSlot,
+  titleClassName = "",
+  formColumnClassName = "",
+}: AuthPageShellProps) {
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
-      {/* Left: white form column — fixed light styling for auth */}
-      <div className="flex min-h-screen flex-col bg-white px-6 pb-8 pt-8 sm:px-10 sm:pt-10 lg:px-16">
+    <div className="grid min-h-screen grid-cols-1 bg-white lg:min-h-0 lg:grid-cols-2">
+      <div
+        className={`order-1 flex min-h-0 flex-col px-6 pb-10 pt-8 sm:px-10 sm:pt-10 lg:min-h-screen lg:px-14 lg:pb-12 ${formColumnClassName}`.trim()}
+      >
         <div>
-          <p className="text-2xl font-bold tracking-tight text-[#1e6fe6]">Eduversity</p>
+          <p className="text-2xl font-bold tracking-tight text-[#2563eb]">Eduversity</p>
         </div>
 
-        <div className="flex flex-1 flex-col justify-center py-10">
+        <div className="flex flex-1 flex-col justify-center py-10 lg:py-12">
           <div className="mx-auto w-full max-w-md">
             {navSlot ? <div className="mb-4">{navSlot}</div> : null}
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
-            <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
+            <h1
+              className={`text-3xl font-normal tracking-tight text-slate-900 sm:text-[2rem] ${titleClassName}`.trim()}
+            >
+              {title}
+            </h1>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">{subtitle}</p>
             {children}
           </div>
         </div>
@@ -35,27 +50,9 @@ export function AuthPageShell({ children, title, subtitle, navSlot }: AuthPageSh
         </p>
       </div>
 
-      <AuthMarketingPanel />
+      <div className="order-2 min-h-0 lg:min-h-screen">
+        <AuthMarketingPanel />
+      </div>
     </div>
-  );
-}
-
-/** Optional footer link row under forms (e.g. sign up). */
-export function AuthFooterLink({
-  prompt,
-  linkText,
-  href,
-}: {
-  prompt: string;
-  linkText: string;
-  href: string;
-}) {
-  return (
-    <p className="mt-8 text-center text-sm text-slate-500">
-      {prompt}{" "}
-      <Link href={href} className="font-medium text-[#1e6fe6] hover:underline">
-        {linkText}
-      </Link>
-    </p>
   );
 }

@@ -1,30 +1,26 @@
-﻿import { AuthFooterLink, AuthPageShell } from "@/components/auth/AuthPageShell";
+import { Merriweather } from "next/font/google";
+import { AuthPageShell } from "@/components/auth/AuthPageShell";
 import { LoginForm } from "./login-form";
+
+const signInSerif = Merriweather({
+  weight: ["400", "700"],
+  subsets: ["latin"],
+});
 
 export default function LoginPage() {
   const requireOtpLogin = process.env.REQUIRE_OTP_LOGIN === "true";
 
   return (
     <AuthPageShell
-      title="Welcome back"
+      formColumnClassName={signInSerif.className}
+      title="Sign in to Eduversity"
       subtitle={
         requireOtpLogin
-          ? "Enter your email. We’ll send a one-time code."
-          : "Enter your email to sign in."
+          ? "Enter your work email. We’ll send you a secure one-time code to continue."
+          : "Enter your email and password if your account has one, or email only for passwordless access."
       }
     >
       <LoginForm requireOtpLogin={requireOtpLogin} />
-      <AuthFooterLink
-        prompt="Don't have an account?"
-        linkText="Sign up"
-        href="#"
-      />
-      <p className="mt-6 text-center text-xs text-slate-400">
-        Staff and counsellors use work email. Need help?{" "}
-        <a href="#" className="font-medium text-[#1e6fe6] hover:underline">
-          Contact IT
-        </a>
-      </p>
     </AuthPageShell>
   );
 }

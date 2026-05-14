@@ -3,6 +3,7 @@ import { z } from "zod";
 import { cookies } from "next/headers";
 import { COOKIE_NAME, buildSessionCookieOptions, createSessionToken, defaultSessionMaxAgeSec, getSession } from "@/lib/auth";
 import { assertConsultantUniversityMembership } from "@/lib/consultant-universities";
+import { prisma } from "@/lib/prisma";
 import { isConsultant } from "@/lib/roles";
 
 const schema = z.object({
@@ -35,6 +36,14 @@ export async function POST(req: Request) {
   const allowed = await assertConsultantUniversityMembership(session.sub, universityId);
   if (!allowed) {
     return NextResponse.json({ error: "University not assigned to your account" }, { status: 403 });
+  }
+
+  const active = await prisma.university.findFirst({
+    where: { id: universityId, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (!active) {
+    return NextResponse.json({ error: "University is inactive and cannot be selected" }, { status: 403 });
   }
 
   const token = await createSessionToken({

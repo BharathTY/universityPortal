@@ -38,11 +38,8 @@ type Props = {
   /** POST `/api/auth/active-university` when the scoped university changes (multi-university consultants). */
   setActiveUniversityOnMount?: boolean;
   showBulkUpload?: boolean;
-  hubLayout?: boolean;
-  /** With `hubLayout`, show add-lead in a right-side panel instead of a card. */
-  addLeadInDrawer?: boolean;
-  leadDrawerOpen?: boolean;
-  onCloseLeadDrawer?: () => void;
+  /** `hub`: leads table under the university hub; `addOnly`: full-page add lead form */
+  layoutMode: "hub" | "addOnly";
 };
 
 function looksLikeEmail(s: string): boolean {
@@ -104,10 +101,10 @@ function validateLeadForm(input: {
 export function ConsultantLeadsClient(props: Props) {
   const showBulk = props.showBulkUpload ?? false;
   const setActive = props.setActiveUniversityOnMount ?? false;
-  const academicYears = props.academicYears ?? [];
+  const academicYears = React.useMemo(() => props.academicYears ?? [], [props.academicYears]);
   const router = useRouter();
 
-  const [loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(props.layoutMode !== "addOnly");
   const [rows, setRows] = React.useState<LeadRow[]>([]);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -129,7 +126,7 @@ export function ConsultantLeadsClient(props: Props) {
     return fieldErrors[key] ? "border-red-500" : "border-[var(--border)]";
   }
 
-  async function load() {
+  const load = React.useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -144,11 +141,12 @@ export function ConsultantLeadsClient(props: Props) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [props.universityId]);
 
   React.useEffect(() => {
+    if (props.layoutMode === "addOnly") return;
     void load();
-  }, [props.universityId]);
+  }, [props.layoutMode, load]);
 
   React.useEffect(() => {
     const first = props.streams[0]?.id ?? "";
@@ -236,8 +234,11 @@ export function ConsultantLeadsClient(props: Props) {
     setRefEmail("");
     setFieldErrors({});
     setAcademicYearId(academicYears[0]?.id ?? "");
+    if (props.layoutMode === "addOnly") {
+      router.push("/dashboard/university");
+      return;
+    }
     await load();
-    props.onCloseLeadDrawer?.();
   }
 
   const showAssignedPartnerCol = rows.some((r) =>
@@ -250,8 +251,8 @@ export function ConsultantLeadsClient(props: Props) {
     return [parts.join(" "), r.referralPhone, r.referralEmail].filter(Boolean).join(" · ");
   }
 
-  const showInlineAdd = !props.hubLayout || !props.addLeadInDrawer;
-  const drawerAdd = Boolean(props.hubLayout && props.addLeadInDrawer);
+  const isHub = props.layoutMode === "hub";
+  const isAddOnly = props.layoutMode === "addOnly";
 
   const canSubmitLead =
     props.streams.length > 0 &&
@@ -260,7 +261,7 @@ export function ConsultantLeadsClient(props: Props) {
     Boolean(academicYearId);
 
   const addLeadForm = (
-    <form onSubmit={onCreate} className={drawerAdd ? "space-y-6" : "mt-4 space-y-6"} noValidate>
+    <form onSubmit={onCreate} className="mt-4 space-y-6" noValidate>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="text-sm font-medium">First name</label>
@@ -502,82 +503,47 @@ export function ConsultantLeadsClient(props: Props) {
   );
 
   return (
-    <div className={props.hubLayout ? "" : "mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8"}>
-      {!props.hubLayout ? (
+    <div
+      className={
+        isHub ? "" : "mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8"
+      }
+    >
+      {isAddOnly ? (
         <>
           <nav className="text-sm text-[var(--foreground-muted)]">
             <Link href="/dashboard/university" className="text-[var(--primary)] underline-offset-2 hover:underline">
               Universities
             </Link>
             <span className="mx-1.5">/</span>
-            <span className="font-medium text-[var(--foreground)]">Partner leads</span>
+            <span className="font-medium text-[var(--foreground)]">Add lead</span>
           </nav>
-          <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Leads</h1>
+          <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Add lead</h1>
           <p className="mt-1 text-sm text-[var(--foreground-muted)]">
             {props.universityName} ({props.universityCode})
           </p>
         </>
-      ) : (
-        <h2 className="text-xl font-bold text-[var(--foreground)]">Partner leads</h2>
-      )}
-
-      {props.hubLayout ? (
-        <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-          {props.universityName} ({props.universityCode})
-        </p>
+      ) : isHub ? (
+        <>
+          <h2 className="text-xl font-bold text-[var(--foreground)]">Partner leads</h2>
+          <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+            {props.universityName} ({props.universityCode})
+          </p>
+          <p className="mt-6 text-sm text-[var(--foreground-muted)]">
+            Click a <strong className="text-[var(--foreground)]">university card</strong> above to filter this list. Use{" "}
+            <strong className="text-[var(--foreground)]">+ Lead</strong> on a card to add a prospect.
+          </p>
+        </>
       ) : null}
 
       {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
 
-      {drawerAdd && !props.leadDrawerOpen ? (
-        <p className="mt-6 text-sm text-[var(--foreground-muted)]">
-          Click <strong className="text-[var(--foreground)]">+ Lead</strong> on a university card above to open the lead
-          form.
-        </p>
-      ) : null}
-
-      {showInlineAdd ? (
+      {isAddOnly ? (
         <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">Add lead</h2>
-          <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+          <p className="text-sm text-[var(--foreground-muted)]">
             Admission partner name is recorded automatically from your account.
           </p>
           {addLeadForm}
         </section>
-      ) : null}
-
-      {drawerAdd && props.leadDrawerOpen ? (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/40"
-            aria-label="Close lead form"
-            onClick={() => props.onCloseLeadDrawer?.()}
-          />
-          <aside className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-[var(--border)] bg-[var(--card)] shadow-2xl">
-            <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
-              <div>
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">Add lead</h2>
-                <p className="text-xs text-[var(--foreground-muted)]">
-                  {props.universityName} ({props.universityCode})
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => props.onCloseLeadDrawer?.()}
-                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)]"
-              >
-                Close
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              <p className="mb-4 text-sm text-[var(--foreground-muted)]">
-                Your partner name is stored automatically on the lead.
-              </p>
-              {addLeadForm}
-            </div>
-          </aside>
-        </div>
       ) : null}
 
       {showBulk ? (
@@ -591,6 +557,7 @@ export function ConsultantLeadsClient(props: Props) {
         </section>
       ) : null}
 
+      {!isAddOnly ? (
       <section className="mt-10">
         <h2 className="text-lg font-semibold text-[var(--foreground)]">Your leads</h2>
         {loading ? (
@@ -644,6 +611,7 @@ export function ConsultantLeadsClient(props: Props) {
           </div>
         )}
       </section>
+      ) : null}
     </div>
   );
 }

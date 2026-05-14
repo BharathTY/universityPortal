@@ -76,12 +76,21 @@ export function StreamsManager({
           </label>
           <input
             id="stream-name"
+            type="text"
+            inputMode="text"
+            autoComplete="off"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. B.Tech"
+            placeholder="e.g. B.Tech, M.Sc., B.E (Civil)"
+            maxLength={120}
             className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
             required
           />
+          <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+            Use letters, numbers, spaces, and symbols such as periods, hyphens, slashes, or parentheses (e.g.{" "}
+            <span className="font-mono">B.Tech</span>, <span className="font-mono">M.Sc.</span>,{" "}
+            <span className="font-mono">B.A. (Hons)</span>).
+          </p>
         </div>
         <button
           type="submit"

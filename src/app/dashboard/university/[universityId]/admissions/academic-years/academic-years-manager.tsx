@@ -5,6 +5,9 @@ import * as React from "react";
 
 export type AcademicYearRow = { id: string; label: string; sortOrder: number };
 
+const YEAR_MIN = 2000;
+const YEAR_MAX = 2100;
+
 type Props = {
   universityId: string;
   universityName: string;
@@ -16,6 +19,13 @@ type Props = {
   canManageYears: boolean;
 };
 
+/** Parse `YYYY-MM-DD` from a date input value and return the four-digit year string. */
+function yearFromDateValue(iso: string): string | null {
+  if (!iso || iso.length < 4) return null;
+  const y = iso.slice(0, 4);
+  return /^\d{4}$/.test(y) ? y : null;
+}
+
 export function AcademicYearsManager({
   universityId,
   universityName,
@@ -25,13 +35,44 @@ export function AcademicYearsManager({
   canManageYears,
 }: Props) {
   const [years, setYears] = React.useState(initialYears);
-  const [label, setLabel] = React.useState("");
+  /** Controlled value for `<input type="date">` (normalized to `YYYY-01-01` for the chosen year). */
+  const [dateValue, setDateValue] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  const minDate = `${YEAR_MIN}-01-01`;
+  const maxDate = `${YEAR_MAX}-12-31`;
+
+  function onDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value;
+    if (!v) {
+      setDateValue("");
+      setError(null);
+      return;
+    }
+    const year = v.slice(0, 4);
+    if (!/^\d{4}$/.test(year)) return;
+    setDateValue(`${year}-01-01`);
+    setError(null);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    const label = yearFromDateValue(dateValue);
+    if (!label) {
+      setError("Select a year from the calendar");
+      return;
+    }
+    const n = Number(label);
+    if (n < YEAR_MIN || n > YEAR_MAX) {
+      setError(`Year must be between ${YEAR_MIN} and ${YEAR_MAX}`);
+      return;
+    }
+    if (years.some((y) => y.label === label)) {
+      setError(`Academic year ${label} is already added`);
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch(`/api/university/${universityId}/academic-years`, {
@@ -46,7 +87,7 @@ export function AcademicYearsManager({
       }
       if (data.academicYear) {
         setYears((prev) => [...prev, data.academicYear!].sort((a, b) => a.sortOrder - b.sortOrder));
-        setLabel("");
+        setDateValue("");
       }
     } catch {
       setError("Network error");
@@ -75,21 +116,29 @@ export function AcademicYearsManager({
         <>
           <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
-              <label htmlFor="year-label" className="block text-sm font-medium text-[var(--foreground)]">
-                Add year label
+              <label htmlFor="year-picker" className="block text-sm font-medium text-[var(--foreground)]">
+                Academic year
               </label>
               <input
-                id="year-label"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="e.g. 2027"
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+                id="year-picker"
+                type="date"
+                value={dateValue}
+                onChange={onDateChange}
+                min={minDate}
+                max={maxDate}
                 required
+                className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[var(--foreground)] ${error ? "border-red-500" : "border-[var(--border)]"}`}
+                aria-invalid={Boolean(error)}
+                aria-describedby="year-picker-hint"
               />
+              <p id="year-picker-hint" className="mt-1 text-xs text-[var(--foreground-muted)]">
+                Use the calendar to pick any day in the intake year; we save the four-digit year only (e.g. 2027). Only
+                numeric years between {YEAR_MIN} and {YEAR_MAX} are allowed.
+              </p>
             </div>
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || !dateValue}
               className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[var(--accent-blue-hover)] disabled:opacity-50"
             >
               {busy ? "Saving…" : "Add year"}

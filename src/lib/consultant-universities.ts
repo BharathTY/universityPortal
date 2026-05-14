@@ -22,7 +22,7 @@ export async function replaceConsultantUniversityAssignments(
   });
 }
 
-/** University IDs a consultant may access (join table + legacy `User.universityId`). */
+/** University IDs a consultant may access: join + legacy column, **active universities only**. */
 export async function getAllowedConsultantUniversityIds(userId: string): Promise<string[]> {
   const [rows, user] = await Promise.all([
     prisma.consultantUniversity.findMany({
@@ -34,9 +34,16 @@ export async function getAllowedConsultantUniversityIds(userId: string): Promise
       select: { universityId: true },
     }),
   ]);
-  const set = new Set(rows.map((r) => r.universityId));
-  if (user?.universityId) set.add(user.universityId);
-  return [...set];
+  const fromJoin = rows.map((r) => r.universityId);
+  /** Only formal assignments — unless legacy account has no join rows yet (then `User.universityId`). */
+  const candidateIds =
+    fromJoin.length > 0 ? fromJoin : user?.universityId ? [user.universityId] : [];
+  if (candidateIds.length === 0) return [];
+  const active = await prisma.university.findMany({
+    where: { id: { in: candidateIds }, status: "ACTIVE" },
+    select: { id: true },
+  });
+  return active.map((u) => u.id);
 }
 
 /** Active university for API/UI: session value if allowed, else first allowed (stable sort by name). */
@@ -57,7 +64,7 @@ export async function resolveConsultantActiveUniversityId(
   }
 
   const unis = await prisma.university.findMany({
-    where: { id: { in: allowed } },
+    where: { id: { in: allowed }, status: "ACTIVE" },
     orderBy: { name: "asc" },
     select: { id: true },
     take: 1,

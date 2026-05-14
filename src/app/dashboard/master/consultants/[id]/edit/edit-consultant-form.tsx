@@ -36,6 +36,14 @@ export function EditConsultantForm({ userId, universities, initial }: Props) {
     });
   }
 
+  function selectAllUniversities() {
+    setSelectedUniIds(new Set(universities.map((u) => u.id)));
+  }
+
+  function clearUniversities() {
+    setSelectedUniIds(new Set());
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -88,32 +96,57 @@ export function EditConsultantForm({ userId, universities, initial }: Props) {
       <div>
         <label className="block text-sm font-medium text-[var(--foreground)]">Phone number</label>
         <input
+          type="tel"
+          inputMode="numeric"
+          maxLength={10}
           required
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
           className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
         />
       </div>
       <div>
         <span className="block text-sm font-medium text-[var(--foreground)]">Assigned universities</span>
-        <p className="mt-1 text-xs text-[var(--foreground-muted)]">Select one or more.</p>
+        <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+          Only active universities are listed. Select one, several, or all.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={selectAllUniversities}
+            className="rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]"
+          >
+            Select all
+          </button>
+          <button
+            type="button"
+            onClick={clearUniversities}
+            className="rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]"
+          >
+            Clear
+          </button>
+        </div>
         <ul className="mt-3 max-h-56 space-y-2 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
-          {universities.map((u) => (
-            <li key={u.id}>
-              <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--foreground)]">
-                <input
-                  type="checkbox"
-                  checked={selectedUniIds.has(u.id)}
-                  onChange={() => toggleUniversity(u.id)}
-                  className="mt-0.5 h-4 w-4 rounded border-[var(--border)]"
-                />
-                <span>
-                  {u.name}{" "}
-                  <span className="text-xs text-[var(--foreground-muted)]">({u.code})</span>
-                </span>
-              </label>
-            </li>
-          ))}
+          {universities.length === 0 ? (
+            <li className="text-sm text-[var(--foreground-muted)]">No active universities available.</li>
+          ) : (
+            universities.map((u) => (
+              <li key={u.id}>
+                <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--foreground)]">
+                  <input
+                    type="checkbox"
+                    checked={selectedUniIds.has(u.id)}
+                    onChange={() => toggleUniversity(u.id)}
+                    className="mt-0.5 h-4 w-4 rounded border-[var(--border)]"
+                  />
+                  <span>
+                    {u.name}{" "}
+                    <span className="text-xs text-[var(--foreground-muted)]">({u.code})</span>
+                  </span>
+                </label>
+              </li>
+            ))
+          )}
         </ul>
       </div>
       <div>

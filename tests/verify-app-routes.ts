@@ -50,6 +50,10 @@ export function canonicalizeAppPathname(pathname: string): string {
     [/^\/dashboard\/master\/consultants\/[^/]+\/edit$/, "/dashboard/master/consultants/[:id]/edit"],
     [/^\/dashboard\/master\/universities\/[^/]+\/edit$/, "/dashboard/master/universities/[:id]/edit"],
     [
+      /^\/dashboard\/master\/universities\/[^/]+\/details$/,
+      "/dashboard/master/universities/[:id]/details",
+    ],
+    [
       /^\/dashboard\/university\/[^/]+\/admissions\/academic-years\/[^/]+$/,
       "/dashboard/university/[:universityId]/admissions/academic-years/[:yearId]",
     ],

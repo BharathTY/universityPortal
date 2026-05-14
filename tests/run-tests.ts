@@ -105,10 +105,18 @@ async function main() {
       ],
     );
   });
-  await test("master: includes Admission partners", () => {
+  await test("master: includes consultants / partner management", () => {
     const nav = buildDashboardNav([ROLES.master]);
-    const labels = nav.flatMap((g) => g.items.map((i) => i.label));
-    assert.ok(labels.includes("Admission partners"));
+    const items = nav.flatMap((g) => g.items);
+    assert.ok(
+      items.some((i) => i.href === "/dashboard/master/consultants"),
+      "Master nav should link to consultants list",
+    );
+    const labels = items.map((i) => i.label);
+    assert.ok(
+      labels.includes("Consultants") || labels.includes("Admission partners"),
+      `Expected Consultants (or legacy Admission partners) label, got: ${labels.join(", ")}`,
+    );
   });
   await test("consultant: no Home dashboard; Work shows Universities hub (leads combined)", () => {
     const nav = buildDashboardNav([ROLES.consultant]);

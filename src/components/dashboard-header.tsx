@@ -67,10 +67,10 @@ export function DashboardHeader({
 
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-6">
+      <div className="flex w-full items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-6 lg:px-8">
         <Link
           href="/dashboard"
-          className="group flex min-w-0 max-w-[min(100%,14rem)] shrink items-center gap-2.5 rounded-xl p-1 -m-1 transition hover:bg-[var(--muted)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-blue)]/45 sm:max-w-md"
+          className="group flex min-w-0 max-w-[min(100%,14rem)] shrink-0 items-center gap-2.5 rounded-xl p-1 -m-1 transition hover:bg-[var(--muted)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-blue)]/45 sm:max-w-md"
           title="Go to dashboard"
         >
           <span

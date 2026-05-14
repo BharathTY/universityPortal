@@ -5,8 +5,19 @@ import { prisma } from "@/lib/prisma";
 import { isConsultantOnly } from "@/lib/roles";
 import { canAccessUniversityScopeAsync } from "@/lib/university-scope";
 
+const YEAR_MIN = 2000;
+const YEAR_MAX = 2100;
+
 const createSchema = z.object({
-  label: z.string().min(2).max(32).trim(),
+  /** Four-digit calendar year only (e.g. 2027), stored as label for filtering and display. */
+  label: z
+    .string()
+    .trim()
+    .regex(/^\d{4}$/, "Enter a valid year using four digits")
+    .refine((s) => {
+      const y = Number(s);
+      return y >= YEAR_MIN && y <= YEAR_MAX;
+    }, { message: `Year must be between ${YEAR_MIN} and ${YEAR_MAX}` }),
   sortOrder: z.number().int().optional(),
 });
 
@@ -49,7 +60,8 @@ export async function POST(req: Request, ctx: RouteContext) {
 
   const parsed = createSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    const msg = parsed.error.issues[0]?.message ?? "Invalid input";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 
   const maxOrder = await prisma.academicYear.aggregate({
@@ -68,6 +80,9 @@ export async function POST(req: Request, ctx: RouteContext) {
     });
     return NextResponse.json({ academicYear: row });
   } catch {
-    return NextResponse.json({ error: "Could not create (duplicate year?)" }, { status: 409 });
+    return NextResponse.json(
+      { error: `Academic year ${parsed.data.label} already exists for this university` },
+      { status: 409 },
+    );
   }
 }

@@ -57,17 +57,24 @@ export async function POST(req: Request) {
     include: { roles: { include: { role: true } } },
   });
 
-  if (user?.inviteToken) {
-    return NextResponse.json(
-      {
-        error:
-          "Please accept your student invitation from email before signing in. Check your inbox for the acceptance link.",
-      },
-      { status: 403 },
-    );
-  }
+    if (user?.inviteToken) {
+      return NextResponse.json(
+        {
+          error:
+            "Please accept your student invitation from email before signing in. Check your inbox for the acceptance link.",
+        },
+        { status: 403 },
+      );
+    }
 
-  if (!user) {
+    if (user?.accountStatus === "INACTIVE") {
+      return NextResponse.json(
+        { error: "This account is inactive. Contact your administrator." },
+        { status: 403 },
+      );
+    }
+
+    if (!user) {
     const role = await prisma.role.findUnique({ where: { slug: defaultSlug } });
     if (!role) {
       return NextResponse.json({ error: "Default role not configured" }, { status: 500 });

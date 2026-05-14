@@ -43,6 +43,10 @@ export default async function MasterConsultantsListPage() {
           <h1 className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl">Consultants</h1>
           <p className="mt-2 text-[var(--foreground-muted)]">
             Admission partners: create accounts, assign universities, and send login details by email.
+            <span className="block pt-1">
+              <strong className="text-[var(--foreground)]">Deactivate</strong> blocks sign-in (data kept); use{" "}
+              <strong className="text-[var(--foreground)]">Activate</strong> on inactive rows to restore access.
+            </span>
           </p>
         </div>
         <Link
@@ -82,7 +86,12 @@ export default async function MasterConsultantsListPage() {
                       ? [`${u.university.name} (${u.university.code})`]
                       : [];
                 return (
-                  <tr key={u.id} className="border-b border-[var(--border)] last:border-0">
+                  <tr
+                    key={u.id}
+                    className={`border-b border-[var(--border)] last:border-0 ${
+                      u.accountStatus === "INACTIVE" ? "bg-[var(--muted)]/30" : ""
+                    }`}
+                  >
                     <td className="px-3 py-3 font-medium text-[var(--foreground)]">{u.name ?? "—"}</td>
                     <td className="max-w-[12rem] truncate px-3 py-3" title={u.email}>
                       {u.email}
@@ -119,7 +128,12 @@ export default async function MasterConsultantsListPage() {
                         >
                           Edit
                         </Link>
-                        <ConsultantRowActions userId={u.id} email={u.email} />
+                        <ConsultantRowActions
+                          userId={u.id}
+                          name={u.name}
+                          email={u.email}
+                          accountStatus={u.accountStatus}
+                        />
                       </div>
                     </td>
                   </tr>

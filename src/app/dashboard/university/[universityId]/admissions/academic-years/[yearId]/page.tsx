@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { AdmissionReviewStatus, LeadPipelineStatus } from "@prisma/client";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isConsultantOnly } from "@/lib/roles";
+import { isConsultantOnly, isMaster } from "@/lib/roles";
 import { assertUniversityScope } from "@/lib/university-scope";
 
 export const dynamic = "force-dynamic";
@@ -109,7 +109,9 @@ export default async function AcademicYearLeadsPage(props: PageProps) {
     },
   });
 
-  const hubHref = "/dashboard/university";
+  const universitiesListHref = isMaster(session.roles)
+    ? "/dashboard/master/universities"
+    : "/dashboard/university";
   const listHref = `/dashboard/university/${universityId}/admissions/academic-years`;
   const pageHref = (p: number) =>
     p <= 1
@@ -119,7 +121,7 @@ export default async function AcademicYearLeadsPage(props: PageProps) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <nav className="text-sm text-[var(--foreground-muted)]" aria-label="Breadcrumb">
-        <Link href={hubHref} className="text-[var(--primary)] underline underline-offset-2">
+        <Link href={universitiesListHref} className="text-[var(--primary)] underline underline-offset-2">
           Universities
         </Link>
         <span className="mx-1.5">/</span>

@@ -7,19 +7,65 @@ import { prisma } from "@/lib/prisma";
 import { replaceConsultantUniversityAssignments } from "@/lib/consultant-universities";
 import { ROLES } from "@/lib/roles";
 
-const phoneSchema = z
+const consultantNameSchema = z
   .string()
-  .min(7)
-  .max(32)
-  .regex(/^[\d+][\d\s().-/]{5,30}$/);
+  .transform((raw) => raw.trim())
+  .superRefine((s, ctx) => {
+    if (s.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Name is required" });
+      return;
+    }
+    if (!/^[\p{L} ]+$/u.test(s)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Name must contain only letters." });
+      return;
+    }
+    if (s.length < 3) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Name must be at least 3 characters" });
+    }
+  });
+
+const consultantEmailSchema = z
+  .string()
+  .transform((raw) => raw.trim())
+  .superRefine((s, ctx) => {
+    if (s.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Email is required" });
+      return;
+    }
+    if (!z.string().email().safeParse(s).success) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Enter a valid email address" });
+    }
+  });
+
+const consultantPhoneSchema = z
+  .string()
+  .transform((raw) => raw.trim())
+  .superRefine((s, ctx) => {
+    if (s.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Phone number is required" });
+      return;
+    }
+    if (!/^\d+$/.test(s)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Only numbers are allowed" });
+      return;
+    }
+    if (s.length !== 10) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Phone number must be 10 digits" });
+    }
+  });
 
 const createSchema = z.object({
-  name: z.string().min(2).max(200).trim(),
-  email: z.string().email().max(254).trim(),
-  phone: phoneSchema,
+  name: consultantNameSchema,
+  email: consultantEmailSchema,
+  phone: consultantPhoneSchema,
   password: z.union([z.string().min(8).max(128), z.literal("")]).optional(),
-  /** One consultant may map to multiple universities. */
-  universityIds: z.array(z.string().min(1)).optional(),
+  /** At least one university required when creating from master portal. */
+  universityIds: z.preprocess(
+    (v) => (Array.isArray(v) ? v : []),
+    z
+      .array(z.string().min(1))
+      .min(1, { message: "Please select at least one university" }),
+  ),
   /** Default admission partner (consultant) or Qspiders branch replica. */
   partnerRole: z.enum(["consultant", "qspiders_branch"]).optional(),
   /** Required when partnerRole is qspiders_branch (shown on leads and student comms). */
@@ -39,7 +85,9 @@ export async function POST(req: Request) {
 
   const parsed = createSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    const flat = parsed.error.flatten();
+    const msg = parsed.error.issues[0]?.message ?? "Invalid input";
+    return NextResponse.json({ error: msg, fieldErrors: flat.fieldErrors }, { status: 400 });
   }
 
   const partnerRole = parsed.data.partnerRole ?? "consultant";
@@ -54,17 +102,19 @@ export async function POST(req: Request) {
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    return NextResponse.json({ error: "Email is already in use" }, { status: 409 });
+    return NextResponse.json(
+      { error: "Email already exists", fieldErrors: { email: ["Email already exists"] } },
+      { status: 409 },
+    );
   }
 
-  const universityIds = parsed.data.universityIds ?? [];
-  if (universityIds.length > 0) {
-    const count = await prisma.university.count({
-      where: { id: { in: [...new Set(universityIds)] } },
-    });
-    if (count !== new Set(universityIds).size) {
-      return NextResponse.json({ error: "One or more universities not found" }, { status: 400 });
-    }
+  const universityIds = [...new Set(parsed.data.universityIds)];
+
+  const uniCount = await prisma.university.count({
+    where: { id: { in: universityIds } },
+  });
+  if (uniCount !== universityIds.length) {
+    return NextResponse.json({ error: "One or more universities not found" }, { status: 400 });
   }
 
   const partnerSlug = partnerRole === "qspiders_branch" ? ROLES.qspidersBranch : ROLES.consultant;

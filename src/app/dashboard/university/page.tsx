@@ -25,8 +25,8 @@ export default async function UniversityHubPage() {
         <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
           <h1 className="text-2xl font-bold text-[var(--foreground)]">Your universities</h1>
           <p className="mt-4 text-sm text-[var(--foreground-muted)]">
-            Your account is not linked to a university yet. Ask a master admin to assign one or more universities, then
-            open this page again.
+            You have no active university assignments. If your institutions were deactivated, ask a master admin to
+            reactivate them or assign you to an active university.
           </p>
         </div>
       );
@@ -38,12 +38,12 @@ export default async function UniversityHubPage() {
     }
     const [uniRows, university, streams, academicYears] = await Promise.all([
       prisma.university.findMany({
-        where: { id: { in: ids } },
+        where: { id: { in: ids }, status: "ACTIVE" },
         orderBy: { name: "asc" },
         select: { id: true, name: true, code: true, logoUrl: true },
       }),
-      prisma.university.findUnique({
-        where: { id: universityId },
+      prisma.university.findFirst({
+        where: { id: universityId, status: "ACTIVE" },
         select: { id: true, name: true, code: true },
       }),
       prisma.stream.findMany({

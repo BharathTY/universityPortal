@@ -46,6 +46,10 @@ export default async function MasterUniversitiesListPage() {
         </div>
         <p className="mt-2 text-[var(--foreground-muted)]">
           Create and manage university organisations. Configure academic years (YOP) and degree streams from each row.
+          <span className="block pt-1">
+            <strong className="text-[var(--foreground)]">Deactivate</strong> marks a university inactive (data is kept); use{" "}
+            <strong className="text-[var(--foreground)]">Activate</strong> on inactive rows to restore it.
+          </span>
         </p>
       </div>
 
@@ -70,7 +74,12 @@ export default async function MasterUniversitiesListPage() {
             </thead>
             <tbody>
               {universities.map((u) => (
-                <tr key={u.id} className="border-b border-[var(--border)] last:border-0">
+                <tr
+                  key={u.id}
+                  className={`border-b border-[var(--border)] last:border-0 ${
+                    u.status === "INACTIVE" ? "bg-[var(--muted)]/30" : ""
+                  }`}
+                >
                   <td className="px-3 py-3">
                     <div className="font-medium text-[var(--foreground)]">{u.name}</div>
                     <div className="font-mono text-xs text-[var(--foreground-muted)]">{u.code}</div>
@@ -119,12 +128,18 @@ export default async function MasterUniversitiesListPage() {
                         Add degree
                       </Link>
                       <Link
+                        href={`/dashboard/master/universities/${u.id}/details`}
+                        className="inline-flex w-fit items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--muted)]/40 px-2.5 py-1 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]"
+                      >
+                        Details
+                      </Link>
+                      <Link
                         href={`/dashboard/master/universities/${u.id}/edit`}
                         className="text-[var(--primary)] underline-offset-2 hover:underline"
                       >
                         Edit
                       </Link>
-                      <UniversityRowActions universityId={u.id} name={u.name} />
+                      <UniversityRowActions universityId={u.id} name={u.name} status={u.status} />
                       <Link
                         href={`/dashboard/university/${u.id}/admissions`}
                         className="text-[var(--primary)] underline-offset-2 hover:underline"

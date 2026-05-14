@@ -130,14 +130,7 @@ export default function StudentApplicationPage() {
       );
       setStep((s) => (s <= 2 ? (hasVisits ? 4 : 3) : s));
     }
-  }, [
-    app?.id,
-    app?.paymentStatus,
-    app?.admissionVisitAt,
-    app?.campusTourAt,
-    app?.boardingAddress,
-    app?.visitVisitorCount,
-  ]);
+  }, [app]);
 
   React.useEffect(() => {
     if (!app?.user) return;

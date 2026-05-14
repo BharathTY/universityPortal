@@ -38,15 +38,17 @@ export default async function EditConsultantPage(props: PageProps) {
   }
 
   const universities = await prisma.university.findMany({
+    where: { status: "ACTIVE" },
     orderBy: { name: "asc" },
     select: { id: true, name: true, code: true },
   });
+  const activeIds = new Set(universities.map((u) => u.id));
 
   const joinIds = user.consultantUniversities.map((c) => c.universityId);
   const universityIds =
     joinIds.length > 0
-      ? joinIds
-      : user.universityId
+      ? joinIds.filter((id) => activeIds.has(id))
+      : user.universityId && activeIds.has(user.universityId)
         ? [user.universityId]
         : [];
 
