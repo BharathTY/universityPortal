@@ -329,7 +329,6 @@ export async function sendCounsellorPortalInviteEmail(params: {
   password: string;
   loginUrl: string;
   inviterName: string;
-  universityLabels: string;
 }): Promise<void> {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
@@ -338,32 +337,26 @@ export async function sendCounsellorPortalInviteEmail(params: {
   const from = resolveEmailFrom();
   const greetingName = params.name.trim() || params.email;
 
-  const subject = "You are invited as a counsellor on University Portal";
+  const subject = "You are invited as a counsellor.";
   const text = `Hello ${greetingName},
 
-${params.inviterName} has invited you to join as a counsellor on University Portal.
-
-Universities: ${params.universityLabels}
+${params.inviterName} has invited you to join as a counsellor.
 
 Login Details:
 Email: ${params.email}
 Password: ${params.password}
 
-Please log in: ${params.loginUrl}
-
-You can also sign in with your email using a one-time code (OTP).
+Please log in to University Portal: ${params.loginUrl}
 
 Thanks,
 University Portal`;
 
   const html = `<p>Hello <strong>${escapeHtml(greetingName)}</strong>,</p>
-<p><strong>${escapeHtml(params.inviterName)}</strong> has invited you to join as a <strong>counsellor</strong> on University Portal.</p>
-<p><strong>Universities:</strong> ${escapeHtml(params.universityLabels)}</p>
+<p><strong>${escapeHtml(params.inviterName)}</strong> has invited you to join as a <strong>counsellor</strong>.</p>
 <p><strong>Login Details:</strong><br/>
 Email: ${escapeHtml(params.email)}<br/>
 Password: <code>${escapeHtml(params.password)}</code></p>
 <p>Please <a href="${escapeHtml(params.loginUrl)}">log in to University Portal</a>.</p>
-<p>You can also sign in with your email using a <strong>one-time code (OTP)</strong>.</p>
 <p>Thanks,<br/>University Portal</p>`;
 
   if (!host || !user || !pass) {

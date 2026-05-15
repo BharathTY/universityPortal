@@ -69,12 +69,6 @@ export async function POST(req: Request) {
   const primaryUniversityId = parsed.data.universityIds[0]!;
   const passwordHash = await hashPassword(parsed.data.password);
 
-  const universities = await prisma.university.findMany({
-    where: { id: { in: parsed.data.universityIds } },
-    select: { id: true, name: true, code: true },
-  });
-  const universityLabels = universities.map((u) => `${u.name} (${u.code})`).join(", ");
-
   await prisma.user.create({
     data: {
       email,
@@ -102,7 +96,6 @@ export async function POST(req: Request) {
       password: parsed.data.password,
       loginUrl,
       inviterName,
-      universityLabels,
     });
   } catch (e) {
     console.error("sendCounsellorPortalInviteEmail", e);
