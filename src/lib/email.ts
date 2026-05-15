@@ -143,30 +143,33 @@ export async function sendConsultantAccountCreatedEmail(params: {
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   const from = resolveEmailFrom();
-  const loginUrl = `${getPublicAppOrigin()}/login`;
-  const greetingName = params.name.trim() || params.email;
+  const portalLink = `${getPublicAppOrigin()}/login`;
+  const consultantName = params.name.trim() || params.email;
 
-  const subject = "Eduversity Consultant Account Created";
-  const text = `Hello ${greetingName},
+  const subject = "Welcome to Eduversity — your consultant account";
+  const text = `Hello ${consultantName},
 
-Your consultant account has been successfully created in Eduversity.
+Welcome to Eduversity, we're glad to have you on board.
 
-Login Details:
+Your consultant account has been successfully created. Please find your login details below:
+
+Portal Link: ${portalLink}
 Email: ${params.email}
 Password: ${params.password}
 
-Please log in to Eduversity: ${loginUrl}
+Please log in and let us know if you encounter any issues, we'll be happy to help.
 
-Thank you,
-Eduversity Team`;
+Warm regards,
+Team Eduversity`;
 
-  const html = `<p>Hello <strong>${escapeHtml(greetingName)}</strong>,</p>
-<p>Your consultant account has been successfully created in <strong>Eduversity</strong>.</p>
-<p><strong>Login Details:</strong><br/>
-Email: ${escapeHtml(params.email)}<br/>
-Password: <code>${escapeHtml(params.password)}</code></p>
-<p>Please <a href="${escapeHtml(loginUrl)}">log in to Eduversity</a>.</p>
-<p>Thank you,<br/>Eduversity Team</p>`;
+  const html = `<p>Hello <strong>${escapeHtml(consultantName)}</strong>,</p>
+<p>Welcome to Eduversity, we're glad to have you on board.</p>
+<p>Your consultant account has been successfully created. Please find your login details below:</p>
+<p><strong>Portal Link:</strong> <a href="${escapeHtml(portalLink)}">${escapeHtml(portalLink)}</a><br/>
+<strong>Email:</strong> ${escapeHtml(params.email)}<br/>
+<strong>Password:</strong> <code>${escapeHtml(params.password)}</code></p>
+<p>Please log in and let us know if you encounter any issues, we'll be happy to help.</p>
+<p>Warm regards,<br/>Team Eduversity</p>`;
 
   if (!host || !user || !pass) {
     if (process.env.NODE_ENV === "development") {
@@ -188,36 +191,38 @@ Password: <code>${escapeHtml(params.password)}</code></p>
 export async function sendStudentRegistrationEmail(params: {
   to: string;
   name: string;
-  applicationId: string;
   universityName: string;
-  courseName: string;
+  academicBatchName: string;
+  degreeName: string;
 }): Promise<void> {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   const from = resolveEmailFrom();
+  const studentName = params.name.trim() || params.to;
+  const loginUrl = `${getPublicAppOrigin()}/login`;
 
-  const subject = "Application submitted";
-  const text = `Hello ${params.name},
+  const subject = "Welcome to Qspiders Eduversity – Access Your Account.";
+  const text = `Hi ${studentName},
 
-Your application has been submitted.
+Welcome to Qspiders Eduversity!
 
-Application ID: ${params.applicationId}
-University: ${params.universityName}
-Course: ${params.courseName}
+Your admission application has been created successfully with ${params.universityName} (${params.academicBatchName}) for ${params.degreeName}.
 
-Thanks,
-University Portal`;
+We're excited to have you on board — let's get started on your learning journey!
 
-  const html = `<p>Hello <strong>${escapeHtml(params.name)}</strong>,</p>
-<p>Your application has been submitted.</p>
-<ul>
-<li><strong>Application ID:</strong> ${escapeHtml(params.applicationId)}</li>
-<li><strong>University:</strong> ${escapeHtml(params.universityName)}</li>
-<li><strong>Course:</strong> ${escapeHtml(params.courseName)}</li>
-</ul>
-<p>Thanks,<br/>University Portal</p>`;
+Log in to your account: ${loginUrl}
+
+Warm regards,
+Team Eduversity`;
+
+  const html = `<p>Hi <strong>${escapeHtml(studentName)}</strong>,</p>
+<p>Welcome to <strong>Qspiders Eduversity</strong>! \u{1F389}</p>
+<p>Your admission application has been created successfully with <strong>${escapeHtml(params.universityName)}</strong> (<strong>${escapeHtml(params.academicBatchName)}</strong>) for <strong>${escapeHtml(params.degreeName)}</strong>.</p>
+<p>We're excited to have you on board — let's get started on your learning journey!</p>
+<p><a href="${escapeHtml(loginUrl)}">Log in to your account</a></p>
+<p>Warm regards,<br/>Team Eduversity</p>`;
 
   if (!host || !user || !pass) {
     if (process.env.NODE_ENV === "development") {
@@ -335,29 +340,33 @@ export async function sendCounsellorPortalInviteEmail(params: {
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   const from = resolveEmailFrom();
-  const greetingName = params.name.trim() || params.email;
+  const counsellorName = params.name.trim() || params.email;
+  const portalLink = params.loginUrl;
 
-  const subject = "You are invited as a counsellor.";
-  const text = `Hello ${greetingName},
+  const subject = "Welcome to Eduversity — your counsellor account";
+  const text = `Hello ${counsellorName},
 
-${params.inviterName} has invited you to join as a counsellor.
+Welcome to Eduversity, we're glad to have you on board.
 
-Login Details:
+${params.inviterName} has invited you to join as a counsellor for Qspiders Eduversity's University Portal.
+
+Portal Link: ${portalLink}
 Email: ${params.email}
 Password: ${params.password}
 
-Please log in to University Portal: ${params.loginUrl}
+Please log in and let us know if you encounter any issues, we'll be happy to help.
 
-Thanks,
-University Portal`;
+Warm regards,
+Team Eduversity`;
 
-  const html = `<p>Hello <strong>${escapeHtml(greetingName)}</strong>,</p>
-<p><strong>${escapeHtml(params.inviterName)}</strong> has invited you to join as a <strong>counsellor</strong>.</p>
-<p><strong>Login Details:</strong><br/>
-Email: ${escapeHtml(params.email)}<br/>
-Password: <code>${escapeHtml(params.password)}</code></p>
-<p>Please <a href="${escapeHtml(params.loginUrl)}">log in to University Portal</a>.</p>
-<p>Thanks,<br/>University Portal</p>`;
+  const html = `<p>Hello <strong>${escapeHtml(counsellorName)}</strong>,</p>
+<p>Welcome to Eduversity, we're glad to have you on board.</p>
+<p><strong>${escapeHtml(params.inviterName)}</strong> has invited you to join as a counsellor for <strong>Qspiders Eduversity's University Portal</strong>.</p>
+<p><strong>Portal Link:</strong> <a href="${escapeHtml(portalLink)}">${escapeHtml(portalLink)}</a><br/>
+<strong>Email:</strong> ${escapeHtml(params.email)}<br/>
+<strong>Password:</strong> <code>${escapeHtml(params.password)}</code></p>
+<p>Please log in and let us know if you encounter any issues, we'll be happy to help.</p>
+<p>Warm regards,<br/>Team Eduversity</p>`;
 
   if (!host || !user || !pass) {
     if (process.env.NODE_ENV === "development") {

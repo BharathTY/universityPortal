@@ -71,12 +71,12 @@ export async function POST(_req: Request, ctx: Ctx) {
     lead.batchId != null
       ? await prisma.batch.findFirst({
           where: { id: lead.batchId, ownerId: session.sub },
-          select: { id: true },
+          select: { id: true, title: true },
         })
       : await prisma.batch.findFirst({
           where: { ownerId: session.sub },
           orderBy: { createdAt: "desc" },
-          select: { id: true },
+          select: { id: true, title: true },
         });
 
   const fullName = `${lead.firstName} ${lead.lastName}`.trim();
@@ -123,9 +123,9 @@ export async function POST(_req: Request, ctx: Ctx) {
     await sendStudentRegistrationEmail({
       to: email,
       name: fullName,
-      applicationId: result.application.referenceCode ?? result.application.id,
       universityName: lead.university.name,
-      courseName: lead.stream.name,
+      academicBatchName: batch?.title?.trim() || "Academic batch",
+      degreeName: lead.stream.name,
     });
   } catch (e) {
     console.error("sendStudentRegistrationEmail", e);
