@@ -4,8 +4,9 @@ import { getSession } from "@/lib/auth";
 import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
 import { sendCounsellorPortalInviteEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { getPublicAppOrigin } from "@/lib/public-app-origin";
 import { isConsultantOnly, ROLES } from "@/lib/roles";
-import { generateInviteToken, getAppOrigin } from "@/lib/student-invite";
+import { generateInviteToken } from "@/lib/student-invite";
 
 const bodySchema = z.object({
   email: z.string().email().max(254),
@@ -91,7 +92,7 @@ export async function POST(req: Request) {
     },
   });
 
-  const acceptUrl = `${getAppOrigin()}/invite/accept?token=${encodeURIComponent(token)}`;
+  const acceptUrl = `${getPublicAppOrigin()}/invite/accept?token=${encodeURIComponent(token)}`;
   try {
     await sendCounsellorPortalInviteEmail({
       to: email,

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isMaster } from "@/lib/roles";
 import { UniversityRowActions } from "@/app/dashboard/master/universities/university-row-actions";
+import { universityHasDetailsSaved } from "@/lib/university-details-saved";
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +30,60 @@ export default async function MasterUniversitiesListPage() {
     redirect("/dashboard");
   }
 
-  const universities = await prisma.university.findMany({
+  const rows = await prisma.university.findMany({
     orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      email: true,
+      phone: true,
+      applicationFee: true,
+      logoUrl: true,
+      status: true,
+      createdAt: true,
+    },
   });
+
+  const ids = rows.map((r) => r.id);
+  const locationById: Record<string, string | null> = {};
+  const hostelFeesByUni: Record<string, { amount: unknown }[]> = {};
+  const streamsByUni: Record<string, { degreeType: string | null; streamFee: unknown }[]> = {};
+
+  if (ids.length > 0) {
+    const locRows = await prisma.$queryRaw<Array<{ id: string; location: string | null }>>(
+      Prisma.sql`SELECT id, location FROM "University" WHERE id IN (${Prisma.join(ids)})`
+    );
+    for (const row of locRows) {
+      locationById[row.id] = row.location;
+    }
+
+    const streamRows = await prisma.$queryRaw<
+      Array<{ universityId: string; degreeType: string | null; streamFee: unknown }>
+    >(
+      Prisma.sql`SELECT "universityId", "degreeType", "streamFee" FROM "Stream" WHERE "universityId" IN (${Prisma.join(ids)})`
+    );
+    for (const s of streamRows) {
+      if (!streamsByUni[s.universityId]) streamsByUni[s.universityId] = [];
+      streamsByUni[s.universityId].push({ degreeType: s.degreeType, streamFee: s.streamFee });
+    }
+
+    const hostelRows = await prisma.universityHostelFee.findMany({
+      where: { universityId: { in: ids } },
+      select: { universityId: true, amount: true },
+    });
+    for (const h of hostelRows) {
+      if (!hostelFeesByUni[h.universityId]) hostelFeesByUni[h.universityId] = [];
+      hostelFeesByUni[h.universityId].push({ amount: h.amount });
+    }
+  }
+
+  const universities = rows.map((u) => ({
+    ...u,
+    location: locationById[u.id] ?? null,
+    hostelFees: hostelFeesByUni[u.id] ?? [],
+    streams: streamsByUni[u.id] ?? [],
+  }));
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
@@ -45,7 +98,8 @@ export default async function MasterUniversitiesListPage() {
           </Link>
         </div>
         <p className="mt-2 text-[var(--foreground-muted)]">
-          Create and manage university organisations. Configure academic years (YOP) and degree streams from each row.
+          Create and manage university organisations. Configure academic years (YOP) from each row; programs and admissions live under{" "}
+          <strong className="text-[var(--foreground)]">Admissions</strong>.
           <span className="block pt-1">
             <strong className="text-[var(--foreground)]">Deactivate</strong> marks a university inactive (data is kept); use{" "}
             <strong className="text-[var(--foreground)]">Activate</strong> on inactive rows to restore it.
@@ -73,7 +127,9 @@ export default async function MasterUniversitiesListPage() {
               </tr>
             </thead>
             <tbody>
-              {universities.map((u) => (
+              {universities.map((u) => {
+                const detailsSaved = universityHasDetailsSaved(u);
+                return (
                 <tr
                   key={u.id}
                   className={`border-b border-[var(--border)] last:border-0 ${
@@ -122,16 +178,10 @@ export default async function MasterUniversitiesListPage() {
                         Add YOP
                       </Link>
                       <Link
-                        href={`/dashboard/university/${u.id}/admissions/streams`}
-                        className="text-[var(--primary)] underline-offset-2 hover:underline"
-                      >
-                        Add degree
-                      </Link>
-                      <Link
                         href={`/dashboard/master/universities/${u.id}/details`}
                         className="inline-flex w-fit items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--muted)]/40 px-2.5 py-1 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]"
                       >
-                        Details
+                        {detailsSaved ? "View/Edit university details" : "Add university details"}
                       </Link>
                       <Link
                         href={`/dashboard/master/universities/${u.id}/edit`}
@@ -149,7 +199,8 @@ export default async function MasterUniversitiesListPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

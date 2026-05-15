@@ -16,7 +16,7 @@ export async function GET() {
 
   const ids = await getAllowedConsultantUniversityIds(session.sub);
   if (ids.length === 0) {
-    return NextResponse.json({ universities: [], activeId: session.universityId });
+    return NextResponse.json({ universities: [], activeId: null });
   }
 
   const universities = await prisma.university.findMany({
@@ -25,8 +25,13 @@ export async function GET() {
     select: { id: true, name: true, code: true, logoUrl: true },
   });
 
+  const activeId =
+    session.universityId && ids.includes(session.universityId)
+      ? session.universityId
+      : (universities[0]?.id ?? null);
+
   return NextResponse.json({
     universities,
-    activeId: session.universityId,
+    activeId,
   });
 }

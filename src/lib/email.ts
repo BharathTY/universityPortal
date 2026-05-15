@@ -1,11 +1,18 @@
 import nodemailer from "nodemailer";
 
+/** When SMTP is configured, set EMAIL_FROM to your real domain. */
+function resolveEmailFrom(): string {
+  const v = process.env.EMAIL_FROM?.trim();
+  if (v) return v;
+  return "University Portal <noreply@university-portal.local>";
+}
+
 export async function sendOtpEmail(to: string, code: string): Promise<void> {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.EMAIL_FROM || "noreply@localhost";
+  const from = resolveEmailFrom();
 
   if (!host || !user || !pass) {
     if (process.env.NODE_ENV === "development") {
@@ -39,7 +46,7 @@ export async function sendStudentInviteEmail(
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.EMAIL_FROM || "noreply@localhost";
+  const from = resolveEmailFrom();
 
   const partnerLine =
     opts?.partnerName && opts.partnerName.trim().length > 0
@@ -84,7 +91,7 @@ export async function sendAccountCredentialsEmail(params: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.EMAIL_FROM || "noreply@localhost";
+  const from = resolveEmailFrom();
 
   const subject = "Account Created";
   const text = `Hello ${params.name},
@@ -134,7 +141,7 @@ export async function sendStudentRegistrationEmail(params: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.EMAIL_FROM || "noreply@localhost";
+  const from = resolveEmailFrom();
 
   const subject = "Application submitted";
   const text = `Hello ${params.name},
@@ -184,7 +191,7 @@ export async function sendPaymentSuccessEmail(params: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.EMAIL_FROM || "noreply@localhost";
+  const from = resolveEmailFrom();
 
   const subject = "Payment received";
   const text = `Hello ${params.name},
@@ -226,7 +233,7 @@ export async function sendAdmissionLeadWelcomeEmail(params: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.EMAIL_FROM || "noreply@localhost";
+  const from = resolveEmailFrom();
 
   const subject = "You have been registered as a prospective student";
   const text = `Hello ${params.name},
@@ -270,7 +277,7 @@ export async function sendCounsellorPortalInviteEmail(params: {
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.EMAIL_FROM || "noreply@localhost";
+  const from = resolveEmailFrom();
 
   const subject = "You are invited as a counsellor on University Portal";
   const text = `Hello,

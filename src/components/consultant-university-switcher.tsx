@@ -10,7 +10,7 @@ type Props = {
   roles: string[];
 };
 
-/** Shown when a consultant has more than one assigned university. */
+/** Shown for consultants with at least one active assigned university (read-only label when only one). */
 export function ConsultantUniversitySwitcher({ roles }: Props) {
   const router = useRouter();
   const [universities, setUniversities] = React.useState<Uni[]>([]);
@@ -37,8 +37,25 @@ export function ConsultantUniversitySwitcher({ roles }: Props) {
     };
   }, [roles]);
 
-  if (!isConsultant(roles) || universities.length <= 1) {
+  if (!isConsultant(roles) || universities.length === 0) {
     return null;
+  }
+
+  if (universities.length === 1) {
+    const u = universities[0]!;
+    return (
+      <div className="flex min-w-0 max-w-[min(100vw-12rem,18rem)] flex-col gap-0.5 sm:max-w-sm">
+        <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
+          Assigned university
+        </span>
+        <span
+          className="truncate rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-1.5 text-xs font-medium text-[var(--foreground)] shadow-sm"
+          title={`${u.name} (${u.code})`}
+        >
+          {u.name} ({u.code})
+        </span>
+      </div>
+    );
   }
 
   async function onChange(e: React.ChangeEvent<HTMLSelectElement>) {

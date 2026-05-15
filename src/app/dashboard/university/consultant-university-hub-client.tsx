@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ConsultantLeadsClient } from "@/app/dashboard/consultant/leads/consultant-leads-client";
 
-type UniCard = { id: string; name: string; code: string; logoUrl: string | null };
+type UniCard = { id: string; name: string; code: string; logoUrl: string | null; status: "ACTIVE" | "INACTIVE" };
 type Stream = { id: string; name: string };
 type AcademicYearOption = { id: string; label: string };
 
@@ -28,6 +29,8 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
   const [loadingScoped, setLoadingScoped] = React.useState(false);
 
   async function syncUniversityScope(universityId: string): Promise<boolean> {
+    const uni = universities.find((u) => u.id === universityId);
+    if (!uni || uni.status !== "ACTIVE") return false;
     setLoadingScoped(true);
     try {
       const res = await fetch(`/api/consultant/leads-context?universityId=${encodeURIComponent(universityId)}`);
@@ -58,6 +61,8 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
   }
 
   async function onPlusLead(universityId: string) {
+    const uni = universities.find((u) => u.id === universityId);
+    if (!uni || uni.status !== "ACTIVE") return;
     const ok = await syncUniversityScope(universityId);
     if (ok) {
       router.push(`/dashboard/consultant/leads/new?universityId=${encodeURIComponent(universityId)}`);
@@ -71,23 +76,27 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
           <h1 className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl">Your universities</h1>
           <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-muted)]">
             <strong className="text-[var(--foreground)]">Click a card</strong> to view leads for that university. Use{" "}
+            <strong className="text-[var(--foreground)]">View/Edit University Details</strong> for the organisation
+            profile (location, programs, hostel fees) entered by the master administrator. Use{" "}
             <strong className="text-[var(--foreground)]">+ Lead</strong> to open the form and capture a new prospect.
           </p>
         </div>
 
         <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {universities.map((u) => (
+          {universities.map((u) => {
+            const isActive = u.status === "ACTIVE";
+            return (
             <li key={u.id}>
               <div
                 className={`flex h-full flex-col rounded-xl border border-[var(--border)] bg-[var(--background)] shadow-sm ${
                   u.id === selectedId ? "ring-2 ring-[var(--accent-blue)]/40" : ""
-                }`}
+                } ${!isActive ? "opacity-80" : ""}`}
               >
                 <button
                   type="button"
-                  disabled={loadingScoped}
+                  disabled={loadingScoped || !isActive}
                   onClick={() => void syncUniversityScope(u.id)}
-                  className="flex w-full flex-1 flex-col rounded-t-xl p-4 text-left outline-none transition hover:bg-[var(--muted)]/35 focus-visible:ring-2 focus-visible:ring-[var(--accent-blue)]/45 focus-visible:ring-inset disabled:opacity-50"
+                  className="flex w-full flex-1 flex-col rounded-t-xl p-4 text-left outline-none transition hover:bg-[var(--muted)]/35 focus-visible:ring-2 focus-visible:ring-[var(--accent-blue)]/45 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <div className="flex items-start gap-3">
                     {u.logoUrl ? (
@@ -104,25 +113,39 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
                       </span>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-[var(--foreground)]">{u.name}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-[var(--foreground)]">{u.name}</p>
+                        {!isActive ? (
+                          <span className="rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground-muted)]">
+                            Inactive
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="text-sm text-[var(--foreground-muted)]">{u.code}</p>
                     </div>
                   </div>
                   <span className="sr-only">View leads for {u.name}</span>
                 </button>
-                <div className="border-t border-[var(--border)] p-4 pt-3">
+                <div className="flex flex-col gap-2 border-t border-[var(--border)] p-4 pt-3">
+                  <Link
+                    href={`/dashboard/university/${u.id}/organisation-details`}
+                    className="flex w-full items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--muted)]/40 px-3 py-2 text-center text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  >
+                    View/Edit University Details
+                  </Link>
                   <button
                     type="button"
-                    disabled={loadingScoped}
+                    disabled={loadingScoped || !isActive}
                     onClick={() => void onPlusLead(u.id)}
-                    className="w-full rounded-lg border border-[var(--accent-blue)] bg-[var(--accent-blue)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-blue-hover)] disabled:opacity-50"
+                    className="w-full rounded-lg border border-[var(--accent-blue)] bg-[var(--accent-blue)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-blue-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     + Lead
                   </button>
                 </div>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       </section>
 

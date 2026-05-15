@@ -76,31 +76,31 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
             onClick={() => !busy && setOpen(false)}
           />
           <div
-            className="relative flex h-full w-full max-w-md flex-col border-l border-[var(--border)] bg-[var(--card)] shadow-xl"
+            className="relative flex h-full w-full max-w-md flex-col border-l border-zinc-200 bg-white text-zinc-900 shadow-xl"
             role="dialog"
             aria-modal="true"
             aria-labelledby="invite-counsellor-title"
           >
-            <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
-              <h2 id="invite-counsellor-title" className="text-lg font-semibold text-[var(--foreground)]">
+            <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-5 py-4">
+              <h2 id="invite-counsellor-title" className="text-lg font-semibold text-zinc-900">
                 Invite Counsellors
               </h2>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => setOpen(false)}
-                className="rounded-lg px-2 py-1 text-sm text-[var(--foreground-muted)] hover:bg-[var(--muted)]"
+                className="rounded-lg px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-100"
               >
                 Close
               </button>
             </div>
-            <form onSubmit={(e) => void onSend(e)} className="flex flex-1 flex-col overflow-y-auto px-5 py-4">
-              <p className="text-sm text-[var(--foreground-muted)]">
+            <form onSubmit={(e) => void onSend(e)} className="flex flex-1 flex-col overflow-y-auto bg-white px-5 py-4">
+              <p className="text-sm text-zinc-600">
                 We email an accept link so they can set a password and sign in.
               </p>
               <div className="mt-5 space-y-4">
                 <div>
-                  <label htmlFor="c-inv-email" className="text-sm font-medium text-[var(--foreground)]">
+                  <label htmlFor="c-inv-email" className="text-sm font-medium text-zinc-900">
                     Counsellor email
                   </label>
                   <input
@@ -110,11 +110,11 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
                     autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none ring-blue-500 focus:ring-2"
                   />
                 </div>
                 <div>
-                  <label htmlFor="c-inv-name" className="text-sm font-medium text-[var(--foreground)]">
+                  <label htmlFor="c-inv-name" className="text-sm font-medium text-zinc-900">
                     Counsellor name
                   </label>
                   <input
@@ -123,11 +123,11 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none ring-blue-500 focus:ring-2"
                   />
                 </div>
                 <div>
-                  <label htmlFor="c-inv-phone" className="text-sm font-medium text-[var(--foreground)]">
+                  <label htmlFor="c-inv-phone" className="text-sm font-medium text-zinc-900">
                     Phone number
                   </label>
                   <input
@@ -136,24 +136,24 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none ring-blue-500 focus:ring-2"
                   />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-[var(--foreground)]">Universities</p>
-                  <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Select one or more.</p>
-                  <ul className="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
+                  <p className="text-sm font-medium text-zinc-900">Universities</p>
+                  <p className="mt-0.5 text-xs text-zinc-600">Select one or more.</p>
+                  <ul className="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-3">
                     {universities.map((u) => (
                       <li key={u.id}>
-                        <label className="flex cursor-pointer items-start gap-2 text-sm">
+                        <label className="flex cursor-pointer items-start gap-2 text-sm text-zinc-900">
                           <input
                             type="checkbox"
                             checked={selectedIds.includes(u.id)}
                             onChange={() => toggleUni(u.id)}
-                            className="mt-1 rounded border-[var(--border)]"
+                            className="mt-1 rounded border-zinc-300"
                           />
                           <span>
-                            {u.name} <span className="text-[var(--foreground-muted)]">({u.code})</span>
+                            {u.name} <span className="text-zinc-600">({u.code})</span>
                           </span>
                         </label>
                       </li>
@@ -162,11 +162,11 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
                 </div>
               </div>
               {error ? (
-                <p className="mt-4 text-sm text-red-600 dark:text-red-400" role="alert">
+                <p className="mt-4 text-sm text-red-600" role="alert">
                   {error}
                 </p>
               ) : null}
-              <div className="mt-auto border-t border-[var(--border)] pt-4">
+              <div className="mt-auto border-t border-zinc-200 bg-white pt-4">
                 <button
                   type="submit"
                   disabled={busy || universities.length === 0}

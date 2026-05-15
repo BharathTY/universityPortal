@@ -4,7 +4,8 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isConsultant, ROLES } from "@/lib/roles";
 import { sendStudentInviteEmail } from "@/lib/email";
-import { generateInviteToken, getAppOrigin } from "@/lib/student-invite";
+import { getPublicAppOrigin } from "@/lib/public-app-origin";
+import { generateInviteToken } from "@/lib/student-invite";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -81,7 +82,7 @@ export async function handleInviteStudentRequest(req: Request): Promise<Response
     },
   });
 
-  const acceptUrl = `${getAppOrigin()}/invite/accept?token=${encodeURIComponent(token)}`;
+  const acceptUrl = `${getPublicAppOrigin()}/invite/accept?token=${encodeURIComponent(token)}`;
   const partnerName =
     staff.name?.trim() ||
     staff.email

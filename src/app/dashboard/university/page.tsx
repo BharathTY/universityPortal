@@ -4,6 +4,7 @@ import { ConsultantUniversityHubClient } from "@/app/dashboard/university/consul
 import { requireAuth } from "@/lib/auth";
 import {
   getAllowedConsultantUniversityIds,
+  getConsultantAssignedUniversitiesForDisplay,
   resolveConsultantActiveUniversityId,
 } from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
@@ -19,15 +20,42 @@ export default async function UniversityHubPage() {
   }
 
   if (isConsultantOnly(session.roles)) {
-    const ids = await getAllowedConsultantUniversityIds(session.sub);
-    if (ids.length === 0) {
+    const [assignedUnis, activeIds] = await Promise.all([
+      getConsultantAssignedUniversitiesForDisplay(session.sub),
+      getAllowedConsultantUniversityIds(session.sub),
+    ]);
+
+    if (assignedUnis.length === 0) {
       return (
         <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
           <h1 className="text-2xl font-bold text-[var(--foreground)]">Your universities</h1>
           <p className="mt-4 text-sm text-[var(--foreground-muted)]">
-            You have no active university assignments. If your institutions were deactivated, ask a master admin to
-            reactivate them or assign you to an active university.
+            You have no university assignments yet. Ask a master administrator to assign you to one or more
+            organisations under <strong className="text-[var(--foreground)]">Master → Admission partners</strong>.
           </p>
+        </div>
+      );
+    }
+
+    if (activeIds.length === 0) {
+      return (
+        <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">Your universities</h1>
+          <p className="mt-4 text-sm text-[var(--foreground-muted)]">
+            You are linked to the organisations below, but each one is currently <strong>inactive</strong>. Ask a master
+            administrator to reactivate them before you can manage leads and admissions.
+          </p>
+          <ul className="mt-6 space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+            {assignedUnis.map((u) => (
+              <li key={u.id} className="text-sm text-[var(--foreground)]">
+                <span className="font-semibold">{u.name}</span>{" "}
+                <span className="text-[var(--foreground-muted)]">({u.code})</span>{" "}
+                <span className="rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground-muted)]">
+                  Inactive
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       );
     }
@@ -36,12 +64,7 @@ export default async function UniversityHubPage() {
     if (!universityId) {
       redirect("/dashboard");
     }
-    const [uniRows, university, streams, academicYears] = await Promise.all([
-      prisma.university.findMany({
-        where: { id: { in: ids }, status: "ACTIVE" },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, code: true, logoUrl: true },
-      }),
+    const [university, streams, academicYears] = await Promise.all([
       prisma.university.findFirst({
         where: { id: universityId, status: "ACTIVE" },
         select: { id: true, name: true, code: true },
@@ -71,7 +94,7 @@ export default async function UniversityHubPage() {
             universityCode: university.code,
             streams,
             academicYears,
-            universities: uniRows,
+            universities: assignedUnis,
           }}
         />
       </div>

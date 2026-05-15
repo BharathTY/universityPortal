@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { requireAuth } from "@/lib/auth";
-import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
+import { getAllowedConsultantUniversityIds, getConsultantAssignedUniversitiesForDisplay } from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
 import {
   canAccessLeadsAndBatches,
@@ -58,11 +58,19 @@ export default async function ConsultantStudentsPage() {
 
   let teamMembers: Awaited<ReturnType<typeof loadTeamMembers>> = [];
   let consultantInviteUniversities: { id: string; name: string; code: string }[] = [];
+  let consultantAssignedUniversities: Awaited<
+    ReturnType<typeof getConsultantAssignedUniversitiesForDisplay>
+  > = [];
   if (isConsultantOnly(session.roles)) {
     const ids = await getAllowedConsultantUniversityIds(session.sub);
-    const [members, uniOpts] = await Promise.all([loadTeamMembers(session.sub), loadConsultantUniversityOptions(ids)]);
+    const [members, uniOpts, assignedAll] = await Promise.all([
+      loadTeamMembers(session.sub),
+      loadConsultantUniversityOptions(ids),
+      getConsultantAssignedUniversitiesForDisplay(session.sub),
+    ]);
     teamMembers = sortTeamMembers(members, session.sub);
     consultantInviteUniversities = uniOpts;
+    consultantAssignedUniversities = assignedAll;
   }
 
   const title =
@@ -93,6 +101,32 @@ export default async function ConsultantStudentsPage() {
 
       {isConsultantOnly(session.roles) ? (
         <>
+          {consultantAssignedUniversities.length > 0 ? (
+            <div className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">Your assigned universities</h2>
+              <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+                Organisations your master administrator linked to your account. Inactive ones are shown but cannot be
+                used for leads until reactivated.
+              </p>
+              <ul className="mt-4 flex flex-wrap gap-2">
+                {consultantAssignedUniversities.map((u) => (
+                  <li
+                    key={u.id}
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-sm text-[var(--foreground)]"
+                  >
+                    <span className="font-medium">{u.name}</span>
+                    <span className="text-[var(--foreground-muted)]">({u.code})</span>
+                    {u.status !== "ACTIVE" ? (
+                      <span className="rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground-muted)]">
+                        Inactive
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           <div className="mt-8 flex flex-col gap-4 border-b border-[var(--border)] pb-6 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-[var(--foreground)]">Team members</h2>

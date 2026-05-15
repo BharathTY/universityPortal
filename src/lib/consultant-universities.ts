@@ -46,6 +46,39 @@ export async function getAllowedConsultantUniversityIds(userId: string): Promise
   return active.map((u) => u.id);
 }
 
+/** Every university linked to the consultant (join or legacy `User.universityId`), **any status** — for UI lists. */
+export async function getConsultantAssignedUniversitiesForDisplay(userId: string) {
+  const [rows, user] = await Promise.all([
+    prisma.consultantUniversity.findMany({
+      where: { userId },
+      select: { universityId: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { universityId: true },
+    }),
+  ]);
+  const fromJoin = rows.map((r) => r.universityId);
+  const candidateIds =
+    fromJoin.length > 0 ? fromJoin : user?.universityId ? [user.universityId] : [];
+  if (candidateIds.length === 0) return [];
+
+  return prisma.university.findMany({
+    where: { id: { in: candidateIds } },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, code: true, logoUrl: true, status: true },
+  });
+}
+
+/** Assignment check including inactive universities (for read-only org details, etc.). */
+export async function consultantIsAssignedToUniversity(
+  userId: string,
+  universityId: string,
+): Promise<boolean> {
+  const assigned = await getConsultantAssignedUniversitiesForDisplay(userId);
+  return assigned.some((u) => u.id === universityId);
+}
+
 /** Active university for API/UI: session value if allowed, else first allowed (stable sort by name). */
 export async function resolveConsultantActiveUniversityId(
   session: SessionPayload,
