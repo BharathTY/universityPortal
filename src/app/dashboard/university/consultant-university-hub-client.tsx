@@ -16,15 +16,10 @@ type InitialContext = {
   streams: Stream[];
   academicYears: AcademicYearOption[];
   universities: UniCard[];
-  /** Counsellor role: view-only university profile labels. */
-  viewOnlyUniversityDetails?: boolean;
 };
 
 export function ConsultantUniversityHubClient({ initial }: { initial: InitialContext }) {
-  const viewOnlyUniversityDetails = initial.viewOnlyUniversityDetails ?? false;
-  const universityDetailsLabel = viewOnlyUniversityDetails
-    ? "View University Details"
-    : "View/Edit University Details";
+  const universityDetailsLabel = "View University Details";
   const router = useRouter();
   const [universities] = React.useState(initial.universities);
   const [selectedId, setSelectedId] = React.useState(initial.universityId);
@@ -83,7 +78,7 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
           <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-muted)]">
             <strong className="text-[var(--foreground)]">Click a card</strong> to view leads for that university. Use{" "}
             <strong className="text-[var(--foreground)]">{universityDetailsLabel}</strong> for the organisation
-            profile (location, programs, hostel fees) entered by the master administrator. Use{" "}
+            profile (location, programs, hostel fees) — read-only, maintained by the master administrator. Use{" "}
             <strong className="text-[var(--foreground)]">+ Lead</strong> to open the form and capture a new prospect.
           </p>
         </div>
