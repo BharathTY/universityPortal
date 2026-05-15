@@ -16,9 +16,15 @@ type InitialContext = {
   streams: Stream[];
   academicYears: AcademicYearOption[];
   universities: UniCard[];
+  /** Counsellor role: view-only university profile labels. */
+  viewOnlyUniversityDetails?: boolean;
 };
 
 export function ConsultantUniversityHubClient({ initial }: { initial: InitialContext }) {
+  const viewOnlyUniversityDetails = initial.viewOnlyUniversityDetails ?? false;
+  const universityDetailsLabel = viewOnlyUniversityDetails
+    ? "View University Details"
+    : "View/Edit University Details";
   const router = useRouter();
   const [universities] = React.useState(initial.universities);
   const [selectedId, setSelectedId] = React.useState(initial.universityId);
@@ -76,7 +82,7 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
           <h1 className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl">Your universities</h1>
           <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-muted)]">
             <strong className="text-[var(--foreground)]">Click a card</strong> to view leads for that university. Use{" "}
-            <strong className="text-[var(--foreground)]">View/Edit University Details</strong> for the organisation
+            <strong className="text-[var(--foreground)]">{universityDetailsLabel}</strong> for the organisation
             profile (location, programs, hostel fees) entered by the master administrator. Use{" "}
             <strong className="text-[var(--foreground)]">+ Lead</strong> to open the form and capture a new prospect.
           </p>
@@ -131,7 +137,7 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
                     href={`/dashboard/university/${u.id}/organisation-details`}
                     className="flex w-full items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--muted)]/40 px-3 py-2 text-center text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]"
                   >
-                    View/Edit University Details
+                    {universityDetailsLabel}
                   </Link>
                   <button
                     type="button"

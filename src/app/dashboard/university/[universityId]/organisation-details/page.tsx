@@ -5,7 +5,7 @@ import { UniversityOrganisationDetailsReadOnly } from "@/components/university-o
 import { requireAuth } from "@/lib/auth";
 import { consultantIsAssignedToUniversity } from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
-import { isConsultant } from "@/lib/roles";
+import { isConsultant, isCounsellorOnly } from "@/lib/roles";
 import { HostelGender, HostelRoomType } from "@prisma/client";
 import type { HostelFeesInitial } from "@/app/dashboard/master/universities/[id]/details/university-details-form";
 
@@ -85,7 +85,9 @@ export default async function ConsultantOrganisationDetailsPage({ params }: Page
       >
         ← Your universities
       </Link>
-      <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">University details</h1>
+      <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">
+        {isCounsellorOnly(session.roles) ? "View university details" : "University details"}
+      </h1>
       <p className="mt-2 text-sm text-[var(--foreground-muted)]">
         Organisation profile maintained by the master administrator (read-only).
       </p>

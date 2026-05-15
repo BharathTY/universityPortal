@@ -11,13 +11,22 @@ const phoneSchema = z
   .max(32)
   .regex(/^[\d+][\d\s().-/]{5,30}$/);
 
+const emptyToUndefined = (v: unknown) =>
+  v === "" || v === null || v === undefined ? undefined : v;
+
 const patchSchema = z.object({
   name: z.string().min(2).max(200).trim().optional(),
-  email: z.string().email().max(254).trim().optional(),
-  phone: phoneSchema.optional(),
+  email: z.preprocess(
+    emptyToUndefined,
+    z.string().email().max(254).trim().optional(),
+  ),
+  phone: z.preprocess(emptyToUndefined, phoneSchema.optional()),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
   logoUrl: z.union([z.string().max(2000), z.literal("")]).optional().nullable(),
-  applicationFee: z.coerce.number().nonnegative().max(999_999_999).optional(),
+  applicationFee: z.preprocess(
+    emptyToUndefined,
+    z.coerce.number().nonnegative().max(999_999_999).optional(),
+  ),
 });
 
 function isValidLogoRef(s: string | null | undefined): boolean {

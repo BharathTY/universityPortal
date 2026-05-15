@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import * as React from "react";
+import {
+  buildSelectableYopYears,
+  isSelectableYopYear,
+  maxSelectableYopYear,
+  minSelectableYopYear,
+} from "@/lib/academic-year-yop";
 
 export type AcademicYearRow = { id: string; label: string; sortOrder: number };
-
-const YEAR_MIN = 2000;
-const YEAR_MAX = 2100;
 
 type Props = {
   universityId: string;
@@ -19,13 +22,6 @@ type Props = {
   canManageYears: boolean;
 };
 
-/** Parse `YYYY-MM-DD` from a date input value and return the four-digit year string. */
-function yearFromDateValue(iso: string): string | null {
-  if (!iso || iso.length < 4) return null;
-  const y = iso.slice(0, 4);
-  return /^\d{4}$/.test(y) ? y : null;
-}
-
 export function AcademicYearsManager({
   universityId,
   universityName,
@@ -35,38 +31,37 @@ export function AcademicYearsManager({
   canManageYears,
 }: Props) {
   const [years, setYears] = React.useState(initialYears);
-  /** Controlled value for `<input type="date">` (normalized to `YYYY-01-01` for the chosen year). */
-  const [dateValue, setDateValue] = React.useState("");
+  const [selectedYear, setSelectedYear] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const minDate = `${YEAR_MIN}-01-01`;
-  const maxDate = `${YEAR_MAX}-12-31`;
+  const yopMin = minSelectableYopYear();
+  const yopMax = maxSelectableYopYear();
+  const allYearOptions = React.useMemo(() => buildSelectableYopYears(), []);
+  const existingLabels = React.useMemo(() => new Set(years.map((y) => y.label)), [years]);
+  const availableYearOptions = React.useMemo(
+    () => allYearOptions.filter((y) => !existingLabels.has(String(y))),
+    [allYearOptions, existingLabels],
+  );
 
-  function onDateChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const v = e.target.value;
-    if (!v) {
-      setDateValue("");
-      setError(null);
-      return;
+  React.useEffect(() => {
+    if (!selectedYear) return;
+    if (!availableYearOptions.includes(Number(selectedYear))) {
+      setSelectedYear(availableYearOptions[0] ? String(availableYearOptions[0]) : "");
     }
-    const year = v.slice(0, 4);
-    if (!/^\d{4}$/.test(year)) return;
-    setDateValue(`${year}-01-01`);
-    setError(null);
-  }
+  }, [availableYearOptions, selectedYear]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const label = yearFromDateValue(dateValue);
-    if (!label) {
-      setError("Select a year from the calendar");
+    const label = selectedYear.trim();
+    if (!label || !/^\d{4}$/.test(label)) {
+      setError("Select an academic year");
       return;
     }
     const n = Number(label);
-    if (n < YEAR_MIN || n > YEAR_MAX) {
-      setError(`Year must be between ${YEAR_MIN} and ${YEAR_MAX}`);
+    if (!isSelectableYopYear(n)) {
+      setError(`Select a year from ${yopMin} to ${yopMax} (past years are not available)`);
       return;
     }
     if (years.some((y) => y.label === label)) {
@@ -87,7 +82,7 @@ export function AcademicYearsManager({
       }
       if (data.academicYear) {
         setYears((prev) => [...prev, data.academicYear!].sort((a, b) => a.sortOrder - b.sortOrder));
-        setDateValue("");
+        setSelectedYear("");
       }
     } catch {
       setError("Network error");
@@ -116,29 +111,39 @@ export function AcademicYearsManager({
         <>
           <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
-              <label htmlFor="year-picker" className="block text-sm font-medium text-[var(--foreground)]">
+              <label htmlFor="yop-year" className="block text-sm font-medium text-[var(--foreground)]">
                 Academic year
               </label>
-              <input
-                id="year-picker"
-                type="date"
-                value={dateValue}
-                onChange={onDateChange}
-                min={minDate}
-                max={maxDate}
+              <select
+                id="yop-year"
+                value={selectedYear}
+                onChange={(e) => {
+                  setSelectedYear(e.target.value);
+                  setError(null);
+                }}
                 required
-                className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[var(--foreground)] ${error ? "border-red-500" : "border-[var(--border)]"}`}
+                disabled={availableYearOptions.length === 0}
+                className={`mt-1 w-full max-w-xs rounded-lg border bg-[var(--background)] px-3 py-2 text-[var(--foreground)] ${error ? "border-red-500" : "border-[var(--border)]"}`}
                 aria-invalid={Boolean(error)}
-                aria-describedby="year-picker-hint"
-              />
-              <p id="year-picker-hint" className="mt-1 text-xs text-[var(--foreground-muted)]">
-                Use the calendar to pick any day in the intake year; we save the four-digit year only (e.g. 2027). Only
-                numeric years between {YEAR_MIN} and {YEAR_MAX} are allowed.
+                aria-describedby="yop-year-hint"
+              >
+                <option value="" disabled>
+                  {availableYearOptions.length === 0 ? "All years added" : "Select year"}
+                </option>
+                {availableYearOptions.map((y) => (
+                  <option key={y} value={String(y)}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+              <p id="yop-year-hint" className="mt-1 text-xs text-[var(--foreground-muted)]">
+                Choose the intake year only — {yopMin} through {yopMax}. Past years (e.g.{" "}
+                {yopMin - 1}) are not listed.
               </p>
             </div>
             <button
               type="submit"
-              disabled={busy || !dateValue}
+              disabled={busy || !selectedYear || availableYearOptions.length === 0}
               className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[var(--accent-blue-hover)] disabled:opacity-50"
             >
               {busy ? "Saving…" : "Add year"}
@@ -153,14 +158,22 @@ export function AcademicYearsManager({
           <li className="px-4 py-8 text-center text-sm text-[var(--foreground-muted)]">No years yet.</li>
         ) : (
           years.map((y) => (
-            <li key={y.id} className="flex items-center justify-between px-4 py-3 text-sm">
-              <Link
-                href={`/dashboard/university/${universityId}/admissions/academic-years/${y.id}`}
-                className="font-medium text-[var(--primary)] underline underline-offset-2 hover:no-underline"
-              >
-                {y.label}
-              </Link>
-              <span className="text-[var(--foreground-muted)]">Order {y.sortOrder}</span>
+            <li key={y.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+              <div className="min-w-0">
+                <Link
+                  href={`/dashboard/university/${universityId}/admissions/academic-years/${y.id}`}
+                  className="font-medium text-[var(--primary)] underline underline-offset-2 hover:no-underline"
+                >
+                  {y.label}
+                </Link>
+                <Link
+                  href={`/dashboard/university/${universityId}/admissions?year=${encodeURIComponent(y.id)}`}
+                  className="mt-0.5 block text-xs text-[var(--foreground-muted)] underline-offset-2 hover:underline"
+                >
+                  View admissions
+                </Link>
+              </div>
+              <span className="shrink-0 text-[var(--foreground-muted)]">Order {y.sortOrder}</span>
             </li>
           ))
         )}

@@ -37,6 +37,17 @@ export function isCounsellor(roles: string[]): boolean {
   return roles.includes(ROLES.counsellor);
 }
 
+/** Counsellor without consultant / manager / branch partner roles (leads-only workspace). */
+export function isCounsellorOnly(roles: string[]): boolean {
+  return (
+    isConsultantOnly(roles) &&
+    isCounsellor(roles) &&
+    !roles.includes(ROLES.consultant) &&
+    !roles.includes(ROLES.consultantMaster) &&
+    !roles.includes(ROLES.qspidersBranch)
+  );
+}
+
 /** Consultant / counsellor / consultant_master without Master or University staff roles (student-mentor workflows only). */
 export function isConsultantOnly(roles: string[]): boolean {
   return isConsultant(roles) && !isMaster(roles) && !isUniversity(roles);
@@ -74,6 +85,9 @@ const ADMISSION_PARTNER_SLUGS = new Set<string>([
 
 /** User-facing role line in headers and dashboards. */
 export function formatRoleLabel(slug: string): string {
+  if (slug === ROLES.counsellor) {
+    return "Counsellor";
+  }
   if (ADMISSION_PARTNER_SLUGS.has(slug)) {
     return "Admission Partner";
   }

@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { getPublicAppOrigin } from "@/lib/public-app-origin";
 
 /** When SMTP is configured, set EMAIL_FROM to your real domain. */
 function resolveEmailFrom(): string {
@@ -116,6 +117,60 @@ Admin Team`;
   if (!host || !user || !pass) {
     if (process.env.NODE_ENV === "development") {
       console.log(`[Credentials dev] To: ${params.to}\n${text}`);
+    }
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  await transporter.sendMail({ from, to: params.to, subject, text, html });
+}
+
+/** Master admin creates an admission partner (consultant) account — credentials email. */
+export async function sendConsultantAccountCreatedEmail(params: {
+  to: string;
+  name: string;
+  email: string;
+  password: string;
+}): Promise<void> {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = resolveEmailFrom();
+  const loginUrl = `${getPublicAppOrigin()}/login`;
+  const greetingName = params.name.trim() || params.email;
+
+  const subject = "Eduversity Consultant Account Created";
+  const text = `Hello ${greetingName},
+
+Your consultant account has been successfully created in Eduversity.
+
+Login Details:
+Email: ${params.email}
+Password: ${params.password}
+
+Please log in to Eduversity: ${loginUrl}
+
+Thank you,
+Eduversity Team`;
+
+  const html = `<p>Hello <strong>${escapeHtml(greetingName)}</strong>,</p>
+<p>Your consultant account has been successfully created in <strong>Eduversity</strong>.</p>
+<p><strong>Login Details:</strong><br/>
+Email: ${escapeHtml(params.email)}<br/>
+Password: <code>${escapeHtml(params.password)}</code></p>
+<p>Please <a href="${escapeHtml(loginUrl)}">log in to Eduversity</a>.</p>
+<p>Thank you,<br/>Eduversity Team</p>`;
+
+  if (!host || !user || !pass) {
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[Consultant account dev] To: ${params.to}\n${text}`);
     }
     return;
   }
@@ -269,7 +324,10 @@ University Portal`;
 
 export async function sendCounsellorPortalInviteEmail(params: {
   to: string;
-  acceptUrl: string;
+  name: string;
+  email: string;
+  password: string;
+  loginUrl: string;
   inviterName: string;
   universityLabels: string;
 }): Promise<void> {
@@ -278,24 +336,34 @@ export async function sendCounsellorPortalInviteEmail(params: {
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   const from = resolveEmailFrom();
+  const greetingName = params.name.trim() || params.email;
 
   const subject = "You are invited as a counsellor on University Portal";
-  const text = `Hello,
+  const text = `Hello ${greetingName},
 
 ${params.inviterName} has invited you to join as a counsellor on University Portal.
 
 Universities: ${params.universityLabels}
 
-Open this link to accept and set your password (or sign in later with email + OTP):
-${params.acceptUrl}
+Login Details:
+Email: ${params.email}
+Password: ${params.password}
+
+Please log in: ${params.loginUrl}
+
+You can also sign in with your email using a one-time code (OTP).
 
 Thanks,
 University Portal`;
 
-  const html = `<p><strong>${escapeHtml(params.inviterName)}</strong> has invited you to join as a <strong>counsellor</strong> on University Portal.</p>
+  const html = `<p>Hello <strong>${escapeHtml(greetingName)}</strong>,</p>
+<p><strong>${escapeHtml(params.inviterName)}</strong> has invited you to join as a <strong>counsellor</strong> on University Portal.</p>
 <p><strong>Universities:</strong> ${escapeHtml(params.universityLabels)}</p>
-<p><a href="${params.acceptUrl}">Accept invitation</a></p>
-<p>You can set a password on the acceptance page, or use email + one-time code (OTP) at login.</p>
+<p><strong>Login Details:</strong><br/>
+Email: ${escapeHtml(params.email)}<br/>
+Password: <code>${escapeHtml(params.password)}</code></p>
+<p>Please <a href="${escapeHtml(params.loginUrl)}">log in to University Portal</a>.</p>
+<p>You can also sign in with your email using a <strong>one-time code (OTP)</strong>.</p>
 <p>Thanks,<br/>University Portal</p>`;
 
   if (!host || !user || !pass) {

@@ -46,17 +46,20 @@ export function EditUniversityForm({ universityId, initial }: Props) {
     setError(null);
     setBusy(true);
     try {
+      const payload: Record<string, string | number> = { name: name.trim() };
+      const emailTrim = email.trim();
+      if (emailTrim) payload.email = emailTrim;
+      const phoneTrim = phone.trim();
+      if (phoneTrim) payload.phone = phoneTrim;
+      if (status !== initial.status) payload.status = status;
+      if (logoUrl !== initial.logoUrl) payload.logoUrl = logoUrl.trim();
+      const feeTrim = applicationFee.trim();
+      if (feeTrim) payload.applicationFee = Number(feeTrim);
+
       const res = await fetch(`/api/master/universities/${universityId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          email,
-          phone,
-          status,
-          logoUrl: logoUrl.trim() || "",
-          applicationFee: Number(applicationFee),
-        }),
+        body: JSON.stringify(payload),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
@@ -95,40 +98,51 @@ export function EditUniversityForm({ universityId, initial }: Props) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-[var(--foreground)]">Email</label>
+        <label className="block text-sm font-medium text-[var(--foreground)]">
+          Email <span className="font-normal text-[var(--foreground-muted)]">(optional)</span>
+        </label>
         <input
           type="email"
-          required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          placeholder="Leave blank to keep current"
           className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-[var(--foreground)]">Phone number</label>
+        <label className="block text-sm font-medium text-[var(--foreground)]">
+          Phone number <span className="font-normal text-[var(--foreground-muted)]">(optional)</span>
+        </label>
         <input
           type="tel"
           inputMode="numeric"
-          required
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
+          placeholder="Leave blank to keep current"
           className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-[var(--foreground)]">Application fee</label>
+        <label className="block text-sm font-medium text-[var(--foreground)]">
+          Application fee <span className="font-normal text-[var(--foreground-muted)]">(optional)</span>
+        </label>
         <input
           type="number"
-          required
           min={0}
           step="0.01"
           value={applicationFee}
           onChange={(e) => setApplicationFee(e.target.value)}
+          placeholder="Leave blank to keep current"
           className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-[var(--foreground)]">Logo (optional)</label>
+        <label className="block text-sm font-medium text-[var(--foreground)]">
+          Logo <span className="font-normal text-[var(--foreground-muted)]">(optional)</span>
+        </label>
+        <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+          Upload or change only if needed; leave unchanged to keep the current logo.
+        </p>
         {previewSrc ? (
           <div className="mt-2 flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element -- stored logo URL */}
@@ -167,7 +181,9 @@ export function EditUniversityForm({ universityId, initial }: Props) {
         ) : null}
       </div>
       <div>
-        <label className="block text-sm font-medium text-[var(--foreground)]">Status</label>
+        <label className="block text-sm font-medium text-[var(--foreground)]">
+          Status <span className="font-normal text-[var(--foreground-muted)]">(optional)</span>
+        </label>
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value as "ACTIVE" | "INACTIVE")}
@@ -176,6 +192,9 @@ export function EditUniversityForm({ universityId, initial }: Props) {
           <option value="ACTIVE">Active</option>
           <option value="INACTIVE">Inactive</option>
         </select>
+        <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+          Status is only updated when you change this dropdown from its current value.
+        </p>
       </div>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       <button

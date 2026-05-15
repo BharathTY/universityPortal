@@ -8,6 +8,7 @@ import {
   canAccessLeadsAndBatches,
   isConsultant,
   isConsultantOnly,
+  isCounsellorOnly,
   isMaster,
   isUniversity,
   ROLES,
@@ -25,6 +26,9 @@ const PARTNER_ROSTER_SLUGS = [
 
 export default async function ConsultantStudentsPage() {
   const session = await requireAuth();
+  if (isCounsellorOnly(session.roles)) {
+    redirect("/dashboard/university");
+  }
   if (!canAccessLeadsAndBatches(session.roles)) {
     redirect("/dashboard");
   }
@@ -54,7 +58,7 @@ export default async function ConsultantStudentsPage() {
     take: 100,
   });
 
-  const canInvite = isConsultant(session.roles);
+  const canInvite = isConsultant(session.roles) && !isCounsellorOnly(session.roles);
 
   let teamMembers: Awaited<ReturnType<typeof loadTeamMembers>> = [];
   let consultantInviteUniversities: { id: string; name: string; code: string }[] = [];

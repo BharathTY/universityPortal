@@ -8,7 +8,7 @@ import {
   resolveConsultantActiveUniversityId,
 } from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
-import { isConsultantOnly, isMaster, isUniversity } from "@/lib/roles";
+import { isConsultantOnly, isCounsellorOnly, isMaster, isUniversity } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +95,7 @@ export default async function UniversityHubPage() {
             streams,
             academicYears,
             universities: assignedUnis,
+            viewOnlyUniversityDetails: isCounsellorOnly(session.roles),
           }}
         />
       </div>

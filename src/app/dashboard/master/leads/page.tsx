@@ -52,7 +52,7 @@ export default async function MasterPartnerLeadsPage() {
       >
         ← Universities
       </Link>
-      <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)] sm:text-3xl">Partner leads</h1>
+      <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)] sm:text-3xl">Consultant leads</h1>
       <p className="mt-2 text-[var(--foreground-muted)]">
         Leads submitted by consultants across all universities. Review and payment reflect the linked application when
         the lead has been converted.

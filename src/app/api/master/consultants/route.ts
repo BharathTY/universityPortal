@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { sendAccountCredentialsEmail } from "@/lib/email";
+import { sendConsultantAccountCreatedEmail } from "@/lib/email";
 import { requireMasterApi } from "@/lib/master-session";
 import { generateRandomPassword, hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
@@ -149,14 +149,14 @@ export async function POST(req: Request) {
   }
 
   try {
-    await sendAccountCredentialsEmail({
+    await sendConsultantAccountCreatedEmail({
       to: email,
       name: parsed.data.name,
       email,
       password: plainPassword,
     });
   } catch (e) {
-    console.error("sendAccountCredentialsEmail", e);
+    console.error("sendConsultantAccountCreatedEmail", e);
   }
 
   return NextResponse.json({ ok: true, userId: user.id });

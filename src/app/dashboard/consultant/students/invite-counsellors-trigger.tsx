@@ -11,6 +11,7 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
   const [email, setEmail] = React.useState("");
   const [name, setName] = React.useState("");
   const [phone, setPhone] = React.useState("");
+  const [password, setPassword] = React.useState("");
   const [selectedIds, setSelectedIds] = React.useState<string[]>(() => universities.map((u) => u.id));
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -39,6 +40,7 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
           email: email.trim().toLowerCase(),
           name: name.trim(),
           phone: phone.trim(),
+          password: password,
           universityIds: selectedIds,
         }),
       });
@@ -51,6 +53,7 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
       setEmail("");
       setName("");
       setPhone("");
+      setPassword("");
       router.refresh();
     } finally {
       setBusy(false);
@@ -96,7 +99,7 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
             </div>
             <form onSubmit={(e) => void onSend(e)} className="flex flex-1 flex-col overflow-y-auto bg-white px-5 py-4">
               <p className="text-sm text-zinc-600">
-                We email an accept link so they can set a password and sign in.
+                Set a password for the counsellor. We email their login details so they can sign in right away.
               </p>
               <div className="mt-5 space-y-4">
                 <div>
@@ -138,6 +141,22 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
                     onChange={(e) => setPhone(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none ring-blue-500 focus:ring-2"
                   />
+                </div>
+                <div>
+                  <label htmlFor="c-inv-password" className="text-sm font-medium text-zinc-900">
+                    Password
+                  </label>
+                  <input
+                    id="c-inv-password"
+                    type="password"
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none ring-blue-500 focus:ring-2"
+                  />
+                  <p className="mt-1 text-xs text-zinc-600">At least 8 characters. Included in the invitation email.</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-zinc-900">Universities</p>

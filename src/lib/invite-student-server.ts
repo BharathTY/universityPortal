@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isConsultant, ROLES } from "@/lib/roles";
+import { isConsultant, isCounsellorOnly, ROLES } from "@/lib/roles";
 import { sendStudentInviteEmail } from "@/lib/email";
 import { getPublicAppOrigin } from "@/lib/public-app-origin";
 import { generateInviteToken } from "@/lib/student-invite";
@@ -19,7 +19,7 @@ export async function handleInviteStudentRequest(req: Request): Promise<Response
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!isConsultant(session.roles)) {
+  if (!isConsultant(session.roles) || isCounsellorOnly(session.roles)) {
     return NextResponse.json(
       { error: "Only admission partners can invite students" },
       { status: 403 },

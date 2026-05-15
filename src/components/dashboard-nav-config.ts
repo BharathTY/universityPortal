@@ -1,5 +1,6 @@
 import {
   isConsultantOnly,
+  isCounsellorOnly,
   isMaster,
   isStudent,
   isUniversity,
@@ -47,7 +48,7 @@ export function buildDashboardNav(roles: string[], options?: BuildDashboardNavOp
           { href: "/dashboard", label: "Dashboard", icon: "home" },
           { href: "/dashboard/master/universities", label: "Universities", icon: "building" },
           { href: "/dashboard/master/consultants", label: "Consultants", icon: "users" },
-          { href: "/dashboard/master/leads", label: "Partner leads", icon: "layers" },
+          { href: "/dashboard/master/leads", label: "Consultant leads", icon: "layers" },
           { href: "/dashboard/master/applications", label: "Applications", icon: "file" },
         ],
       },
@@ -55,11 +56,15 @@ export function buildDashboardNav(roles: string[], options?: BuildDashboardNavOp
   }
 
   if (isConsultantOnly(roles)) {
+    const work: NavGroup = {
+      title: "Work",
+      items: [{ href: "/dashboard/university", label: "Universities", icon: "building" }],
+    };
+    if (isCounsellorOnly(roles)) {
+      return [work];
+    }
     return [
-      {
-        title: "Work",
-        items: [{ href: "/dashboard/university", label: "Universities", icon: "building" }],
-      },
+      work,
       {
         title: "Users",
         items: [{ href: "/dashboard/consultant/students", label: "Manage users", icon: "users" }],

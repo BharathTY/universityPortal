@@ -3,10 +3,8 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isConsultantOnly } from "@/lib/roles";
+import { isSelectableYopYear, maxSelectableYopYear, minSelectableYopYear } from "@/lib/academic-year-yop";
 import { canAccessUniversityScopeAsync } from "@/lib/university-scope";
-
-const YEAR_MIN = 2000;
-const YEAR_MAX = 2100;
 
 const createSchema = z.object({
   /** Four-digit calendar year only (e.g. 2027), stored as label for filtering and display. */
@@ -14,10 +12,9 @@ const createSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{4}$/, "Enter a valid year using four digits")
-    .refine((s) => {
-      const y = Number(s);
-      return y >= YEAR_MIN && y <= YEAR_MAX;
-    }, { message: `Year must be between ${YEAR_MIN} and ${YEAR_MAX}` }),
+    .refine((s) => isSelectableYopYear(Number(s)), {
+      message: `Year must be between ${minSelectableYopYear()} and ${maxSelectableYopYear()} (past years are not allowed)`,
+    }),
   sortOrder: z.number().int().optional(),
 });
 

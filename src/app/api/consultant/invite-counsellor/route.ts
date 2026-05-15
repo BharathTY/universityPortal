@@ -5,19 +5,20 @@ import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities
 import { sendCounsellorPortalInviteEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { getPublicAppOrigin } from "@/lib/public-app-origin";
-import { isConsultantOnly, ROLES } from "@/lib/roles";
-import { generateInviteToken } from "@/lib/student-invite";
+import { isConsultantOnly, isCounsellorOnly, ROLES } from "@/lib/roles";
+import { hashPassword } from "@/lib/password";
 
 const bodySchema = z.object({
   email: z.string().email().max(254),
   name: z.string().min(1).max(120).trim(),
   phone: z.string().min(5).max(32).trim(),
+  password: z.string().min(8).max(128),
   universityIds: z.array(z.string().min(1)).min(1).max(50),
 });
 
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session || !isConsultantOnly(session.roles)) {
+  if (!session || !isConsultantOnly(session.roles) || isCounsellorOnly(session.roles)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
     "Admission partner";
 
   const primaryUniversityId = parsed.data.universityIds[0]!;
-  const token = generateInviteToken();
+  const passwordHash = await hashPassword(parsed.data.password);
 
   const universities = await prisma.university.findMany({
     where: { id: { in: parsed.data.universityIds } },
@@ -81,8 +82,8 @@ export async function POST(req: Request) {
       phone: parsed.data.phone,
       universityId: primaryUniversityId,
       reportsToConsultantId: session.sub,
-      inviteToken: token,
-      inviteSentAt: new Date(),
+      passwordHash,
+      accountStatus: "ACTIVE",
       roles: {
         create: { roleId: counsellorRole.id },
       },
@@ -92,11 +93,14 @@ export async function POST(req: Request) {
     },
   });
 
-  const acceptUrl = `${getPublicAppOrigin()}/invite/accept?token=${encodeURIComponent(token)}`;
+  const loginUrl = `${getPublicAppOrigin()}/login`;
   try {
     await sendCounsellorPortalInviteEmail({
       to: email,
-      acceptUrl,
+      name: parsed.data.name,
+      email,
+      password: parsed.data.password,
+      loginUrl,
       inviterName,
       universityLabels,
     });

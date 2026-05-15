@@ -5,6 +5,7 @@ import {
   canAccessLeadsAndBatches,
   isConsultant,
   isConsultantOnly,
+  isCounsellorOnly,
   isMaster,
   isStudent,
   isUniversity,
@@ -70,6 +71,10 @@ export async function middleware(request: NextRequest) {
 
     if (path.startsWith("/dashboard/consultant") && !leadsOk && !master && !university) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
+    if (path.startsWith("/dashboard/consultant/students") && isCounsellorOnly(roles)) {
+      return NextResponse.redirect(new URL("/dashboard/university", request.url));
     }
 
     if (path.startsWith("/dashboard/counsellor") && !consultant && !master && !university) {

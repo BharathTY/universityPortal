@@ -3,6 +3,11 @@
  */
 import assert from "node:assert";
 import type { PrismaClient } from "@prisma/client";
+import {
+  buildSelectableYopYears,
+  isSelectableYopYear,
+  minSelectableYopYear,
+} from "../src/lib/academic-year-yop";
 import { resolveAcademicYearIdWithPrisma } from "../src/lib/consultant-default-year";
 import { isAdmissionLeadRoleSlug } from "../src/lib/admission-lead-role";
 import { ADMISSION_PARTNER_ROLE_SLUGS } from "../src/lib/admission-partner-slugs";
@@ -45,7 +50,7 @@ async function main() {
   section("formatRoleLabel");
   await test("consultant family maps to Admission Partner", () => {
     assert.strictEqual(formatRoleLabel(ROLES.consultant), "Admission Partner");
-    assert.strictEqual(formatRoleLabel(ROLES.counsellor), "Admission Partner");
+    assert.strictEqual(formatRoleLabel(ROLES.counsellor), "Counsellor");
     assert.strictEqual(formatRoleLabel(ROLES.consultantMaster), "Admission Partner");
     assert.strictEqual(formatRoleLabel(ROLES.qspidersBranch), "Admission Partner");
   });
@@ -134,6 +139,13 @@ async function main() {
     const b = JSON.stringify(buildDashboardNav([ROLES.qspidersBranch]));
     assert.strictEqual(a, b);
   });
+  await test("counsellor-only: Universities only, no Manage users", () => {
+    const nav = buildDashboardNav([ROLES.counsellor]);
+    const items = nav.flatMap((g) => g.items);
+    assert.ok(items.some((i) => i.href === "/dashboard/university"));
+    assert.ok(!items.some((i) => i.href === "/dashboard/consultant/students"));
+    assert.ok(!nav.some((g) => g.title === "Users"));
+  });
   await test("university role with id: admissions hrefs include universityId", () => {
     const nav = buildDashboardNav([ROLES.university], { universityId: "uni-abc" });
     const hrefs = nav.flatMap((g) => g.items.map((i) => i.href));
@@ -155,6 +167,19 @@ async function main() {
   await test("dashboard root exact", () => {
     assert.strictEqual(isNavActive("/dashboard", "/dashboard"), true);
     assert.strictEqual(isNavActive("/dashboard/consultant", "/dashboard"), false);
+  });
+
+  section("academic-year-yop");
+  await test("YOP options start at current year", () => {
+    const now = new Date(2026, 4, 15);
+    assert.strictEqual(minSelectableYopYear(now), 2026);
+    const years = buildSelectableYopYears(now);
+    assert.ok(years.length >= 1);
+    assert.strictEqual(years[0], 2026);
+    assert.strictEqual(isSelectableYopYear(2025, now), false);
+    assert.strictEqual(isSelectableYopYear(2024, now), false);
+    assert.strictEqual(isSelectableYopYear(2026, now), true);
+    assert.strictEqual(isSelectableYopYear(2027, now), true);
   });
 
   section("resolveAcademicYearIdWithPrisma (in-memory mock)");
