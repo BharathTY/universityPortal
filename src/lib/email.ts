@@ -201,7 +201,6 @@ export async function sendStudentRegistrationEmail(params: {
   const pass = process.env.SMTP_PASS;
   const from = resolveEmailFrom();
   const studentName = params.name.trim() || params.to;
-  const loginUrl = `${getPublicAppOrigin()}/login`;
 
   const subject = "Welcome to Qspiders Eduversity – Access Your Account.";
   const text = `Hi ${studentName},
@@ -210,9 +209,7 @@ Welcome to Qspiders Eduversity!
 
 Your admission application has been created successfully with ${params.universityName} (${params.academicBatchName}) for ${params.degreeName}.
 
-We're excited to have you on board — let's get started on your learning journey!
-
-Log in to your account: ${loginUrl}
+We're excited to have you on board let's get started on your learning journey!
 
 Warm regards,
 Team Eduversity`;
@@ -220,8 +217,7 @@ Team Eduversity`;
   const html = `<p>Hi <strong>${escapeHtml(studentName)}</strong>,</p>
 <p>Welcome to <strong>Qspiders Eduversity</strong>! \u{1F389}</p>
 <p>Your admission application has been created successfully with <strong>${escapeHtml(params.universityName)}</strong> (<strong>${escapeHtml(params.academicBatchName)}</strong>) for <strong>${escapeHtml(params.degreeName)}</strong>.</p>
-<p>We're excited to have you on board — let's get started on your learning journey!</p>
-<p><a href="${escapeHtml(loginUrl)}">Log in to your account</a></p>
+<p>We're excited to have you on board let's get started on your learning journey!</p>
 <p>Warm regards,<br/>Team Eduversity</p>`;
 
   if (!host || !user || !pass) {
