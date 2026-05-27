@@ -138,7 +138,7 @@ export async function createAdmissionLeadFromBrochureToken(
       mobile: input.mobile.trim(),
       consultantCode: consultantCodeFromUserId(ownerId),
       consultantRoleId: consultantRole.roleId,
-      admissionStatus: AdmissionLeadStatus.NEW,
+      admissionStatus: AdmissionLeadStatus.NEW_LEAD,
       pipelineStatus: LeadPipelineStatus.NEW,
       nationality: null,
       specialization: "Brochure / QR referral",

@@ -48,21 +48,21 @@ async function main() {
   console.log("University Portal — logic tests\n");
 
   section("formatRoleLabel");
-  await test("consultant family maps to Admission Partner", () => {
-    assert.strictEqual(formatRoleLabel(ROLES.consultant), "Admission Partner");
-    assert.strictEqual(formatRoleLabel(ROLES.counsellor), "Counsellor");
-    assert.strictEqual(formatRoleLabel(ROLES.consultantMaster), "Admission Partner");
-    assert.strictEqual(formatRoleLabel(ROLES.qspidersBranch), "Admission Partner");
+  await test("consultant family maps to PRD labels", () => {
+    assert.strictEqual(formatRoleLabel(ROLES.consultant), "Consultant");
+    assert.strictEqual(formatRoleLabel(ROLES.counsellor), "Consultant SPOC");
+    assert.strictEqual(formatRoleLabel(ROLES.consultantMaster), "Manager");
+    assert.strictEqual(formatRoleLabel(ROLES.qspidersBranch), "Branch Partner");
   });
   await test("other slugs title-case with underscores", () => {
     assert.strictEqual(formatRoleLabel(ROLES.student), "Student");
-    assert.strictEqual(formatRoleLabel(ROLES.university), "University");
+    assert.strictEqual(formatRoleLabel(ROLES.university), "University Staff");
   });
   await test("formatTeamMemberRole distinguishes team roster", () => {
-    assert.strictEqual(formatTeamMemberRole(ROLES.counsellor), "Counsellor");
+    assert.strictEqual(formatTeamMemberRole(ROLES.counsellor), "Consultant SPOC");
     assert.strictEqual(formatTeamMemberRole(ROLES.consultantMaster), "Manager");
-    assert.strictEqual(formatTeamMemberRole(ROLES.qspidersBranch), "Branch");
-    assert.strictEqual(formatTeamMemberRole(ROLES.consultant), "Admission partner");
+    assert.strictEqual(formatTeamMemberRole(ROLES.qspidersBranch), "Branch Partner");
+    assert.strictEqual(formatTeamMemberRole(ROLES.consultant), "Consultant");
   });
 
   section("isConsultant / isConsultantOnly");
@@ -85,8 +85,8 @@ async function main() {
 
   section("ADMISSION_PARTNER_ROLE_SLUGS");
   await test("length and uniqueness", () => {
-    assert.strictEqual(ADMISSION_PARTNER_ROLE_SLUGS.length, 4);
-    assert.strictEqual(new Set(ADMISSION_PARTNER_ROLE_SLUGS).size, 4);
+    assert.strictEqual(ADMISSION_PARTNER_ROLE_SLUGS.length, 5);
+    assert.strictEqual(new Set(ADMISSION_PARTNER_ROLE_SLUGS).size, 5);
   });
 
   section("isAdmissionLeadRoleSlug");
@@ -99,14 +99,16 @@ async function main() {
   });
 
   section("buildDashboardNav");
-  await test("student: Overview + Application only", () => {
+  await test("student: My Application, Fees, Profile", () => {
     const nav = buildDashboardNav([ROLES.student]);
     assert.strictEqual(nav.length, 1);
+    assert.strictEqual(nav[0]?.title, "Student Portal");
     assert.deepStrictEqual(
       nav[0]!.items.map((i) => ({ href: i.href, label: i.label })),
       [
-        { href: "/dashboard", label: "Overview" },
-        { href: "/dashboard/student/application", label: "Application" },
+        { href: "/dashboard/student/application", label: "My Application" },
+        { href: "/dashboard/student/fees", label: "Fees & Payment" },
+        { href: "/dashboard/student/profile", label: "Profile" },
       ],
     );
   });
@@ -123,28 +125,27 @@ async function main() {
       `Expected Consultants (or legacy Admission partners) label, got: ${labels.join(", ")}`,
     );
   });
-  await test("consultant: no Home dashboard; Work shows Universities hub (leads combined)", () => {
+  await test("consultant: PRD nav with dashboard, leads, assigned universities", () => {
     const nav = buildDashboardNav([ROLES.consultant]);
-    assert.ok(!nav.some((g) => g.title === "Home"));
     const items = nav.flatMap((g) => g.items);
-    assert.ok(items.some((i) => i.href === "/dashboard/university" && i.label === "Universities"));
-    assert.ok(!items.some((i) => i.href === "/dashboard/consultant/leads"));
-    assert.strictEqual(
-      items.some((i) => i.label === "Leads"),
-      false,
-    );
+    assert.ok(items.some((i) => i.href === "/dashboard/consultant-home" && i.label === "Dashboard"));
+    assert.ok(items.some((i) => i.href === "/dashboard/consultant/leads" && i.label === "Student Leads"));
+    assert.ok(items.some((i) => i.href === "/dashboard/consultant/assigned-universities"));
+    assert.ok(items.some((i) => i.href === "/dashboard/consultant/spocs"));
+    assert.ok(!items.some((i) => i.href === "/dashboard/consultant/students"));
   });
   await test("qspiders_branch nav matches consultant nav", () => {
     const a = JSON.stringify(buildDashboardNav([ROLES.consultant]));
     const b = JSON.stringify(buildDashboardNav([ROLES.qspidersBranch]));
     assert.strictEqual(a, b);
   });
-  await test("counsellor-only: Universities only, no Manage users", () => {
+  await test("counsellor/SPOC: dashboard + leads, no SPOCs tab", () => {
     const nav = buildDashboardNav([ROLES.counsellor]);
     const items = nav.flatMap((g) => g.items);
-    assert.ok(items.some((i) => i.href === "/dashboard/university"));
+    assert.ok(items.some((i) => i.href === "/dashboard/spoc"));
+    assert.ok(items.some((i) => i.href === "/dashboard/consultant/leads"));
+    assert.ok(!items.some((i) => i.href === "/dashboard/consultant/spocs"));
     assert.ok(!items.some((i) => i.href === "/dashboard/consultant/students"));
-    assert.ok(!nav.some((g) => g.title === "Users"));
   });
   await test("university role with id: admissions hrefs include universityId", () => {
     const nav = buildDashboardNav([ROLES.university], { universityId: "uni-abc" });
@@ -230,7 +231,7 @@ async function main() {
     assert.strictEqual(isMaster(roles), true);
     assert.strictEqual(canAccessLeadsAndBatches(roles), true);
     const items = buildDashboardNav(roles).flatMap((g) => g.items);
-    assert.ok(items.some((i) => i.href === "/dashboard/master/universities"));
+    assert.ok(items.some((i) => i.href === "/dashboard/master"));
     assert.ok(items.some((i) => i.href === "/dashboard/master/consultants"));
     assert.ok(items.some((i) => i.href === "/dashboard/master/applications"));
   });
@@ -249,15 +250,15 @@ async function main() {
     );
   });
 
-  await test("consultant@university.local — Admission partner", () => {
+  await test("consultant@university.local — Consultant", () => {
     const roles = [ROLES.consultant];
     assert.strictEqual(isConsultantOnly(roles), true);
     assert.strictEqual(isConsultant(roles), true);
     assert.strictEqual(canAccessLeadsAndBatches(roles), true);
     const items = buildDashboardNav(roles).flatMap((g) => g.items);
-    assert.ok(items.some((i) => i.href === "/dashboard/university"));
-    assert.ok(!items.some((i) => i.href === "/dashboard/consultant/leads"));
-    assert.ok(items.some((i) => i.href === "/dashboard/consultant/students"));
+    assert.ok(items.some((i) => i.href === "/dashboard/consultant-home"));
+    assert.ok(items.some((i) => i.href === "/dashboard/consultant/leads"));
+    assert.ok(!items.some((i) => i.href === "/dashboard/consultant/students"));
   });
 
   await test("student@university.local — Student", () => {
@@ -265,10 +266,10 @@ async function main() {
     assert.strictEqual(isStudent(roles), true);
     assert.strictEqual(canAccessLeadsAndBatches(roles), false);
     const nav = buildDashboardNav(roles);
-    assert.strictEqual(nav[0]?.title, "Dashboard");
+    assert.strictEqual(nav[0]?.title, "Student Portal");
     const items = nav[0]?.items ?? [];
-    assert.ok(items.some((i) => i.href === "/dashboard"));
     assert.ok(items.some((i) => i.href === "/dashboard/student/application"));
+    assert.ok(items.some((i) => i.href === "/dashboard/student/fees"));
   });
 
   section("App routes & nav links");
@@ -281,7 +282,7 @@ async function main() {
     assert.strictEqual(isStudent([ROLES.student, ROLES.master]), true);
     assert.strictEqual(isMaster([ROLES.student, ROLES.master]), true);
     const nav = buildDashboardNav([ROLES.student, ROLES.master]);
-    assert.ok(nav.some((g) => g.title === "Master admin"));
+    assert.ok(nav.some((g) => g.title === "Master Admin"));
   });
 
   console.log(`\n——\n${passed} passed, ${failed} failed`);

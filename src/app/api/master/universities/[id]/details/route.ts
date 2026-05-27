@@ -1,14 +1,14 @@
-import { HostelGender, HostelRoomType, Prisma } from "@prisma/client";
+import { HostelGender, HostelRoomType, HostelSharing, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireMasterApi } from "@/lib/master-session";
 import { prisma } from "@/lib/prisma";
 
 const HOSTEL_COMBOS = [
-  { key: "girlsAc", gender: HostelGender.GIRLS, roomType: HostelRoomType.AC },
-  { key: "girlsNonAc", gender: HostelGender.GIRLS, roomType: HostelRoomType.NON_AC },
-  { key: "boysAc", gender: HostelGender.BOYS, roomType: HostelRoomType.AC },
-  { key: "boysNonAc", gender: HostelGender.BOYS, roomType: HostelRoomType.NON_AC },
+  { key: "girlsAc", gender: HostelGender.GIRLS, roomType: HostelRoomType.AC, sharing: HostelSharing.TWO_SHARING },
+  { key: "girlsNonAc", gender: HostelGender.GIRLS, roomType: HostelRoomType.NON_AC, sharing: HostelSharing.TWO_SHARING },
+  { key: "boysAc", gender: HostelGender.BOYS, roomType: HostelRoomType.AC, sharing: HostelSharing.TWO_SHARING },
+  { key: "boysNonAc", gender: HostelGender.BOYS, roomType: HostelRoomType.NON_AC, sharing: HostelSharing.TWO_SHARING },
 ] as const;
 
 type HostelKey = (typeof HOSTEL_COMBOS)[number]["key"];
@@ -193,10 +193,11 @@ export async function PUT(req: Request, ctx: RouteContext) {
 
         const existing = await tx.universityHostelFee.findUnique({
           where: {
-            universityId_gender_roomType: {
+            universityId_gender_roomType_sharing: {
               universityId: id,
               gender: def.gender,
               roomType: def.roomType,
+              sharing: def.sharing,
             },
           },
         });
@@ -211,16 +212,18 @@ export async function PUT(req: Request, ctx: RouteContext) {
           }
           await tx.universityHostelFee.upsert({
             where: {
-              universityId_gender_roomType: {
+              universityId_gender_roomType_sharing: {
                 universityId: id,
                 gender: def.gender,
                 roomType: def.roomType,
+                sharing: def.sharing,
               },
             },
             create: {
               universityId: id,
               gender: def.gender,
               roomType: def.roomType,
+              sharing: def.sharing,
               amount: new Prisma.Decimal(val.toFixed(2)),
             },
             update: { amount: new Prisma.Decimal(val.toFixed(2)) },

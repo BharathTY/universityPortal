@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { isMaster } from "@/lib/roles";
-import { NewUniversityForm } from "@/app/dashboard/master/universities/new/new-university-form";
+import { NewUniversityWizard } from "@/app/dashboard/master/universities/new/new-university-wizard";
 
 export default async function NewUniversityPage() {
   const session = await requireAuth();
@@ -20,11 +20,11 @@ export default async function NewUniversityPage() {
       </Link>
       <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Add university</h1>
       <p className="mt-2 text-sm text-[var(--foreground-muted)]">
-        Only <strong className="text-[var(--foreground)]">University name</strong> is required. Add an email if you want
-        to create the university-admin login now; you can also add contact details and fee later.
+        Step 1: search the master list and confirm location. Step 2: SPOC, programmes, fees, hostel matrix, CET seats,
+        and documents. Only the university name is required; add an admin email to create the university login now.
       </p>
       <div className="mt-8">
-        <NewUniversityForm />
+        <NewUniversityWizard />
       </div>
     </div>
   );

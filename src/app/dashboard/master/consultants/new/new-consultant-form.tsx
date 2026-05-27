@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import * as React from "react";
+import { buildAcademicYearOptions } from "@/lib/academic-year-options";
+import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
 
 type Uni = { id: string; name: string; code: string };
 
@@ -30,6 +32,8 @@ function validateConsultantForm(input: {
   password: string;
   selectedCount: number;
   universitiesAvailable: number;
+  academicYear: string;
+  hasMouFile: boolean;
 }): Record<string, string> {
   const e: Record<string, string> = {};
   const n = input.name.trim();
@@ -57,6 +61,10 @@ function validateConsultantForm(input: {
     e.universityIds = "No universities available to assign";
   }
 
+  if (input.hasMouFile && !input.academicYear.trim()) {
+    e.academicYear = "Select academic year for MOU upload";
+  }
+
   return e;
 }
 
@@ -69,9 +77,20 @@ export function NewConsultantForm({ universities }: Props) {
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [companyName, setCompanyName] = React.useState("");
+  const [designation, setDesignation] = React.useState("");
+  const [gstNumber, setGstNumber] = React.useState("");
+  const [panNumber, setPanNumber] = React.useState("");
+  const [address, setAddress] = React.useState("");
+  const [city, setCity] = React.useState("");
+  const [district, setDistrict] = React.useState("");
+  const [state, setState] = React.useState("");
+  const [academicYear, setAcademicYear] = React.useState("");
+  const [mouFile, setMouFile] = React.useState<File | null>(null);
   const [selectedUniIds, setSelectedUniIds] = React.useState<Set<string>>(new Set());
   /** Fixed to standard admission partner; select is disabled until branch accounts are re-enabled. */
   const partnerRole = "consultant" as const;
+  const yearOptions = React.useMemo(() => buildAcademicYearOptions(), []);
 
   const formSnapshot = React.useMemo(
     () => ({
@@ -81,8 +100,10 @@ export function NewConsultantForm({ universities }: Props) {
       password,
       selectedCount: selectedUniIds.size,
       universitiesAvailable: universities.length,
+      academicYear,
+      hasMouFile: Boolean(mouFile),
     }),
-    [name, email, phone, password, selectedUniIds.size, universities.length],
+    [name, email, phone, password, selectedUniIds.size, universities.length, academicYear, mouFile],
   );
 
   const formValid = React.useMemo(
@@ -137,17 +158,38 @@ export function NewConsultantForm({ universities }: Props) {
     setFieldErrors({});
     setBusy(true);
     try {
+      const payload = {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        password: password.trim() || undefined,
+        universityIds: [...selectedUniIds],
+        partnerRole,
+        companyName: companyName.trim() || undefined,
+        designation: designation.trim() || undefined,
+        gstNumber: gstNumber.trim() || undefined,
+        panNumber: panNumber.trim() || undefined,
+        address: address.trim() || undefined,
+        city: city.trim() || undefined,
+        district: district.trim() || undefined,
+        state: state.trim() || undefined,
+        academicYear: academicYear.trim() || undefined,
+      };
+
+      let body: BodyInit;
+      if (mouFile) {
+        const form = new FormData();
+        form.set("payload", JSON.stringify(payload));
+        form.set("mouFile", mouFile);
+        body = form;
+      } else {
+        body = JSON.stringify(payload);
+      }
+
       const res = await fetch("/api/master/consultants", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-          password: password.trim() || undefined,
-          universityIds: [...selectedUniIds],
-          partnerRole,
-        }),
+        headers: mouFile ? undefined : { "Content-Type": "application/json" },
+        body,
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -242,6 +284,127 @@ export function NewConsultantForm({ universities }: Props) {
         />
         {fieldErrors.phone ? <p className="mt-1 text-xs text-red-600">{fieldErrors.phone}</p> : null}
       </div>
+
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+        <h2 className="text-sm font-semibold text-[var(--foreground)]">Company profile</h2>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)]">Company name</label>
+            <input
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)]">Designation</label>
+            <input
+              value={designation}
+              onChange={(e) => setDesignation(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)]">GST number</label>
+            <input
+              value={gstNumber}
+              onChange={(e) => setGstNumber(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)]">PAN number</label>
+            <input
+              value={panNumber}
+              onChange={(e) => setPanNumber(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-[var(--foreground)]">Address</label>
+            <textarea
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              rows={2}
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)]">City</label>
+            <input
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)]">District</label>
+            <input
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-[var(--foreground)]">State</label>
+            <select
+              value={state}
+              onChange={(e) => setState(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+            >
+              <option value="">Select state</option>
+              {INDIAN_STATES_AND_UT.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+        <h2 className="text-sm font-semibold text-[var(--foreground)]">MOU by academic year</h2>
+        <p className="mt-1 text-xs text-[var(--foreground-muted)]">PDF or DOC, max 2 MB. Academic year required when uploading.</p>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)]">Academic year</label>
+            <select
+              value={academicYear}
+              onChange={(e) => {
+                setAcademicYear(e.target.value);
+                setFieldErrors((f) => {
+                  const n = { ...f };
+                  delete n.academicYear;
+                  return n;
+                });
+              }}
+              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("academicYear")}`}
+            >
+              <option value="">Select year</option>
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+            {fieldErrors.academicYear ? (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.academicYear}</p>
+            ) : null}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--foreground)]">MOU document</label>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,application/pdf"
+              onChange={(e) => setMouFile(e.target.files?.[0] ?? null)}
+              className="mt-2 block w-full text-sm text-[var(--foreground-muted)]"
+            />
+            {mouFile ? <p className="mt-1 text-xs text-[var(--foreground-muted)]">{mouFile.name}</p> : null}
+          </div>
+        </div>
+      </section>
+
       <div>
         <span className="block text-sm font-medium text-[var(--foreground)]">Assigned universities</span>
         <p className="mt-1 text-xs text-[var(--foreground-muted)]">

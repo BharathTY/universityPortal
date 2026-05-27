@@ -83,7 +83,7 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
   if (!attributionRoles.length) {
     return (
       <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">
-        <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-[var(--foreground)]">
+        <p className="alert-notice">
           Role directory is missing admission partner roles. Run the database seed (
           <code className="rounded bg-[var(--muted)] px-1">npm run db:seed</code>).
         </p>
@@ -97,7 +97,7 @@ export function CreateLeadForm({ universityId, years, streams, attributionRoles 
   if (!years.length || !streams.length) {
     return (
       <div className="mx-auto max-w-lg px-4 py-10 sm:px-6">
-        <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-[var(--foreground)]">
+        <p className="alert-notice">
           Add at least one academic year and one degree (program) for this university from the{" "}
           <Link className="font-medium underline" href={masterIntake}>
             Master portal — Universities

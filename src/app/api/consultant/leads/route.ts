@@ -1,11 +1,14 @@
 import { AdmissionLeadStatus, LeadPipelineStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { SessionPayload } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdmissionLeadRoleSlug } from "@/lib/admission-lead-role";
 import { resolveAcademicYearIdForLead } from "@/lib/consultant-default-year";
 import { consultantCodeFromUserId } from "@/lib/consultant-code";
 import { requireConsultantUniversity } from "@/lib/consultant-api";
+import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
+import { leadOrderBy, leadTextSearchWhere, parsePage, parsePageSize } from "@/lib/list-query";
 import { canSeeAdmissionLeadAssignedPartnerName } from "@/lib/roles";
 import { sendAdmissionLeadWelcomeEmail } from "@/lib/email";
 
@@ -33,35 +36,63 @@ const createSchema = z.object({
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
+  const scopeAll = url.searchParams.get("scope") === "all";
   const scoped = url.searchParams.get("universityId")?.trim() || null;
-  const gate = await requireConsultantUniversity(scoped);
-  if (!gate.ok) return gate.response;
-  const { session, universityId } = gate;
   const pipelineRaw = url.searchParams.get("pipeline");
   const pipeline =
     pipelineRaw === "NEW" || pipelineRaw === "LOST" || pipelineRaw === "CONVERTED"
       ? (pipelineRaw as LeadPipelineStatus)
       : null;
-  const page = Math.max(1, Number(url.searchParams.get("page") ?? "1") || 1);
-  const pageSize = Math.min(100, Math.max(5, Number(url.searchParams.get("pageSize") ?? "20") || 20));
+  const page = parsePage(url.searchParams.get("page") ?? undefined);
+  const pageSize = parsePageSize(url.searchParams.get("pageSize") ?? undefined, 20, 100);
+  const q = url.searchParams.get("q")?.trim() || undefined;
+  const sort = url.searchParams.get("sort")?.trim() || "latest";
 
-  const where = {
-    universityId,
-    createdByUserId: session.sub,
-    ...(pipeline ? { pipelineStatus: pipeline } : {}),
+  let session: SessionPayload;
+  let baseWhere: {
+    createdByUserId: string;
+    universityId?: string | { in: string[] };
+    pipelineStatus?: LeadPipelineStatus;
   };
+
+  if (scopeAll) {
+    const gate = await requireConsultantUniversity(null);
+    if (!gate.ok) return gate.response;
+    session = gate.session;
+    const allowed = await getAllowedConsultantUniversityIds(session.sub);
+    if (allowed.length === 0) {
+      return NextResponse.json({ leads: [], total: 0, page, pageSize, totalPages: 1 });
+    }
+    baseWhere = {
+      createdByUserId: session.sub,
+      universityId: { in: allowed },
+      ...(pipeline ? { pipelineStatus: pipeline } : {}),
+    };
+  } else {
+    const gate = await requireConsultantUniversity(scoped);
+    if (!gate.ok) return gate.response;
+    session = gate.session;
+    baseWhere = {
+      universityId: gate.universityId,
+      createdByUserId: session.sub,
+      ...(pipeline ? { pipelineStatus: pipeline } : {}),
+    };
+  }
+
+  const textWhere = leadTextSearchWhere(q);
+  const where = textWhere ? { AND: [baseWhere, textWhere] } : baseWhere;
 
   const [total, leads] = await Promise.all([
     prisma.admissionLead.count({ where }),
     prisma.admissionLead.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: leadOrderBy(sort),
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
         academicYear: { select: { label: true } },
         stream: { select: { name: true } },
-        university: { select: { name: true, code: true } },
+        university: { select: { name: true, code: true, registrationFee: true } },
       },
     }),
   ]);
@@ -189,7 +220,7 @@ export async function POST(req: Request) {
       mobile: parsed.data.mobile,
       consultantCode: consultantCodeFromUserId(session.sub),
       consultantRoleId: consultantRole.roleId,
-      admissionStatus: AdmissionLeadStatus.NEW,
+      admissionStatus: AdmissionLeadStatus.NEW_LEAD,
       pipelineStatus: LeadPipelineStatus.NEW,
       nationality: parsed.data.nationality ?? null,
       admissionState: parsed.data.admissionState,

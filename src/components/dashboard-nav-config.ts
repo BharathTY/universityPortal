@@ -1,6 +1,8 @@
 import {
+  canManageSpocs,
   isConsultantOnly,
-  isCounsellorOnly,
+  isConsultantPrincipal,
+  isConsultantSpoc,
   isMaster,
   isStudent,
   isUniversity,
@@ -15,7 +17,8 @@ export type NavIconName =
   | "home"
   | "calendar"
   | "layers"
-  | "userPlus";
+  | "userPlus"
+  | "creditCard";
 
 export type NavItem = { href: string; label: string; icon: NavIconName };
 
@@ -25,16 +28,18 @@ export type BuildDashboardNavOptions = {
   universityId?: string | null;
 };
 
-/** Build sidebar navigation from JWT roles (OTP login). */
+/** PRD §2–§7 sidebar navigation by role. */
 export function buildDashboardNav(roles: string[], options?: BuildDashboardNavOptions): NavGroup[] {
   const universityId = options?.universityId ?? null;
+
   if (isStudent(roles) && !isMaster(roles)) {
     return [
       {
-        title: "Dashboard",
+        title: "Student Portal",
         items: [
-          { href: "/dashboard", label: "Overview", icon: "home" },
-          { href: "/dashboard/student/application", label: "Application", icon: "file" },
+          { href: "/dashboard/student/application", label: "My Application", icon: "file" },
+          { href: "/dashboard/student/fees", label: "Fees & Payment", icon: "creditCard" },
+          { href: "/dashboard/student/profile", label: "Profile", icon: "users" },
         ],
       },
     ];
@@ -43,42 +48,48 @@ export function buildDashboardNav(roles: string[], options?: BuildDashboardNavOp
   if (isMaster(roles)) {
     return [
       {
-        title: "Master admin",
+        title: "Master Admin",
         items: [
-          { href: "/dashboard", label: "Dashboard", icon: "home" },
+          { href: "/dashboard/master", label: "Dashboard", icon: "home" },
           { href: "/dashboard/master/universities", label: "Universities", icon: "building" },
           { href: "/dashboard/master/consultants", label: "Consultants", icon: "users" },
-          { href: "/dashboard/master/leads", label: "Consultant leads", icon: "layers" },
+          { href: "/dashboard/master/leads", label: "Student Leads", icon: "layers" },
           { href: "/dashboard/master/applications", label: "Applications", icon: "file" },
         ],
       },
     ];
   }
 
-  if (isConsultantOnly(roles)) {
-    const work: NavGroup = {
-      title: "Work",
-      items: [{ href: "/dashboard/university", label: "Universities", icon: "building" }],
-    };
-    if (isCounsellorOnly(roles)) {
-      return [work];
-    }
+  if (isConsultantSpoc(roles)) {
     return [
-      work,
       {
-        title: "Users",
-        items: [{ href: "/dashboard/consultant/students", label: "Manage users", icon: "users" }],
+        title: "Consultant SPOC",
+        items: [
+          { href: "/dashboard/spoc", label: "Dashboard", icon: "home" },
+          { href: "/dashboard/consultant/leads", label: "Student Leads", icon: "layers" },
+          { href: "/dashboard/consultant/assigned-universities", label: "Assigned Universities", icon: "building" },
+        ],
       },
     ];
   }
 
-  const groups: NavGroup[] = [];
+  if (isConsultantPrincipal(roles) && isConsultantOnly(roles)) {
+    const items: NavItem[] = [
+      { href: "/dashboard/consultant-home", label: "Dashboard", icon: "home" },
+      { href: "/dashboard/consultant/leads", label: "Student Leads", icon: "layers" },
+      { href: "/dashboard/consultant/assigned-universities", label: "Assigned Universities", icon: "building" },
+      { href: "/dashboard/consultant/invoices?status=pending", label: "Pending Payments", icon: "creditCard" },
+    ];
+    if (canManageSpocs(roles)) {
+      items.push({ href: "/dashboard/consultant/spocs", label: "Consultant SPOCs", icon: "userPlus" });
+    }
+    return [{ title: "Consultant", items }];
+  }
 
   if (isUniversity(roles) && !isMaster(roles)) {
-    groups.push({
-      title: "Home",
-      items: [{ href: "/dashboard", label: "Dashboard", icon: "home" }],
-    });
+    const groups: NavGroup[] = [
+      { title: "Home", items: [{ href: "/dashboard", label: "Dashboard", icon: "home" }] },
+    ];
     if (universityId) {
       groups.push({
         title: "Admissions",
@@ -94,63 +105,59 @@ export function buildDashboardNav(roles: string[], options?: BuildDashboardNavOp
     return groups;
   }
 
-  if (groups.length === 0) {
-    groups.push({
-      title: "Home",
-      items: [{ href: "/dashboard", label: "Dashboard", icon: "home" }],
-    });
-  }
-
-  return groups;
+  return [{ title: "Home", items: [{ href: "/dashboard", label: "Dashboard", icon: "home" }] }];
 }
 
 export function isNavActive(pathname: string, href: string): boolean {
   const pathNorm = pathname.replace(/\/$/, "") || "/";
   const hrefNorm = href.replace(/\/$/, "") || "/";
+  const hrefBase = hrefNorm.split("?")[0]!;
 
-  if (hrefNorm === "/dashboard/batches") {
-    return pathNorm === "/dashboard/batches" || pathNorm.startsWith("/dashboard/batches/");
+  if (hrefBase === "/dashboard/master") {
+    return pathNorm === "/dashboard/master";
   }
-  if (hrefNorm === "/dashboard/university") {
-    return pathNorm === "/dashboard/university" || pathNorm.startsWith("/dashboard/university/");
+  if (hrefBase === "/dashboard/consultant-home") {
+    return pathNorm === "/dashboard/consultant-home";
   }
-  /** Admissions home: match only .../admissions, not .../admissions/academic-years etc. */
-  if (/\/dashboard\/university\/[^/]+\/admissions$/.test(hrefNorm)) {
-    return pathNorm === hrefNorm;
+  if (hrefBase === "/dashboard/spoc") {
+    return pathNorm === "/dashboard/spoc";
   }
-  /** Uni-Admission list: match only .../uni-admissions */
-  if (/\/dashboard\/university\/[^/]+\/uni-admissions$/.test(hrefNorm)) {
-    return pathNorm === hrefNorm;
+  if (hrefBase === "/dashboard/master/universities") {
+    return pathNorm === hrefBase || pathNorm.startsWith(`${hrefBase}/`);
   }
-  if (/\/dashboard\/university\/[^/]+\/applications$/.test(hrefNorm)) {
-    return pathNorm === hrefNorm;
+  if (hrefBase === "/dashboard/master/consultants") {
+    return pathNorm === hrefBase || pathNorm.startsWith(`${hrefBase}/`);
   }
-  if (hrefNorm === "/dashboard/master/universities") {
-    return pathNorm === "/dashboard/master/universities" || pathNorm.startsWith("/dashboard/master/universities/");
+  if (hrefBase === "/dashboard/master/leads") {
+    return pathNorm === hrefBase;
   }
-  if (hrefNorm === "/dashboard/master/consultants") {
-    return pathNorm === "/dashboard/master/consultants" || pathNorm.startsWith("/dashboard/master/consultants/");
+  if (hrefBase === "/dashboard/consultant/leads") {
+    return pathNorm === hrefBase || pathNorm.startsWith(`${hrefBase}/`);
   }
-  if (hrefNorm === "/dashboard/master/applications") {
-    return pathNorm === "/dashboard/master/applications";
+  /** Admissions home: match only .../admissions, not nested paths. */
+  if (/\/dashboard\/university\/[^/]+\/admissions$/.test(hrefBase)) {
+    return pathNorm === hrefBase;
   }
-  if (hrefNorm === "/dashboard/master/leads") {
-    return pathNorm === "/dashboard/master/leads";
+  if (hrefBase === "/dashboard/consultant/assigned-universities") {
+    return pathNorm === hrefBase;
   }
-  if (hrefNorm === "/dashboard/consultant") {
-    return pathNorm === "/dashboard/consultant" || pathNorm.startsWith("/dashboard/consultant/");
+  if (hrefBase === "/dashboard/consultant/spocs") {
+    return pathNorm === hrefBase;
   }
-  if (hrefNorm === "/dashboard/master") {
-    return pathNorm === "/dashboard/master" || pathNorm.startsWith("/dashboard/master/");
+  if (hrefBase === "/dashboard/consultant/invoices") {
+    return pathNorm === hrefBase;
   }
-  if (hrefNorm === "/dashboard/student") {
-    return pathNorm === "/dashboard/student";
+  if (hrefBase === "/dashboard/student/application") {
+    return pathNorm === hrefBase || pathNorm.startsWith(`${hrefBase}/`);
   }
-  if (hrefNorm === "/dashboard/student/application") {
-    return pathNorm === "/dashboard/student/application" || pathNorm.startsWith("/dashboard/student/application/");
+  if (hrefBase === "/dashboard/student/fees") {
+    return pathNorm === hrefBase;
+  }
+  if (hrefBase === "/dashboard/student/profile") {
+    return pathNorm === hrefBase;
   }
   if (hrefNorm === "/dashboard") {
     return pathNorm === "/dashboard";
   }
-  return pathNorm === hrefNorm || pathNorm.startsWith(`${hrefNorm}/`);
+  return pathNorm === hrefBase || pathNorm.startsWith(`${hrefBase}/`);
 }

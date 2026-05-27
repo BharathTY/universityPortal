@@ -323,6 +323,54 @@ University Portal`;
   await transporter.sendMail({ from, to: params.to, subject, text, html });
 }
 
+export async function sendPasswordResetEmail(params: {
+  to: string;
+  name: string;
+  resetUrl: string;
+}): Promise<void> {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = resolveEmailFrom();
+  const recipientName = params.name.trim() || params.to;
+
+  const subject = "Reset your password";
+  const text = `Hello ${recipientName},
+
+We received a request to reset your password for Eduversity.
+
+Open this link to choose a new password (valid for 1 hour):
+${params.resetUrl}
+
+If you did not request this, you can ignore this email.
+
+Thanks,
+Team Eduversity`;
+
+  const html = `<p>Hello <strong>${escapeHtml(recipientName)}</strong>,</p>
+<p>We received a request to reset your password for <strong>Eduversity</strong>.</p>
+<p><a href="${escapeHtml(params.resetUrl)}">Reset your password</a></p>
+<p>This link is valid for 1 hour. If you did not request this, you can ignore this email.</p>
+<p>Thanks,<br/>Team Eduversity</p>`;
+
+  if (!host || !user || !pass) {
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[Password reset dev] To: ${params.to}\n${text}`);
+    }
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  await transporter.sendMail({ from, to: params.to, subject, text, html });
+}
+
 export async function sendCounsellorPortalInviteEmail(params: {
   to: string;
   name: string;

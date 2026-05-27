@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
+import { ListQueryToolbar, SORT_LEADS } from "@/components/list-controls";
 import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
 
 type Stream = { id: string; name: string };
@@ -103,9 +104,17 @@ export function ConsultantLeadsClient(props: Props) {
   const setActive = props.setActiveUniversityOnMount ?? false;
   const academicYears = React.useMemo(() => props.academicYears ?? [], [props.academicYears]);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const q = searchParams.get("q") ?? "";
+  const sort = searchParams.get("sort") ?? "latest";
+  const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
+  const pageSize = Math.min(100, Math.max(5, Number(searchParams.get("pageSize") ?? "20") || 20));
 
   const [loading, setLoading] = React.useState(props.layoutMode !== "addOnly");
   const [rows, setRows] = React.useState<LeadRow[]>([]);
+  const [total, setTotal] = React.useState(0);
+  const [totalPages, setTotalPages] = React.useState(1);
   const [error, setError] = React.useState<string | null>(null);
 
   const [fn, setFn] = React.useState("");
@@ -130,18 +139,31 @@ export function ConsultantLeadsClient(props: Props) {
     setLoading(true);
     setError(null);
     try {
-      const qs = new URLSearchParams({ universityId: props.universityId });
+      const qs = new URLSearchParams({
+        universityId: props.universityId,
+        page: String(page),
+        pageSize: String(pageSize),
+      });
+      if (q) qs.set("q", q);
+      if (sort && sort !== "latest") qs.set("sort", sort);
       const res = await fetch(`/api/consultant/leads?${qs.toString()}`);
-      const data = (await res.json().catch(() => ({}))) as { error?: string; leads?: LeadRow[] };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        leads?: LeadRow[];
+        total?: number;
+        totalPages?: number;
+      };
       if (!res.ok) {
         setError(data.error ?? "Could not load leads");
         return;
       }
       setRows(data.leads ?? []);
+      setTotal(data.total ?? 0);
+      setTotalPages(data.totalPages ?? 1);
     } finally {
       setLoading(false);
     }
-  }, [props.universityId]);
+  }, [props.universityId, page, pageSize, q, sort]);
 
   React.useEffect(() => {
     if (props.layoutMode === "addOnly") return;
@@ -560,6 +582,19 @@ export function ConsultantLeadsClient(props: Props) {
       {!isAddOnly ? (
       <section className="mt-10">
         <h2 className="text-lg font-semibold text-[var(--foreground)]">Your leads</h2>
+        <ListQueryToolbar
+          className="mt-4"
+          total={total}
+          page={page}
+          pageSize={pageSize}
+          totalPages={totalPages}
+          q={q}
+          sort={sort}
+          sortOptions={SORT_LEADS}
+          searchPlaceholder="Name, email, or mobile"
+          loading={loading}
+          itemLabel="lead"
+        />
         {loading ? (
           <p className="mt-4 text-sm text-[var(--foreground-muted)]">Loading…</p>
         ) : (
@@ -582,7 +617,14 @@ export function ConsultantLeadsClient(props: Props) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={showAssignedPartnerCol ? 11 : 10} className="px-3 py-8 text-center text-[var(--foreground-muted)]">
+                      No leads match your search.
+                    </td>
+                  </tr>
+                ) : (
+                rows.map((r) => (
                   <tr key={r.id} className="border-b border-[var(--border)] last:border-0">
                     <td className="px-3 py-2">{r.firstName}</td>
                     <td className="px-3 py-2">{r.lastName}</td>
@@ -605,7 +647,8 @@ export function ConsultantLeadsClient(props: Props) {
                     ) : null}
                     <td className="px-3 py-2">{r.pipelineStatus}</td>
                   </tr>
-                ))}
+                ))
+                )}
               </tbody>
             </table>
           </div>

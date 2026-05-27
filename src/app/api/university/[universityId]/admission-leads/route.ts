@@ -151,7 +151,7 @@ export async function POST(req: Request, ctx: RouteContext) {
       mobile: parsed.data.mobile,
       consultantCode: guideStored,
       consultantRoleId: roleRow.id,
-      admissionStatus: AdmissionLeadStatus.NEW,
+      admissionStatus: AdmissionLeadStatus.NEW_LEAD,
       pipelineStatus: LeadPipelineStatus.NEW,
       nationality: parsed.data.nationality ?? null,
       specialization: parsed.data.specialization,

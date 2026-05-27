@@ -1,19 +1,28 @@
 @import "tailwindcss";
 
+/* ZupFly-aligned palette: navy slate + crimson primary + gold accent */
 :root {
-  --background: #faf5ff;
-  --foreground: #1e1b4b;
+  --background: #f8fafc;
+  --foreground: #0f172a;
   --foreground-muted: #64748b;
-  --primary: #7c3aed;
-  --primary-foreground: #faf5ff;
-  --muted: #ede9fe;
-  --border: #e9d5ff;
-  --card: rgba(255, 255, 255, 0.85);
-  --glass-border: rgba(124, 58, 237, 0.25);
-  --sidebar-bg: #f8fafc;
-  --sidebar-active: #2563eb;
-  --accent-blue: #2563eb;
-  --accent-blue-hover: #1d4ed8;
+  --primary: #c0392b;
+  --primary-hover: #a93225;
+  --primary-active: #8e281d;
+  --primary-foreground: #ffffff;
+  --accent: #f5a623;
+  --accent-hover: #e0941f;
+  --accent-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --border: #e2e8f0;
+  --card: #ffffff;
+  --glass-border: rgba(192, 57, 43, 0.2);
+  --sidebar-bg: #ffffff;
+  --sidebar-active: #c0392b;
+  --navy-800: #1e293b;
+  --navy-900: #0f172a;
+  /* Legacy aliases — map old blue tokens to ZupFly primary */
+  --accent-blue: #c0392b;
+  --accent-blue-hover: #a93225;
   --accent-teal: #0f766e;
 }
 
@@ -21,27 +30,189 @@
   --background: #0f172a;
   --foreground: #f1f5f9;
   --foreground-muted: #94a3b8;
-  --primary: #a78bfa;
-  --primary-foreground: #1e1b4b;
+  --primary: #e74c3c;
+  --primary-hover: #c0392b;
+  --primary-active: #a93225;
+  --primary-foreground: #ffffff;
+  --accent: #f5a623;
+  --accent-hover: #fbbf24;
+  --accent-foreground: #0f172a;
   --muted: #1e293b;
   --border: #334155;
-  --card: rgba(30, 41, 59, 0.92);
-  --glass-border: rgba(167, 139, 250, 0.2);
-  --sidebar-bg: #0c1222;
-  --sidebar-active: #3b82f6;
-  --accent-blue: #3b82f6;
-  --accent-blue-hover: #2563eb;
+  --card: #1e293b;
+  --glass-border: rgba(231, 76, 60, 0.25);
+  --sidebar-bg: #0f172a;
+  --sidebar-active: #c0392b;
+  --accent-blue: #e74c3c;
+  --accent-blue-hover: #c0392b;
   --accent-teal: #2dd4bf;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+}
+
+/* Auth forms (login, forgot/reset password) */
+.auth-floating-label {
+  pointer-events: none;
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  transform-origin: left;
+  color: var(--primary);
+  transition: all 0.2s;
+}
+
+.auth-input {
+  display: block;
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 2px solid #e2e8f0;
+  background: #ffffff;
+  padding: 1.25rem 0.75rem 0.625rem;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.auth-input:hover {
+  border-color: #cbd5e1;
+}
+
+.auth-input:focus {
+  border-color: var(--primary);
+}
+
+.auth-input:focus ~ .auth-floating-label,
+.auth-input:not(:placeholder-shown) ~ .auth-floating-label {
+  top: 0.5rem;
+  transform: translateY(0);
+  font-size: 0.75rem;
+}
+
+.auth-btn-primary {
+  width: 100%;
+  border-radius: 0.5rem;
+  background: var(--primary);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  box-shadow: 0 4px 6px -1px rgb(192 57 43 / 0.25);
+  transition: background 0.2s;
+}
+
+.auth-btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.auth-btn-primary:disabled {
+  opacity: 0.6;
+}
+
+.auth-link {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--primary);
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}
+
+.auth-checkbox {
+  height: 1rem;
+  width: 1rem;
+  border-radius: 0.25rem;
+  border-color: #cbd5e1;
+  color: var(--primary);
+}
+
+.auth-checkbox:focus {
+  --tw-ring-color: var(--primary);
+}
+
+/* Dashboard CTA buttons */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background: var(--primary);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--primary-foreground);
+  box-shadow: 0 1px 3px rgb(192 57 43 / 0.2);
+  transition: background 0.2s;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background: var(--accent);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent-foreground);
+  transition: background 0.2s;
+}
+
+.btn-accent:hover {
+  background: var(--accent-hover);
+}
+
+/* Brand logo — solid crimson (avoids orange read at small sizes) */
+.brand-logo-gradient {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+}
+
+/* Notice banners & status badges (gold accent) */
+.alert-notice {
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: var(--foreground);
+}
+
+.badge-pending {
+  display: inline-flex;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--accent-foreground);
+}
+
+.dark .badge-pending {
+  color: var(--accent);
 }

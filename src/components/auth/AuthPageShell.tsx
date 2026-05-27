@@ -29,7 +29,7 @@ export function AuthPageShell({
         className={`order-1 flex min-h-0 flex-col px-6 pb-10 pt-8 sm:px-10 sm:pt-10 lg:min-h-screen lg:px-14 lg:pb-12 ${formColumnClassName}`.trim()}
       >
         <div>
-          <p className="text-2xl font-bold tracking-tight text-[#2563eb]">Eduversity</p>
+          <p className="font-heading text-2xl font-bold tracking-tight text-[var(--primary)]">Eduversity</p>
         </div>
 
         <div className="flex flex-1 flex-col justify-center py-10 lg:py-12">

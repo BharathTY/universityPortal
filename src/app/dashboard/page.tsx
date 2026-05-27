@@ -5,6 +5,7 @@ import { getDashboardSnapshot } from "@/lib/dashboard-data";
 import { PortalWorkflowMap } from "@/components/portal-workflow-map";
 import {
   canAccessLeadsAndBatches,
+  defaultDashboardPath,
   isConsultantOnly,
   isMaster,
   isStudent,
@@ -17,7 +18,13 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const session = await requireAuth();
   if (isConsultantOnly(session.roles)) {
-    redirect("/dashboard/university");
+    redirect(defaultDashboardPath(session.roles));
+  }
+  if (isMaster(session.roles)) {
+    redirect("/dashboard/master");
+  }
+  if (isStudent(session.roles)) {
+    redirect("/dashboard/student/application");
   }
   const data = await getDashboardSnapshot(session);
 
@@ -25,7 +32,7 @@ export default async function DashboardPage() {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
         <h1 className="text-3xl font-semibold text-[var(--foreground)]">Dashboard</h1>
-        <p className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-[var(--foreground)]">
+        <p className="mt-4 alert-notice">
           {data.setupMessage}
         </p>
       </div>
@@ -275,7 +282,7 @@ export default async function DashboardPage() {
                         <td className="px-4 py-3 text-[var(--foreground-muted)]">{row.email}</td>
                         <td className="px-4 py-3">
                           {row.pendingInvite ? (
-                            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200">
+                            <span className="badge-pending">
                               Pending
                             </span>
                           ) : (

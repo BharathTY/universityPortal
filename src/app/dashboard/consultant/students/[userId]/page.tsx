@@ -58,7 +58,7 @@ export default async function ManagedStudentViewPage(props: PageProps) {
           <dt className="text-sm font-medium text-[var(--foreground-muted)]">Invitation</dt>
           <dd className="sm:col-span-2">
             {user.inviteToken ? (
-              <span className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200">
+              <span className="badge-pending">
                 Pending
               </span>
             ) : (

@@ -18,7 +18,7 @@ export default async function ApplicationsPage() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
         <h1 className="text-2xl font-bold text-[var(--foreground)]">Applications</h1>
-        <p className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-[var(--foreground)]">
+        <p className="mt-4 alert-notice">
           {setupMessage}
         </p>
       </div>

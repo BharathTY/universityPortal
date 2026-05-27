@@ -12,6 +12,17 @@ enum UniversityStatus {
   INACTIVE
 }
 
+enum MasterUniversityType {
+  PRIVATE
+  DEEMED
+  STATE_GOVT
+}
+
+enum ProgramLevel {
+  UG
+  PG
+}
+
 enum HostelGender {
   BOYS
   GIRLS
@@ -22,55 +33,12 @@ enum HostelRoomType {
   NON_AC
 }
 
-model University {
-  id        String   @id @default(cuid())
-  name      String
-  code      String   @unique
-  email     String?  @unique
-  phone     String?
-  /// City / region / address note for Master "Details" and reference.
-  location  String?
-  /// Public URL for logo (shown on student overview, etc.)
-  logoUrl   String?
-  /// Default registration / application fee amount (major currency units, e.g. INR).
-  applicationFee Decimal? @db.Decimal(12, 2)
-  status    UniversityStatus @default(ACTIVE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  users         User[]
-  applications Application[]
-  academicYears AcademicYear[]
-  streams       Stream[]
-  admissionLeads AdmissionLead[]
-  consultantAssignments ConsultantUniversity[]
-  hostelFees    UniversityHostelFee[]
-}
-
-/// Per-university hostel annual fee: girls/boys × AC/non-AC.
-model UniversityHostelFee {
-  id           String         @id @default(cuid())
-  universityId String
-  university   University     @relation(fields: [universityId], references: [id], onDelete: Cascade)
-  gender       HostelGender
-  roomType     HostelRoomType
-  amount       Decimal?       @db.Decimal(12, 2)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-
-  @@unique([universityId, gender, roomType])
-  @@index([universityId])
-}
-
-/// Many-to-many: a consultant user may work with multiple universities.
-model ConsultantUniversity {
-  userId       String
-  universityId String
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
-  createdAt    DateTime   @default(now())
-
-  @@id([userId, universityId])
-  @@index([universityId])
+enum HostelSharing {
+  SINGLE
+  DOUBLE
+  TRIPLE
+  TWO_SHARING
+  FOUR_SHARING
 }
 
 enum UserAccountStatus {
@@ -78,50 +46,23 @@ enum UserAccountStatus {
   INACTIVE
 }
 
-/// Configurable intake years per university (e.g. 2024, 2025).
-model AcademicYear {
-  id           String   @id @default(cuid())
-  universityId String
-  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
-  label        String
-  sortOrder    Int      @default(0)
-  leads        AdmissionLead[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([universityId, label])
-  @@index([universityId])
-}
-
-/// Program streams (e.g. B.Tech, MBA) per university.
-model Stream {
-  id           String   @id @default(cuid())
-  universityId String
-  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
-  name         String
-  /// Degree level / type label (e.g. Undergraduate, Postgraduate, MBA).
-  degreeType   String?
-  /// Program / stream fee for this program (major currency units).
-  streamFee    Decimal? @db.Decimal(12, 2)
-  sortOrder    Int      @default(0)
-  leads        AdmissionLead[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([universityId, name])
-  @@index([universityId])
-}
-
+/// PRD lead lifecycle statuses (§4.4, §9).
 enum AdmissionLeadStatus {
-  NEW
-  CONTACTED
-  QUALIFIED
-  ADMITTED
-  REJECTED
-  WITHDRAWN
+  NEW_LEAD
+  INTERESTED
+  NOT_INTERESTED
+  CALL_BACK
+  READY_TO_PAY
+  PAYMENT_DONE
+  IN_FUTURE
+  RNR
+  SWITCH_OFF
+  WRONG_NUMBER
+  ENROLLED
+  CAMPUS_VISIT_DONE
+  SENT_TO_CAMPUS
 }
 
-/// Consultant funnel: lost / converted before university admission workflow.
 enum LeadPipelineStatus {
   NEW
   LOST
@@ -142,8 +83,189 @@ enum AdmissionReviewStatus {
   REJECTED
 }
 
-/// Prospective student lead created by university staff; consultantCode maps the referring consultant.
-/// `consultantRole` references `Role` (same catalogue as user roles; typically consultant or counsellor).
+enum PaymentTransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PaymentCollectedBy {
+  STUDENT
+  CONSULTANT
+  SPOC
+}
+
+enum DocumentKind {
+  MOU
+  EVENT_PHOTO
+  STUDENT_PHOTO
+}
+
+/// Master list of 1,386+ Indian universities for onboarding search (§8).
+model MasterUniversity {
+  id             String               @id @default(cuid())
+  externalId     String               @unique
+  name           String
+  shortname      String?
+  state          String
+  stateCode      String?
+  district       String
+  address        String?
+  city           String?
+  pincode        String?
+  website        String?
+  universityType MasterUniversityType @default(PRIVATE)
+  priority       Boolean              @default(false)
+  createdAt      DateTime             @default(now())
+
+  @@index([name])
+  @@index([state])
+  @@index([district])
+}
+
+model University {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  email     String?  @unique
+  phone     String?
+  location  String?
+  address   String?
+  state     String?
+  district  String?
+  city      String?
+  pincode   String?
+  logoUrl   String?
+  /// Linked master record when onboarded via search (§4.2 step 1).
+  masterUniversityId String?
+  /// University type label for consultant directory cards.
+  universityType     MasterUniversityType?
+  /// SPOC at university side.
+  spocName           String?
+  spocDesignation    String?
+  spocMobile         String?
+  spocEmail          String?
+  /// Programs offered flags.
+  offersUg           Boolean              @default(false)
+  offersPg           Boolean              @default(false)
+  ugStreams          String[]             @default([])
+  pgStreams          String[]             @default([])
+  targetStudents     Int?
+  registrationFee    Decimal?             @db.Decimal(12, 2)
+  applicationFee     Decimal?             @db.Decimal(12, 2)
+  messFee            Decimal?             @db.Decimal(12, 2)
+  examFee            Decimal?             @db.Decimal(12, 2)
+  otherAdminCharges  String?
+  otherAdminAmount   Decimal?             @db.Decimal(12, 2)
+  mouFileUrl         String?
+  eventPhotoUrls     String[]             @default([])
+  status    UniversityStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  applications Application[]
+  academicYears AcademicYear[]
+  streams       Stream[]
+  admissionLeads AdmissionLead[]
+  consultantAssignments ConsultantUniversity[]
+  hostelFees    UniversityHostelFee[]
+  cetSeats      UniversityCetSeat[]
+  documents     UniversityDocument[]
+}
+
+model UniversityCetSeat {
+  id           String       @id @default(cuid())
+  universityId String
+  university   University   @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  programLevel ProgramLevel
+  streamName   String
+  seatCount    Int          @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([universityId])
+}
+
+model UniversityDocument {
+  id           String       @id @default(cuid())
+  universityId String
+  university   University   @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  kind         DocumentKind
+  fileName     String
+  fileUrl      String
+  academicYear String?
+  uploadedAt   DateTime     @default(now())
+
+  @@index([universityId])
+}
+
+model UniversityHostelFee {
+  id           String         @id @default(cuid())
+  universityId String
+  university   University     @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  gender       HostelGender
+  roomType     HostelRoomType
+  sharing      HostelSharing  @default(TWO_SHARING)
+  amount       Decimal?       @db.Decimal(12, 2)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([universityId, gender, roomType, sharing])
+  @@index([universityId])
+}
+
+model ConsultantUniversity {
+  userId       String
+  universityId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([userId, universityId])
+  @@index([universityId])
+}
+
+model AcademicYear {
+  id           String   @id @default(cuid())
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  label        String
+  sortOrder    Int      @default(0)
+  leads        AdmissionLead[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([universityId, label])
+  @@index([universityId])
+}
+
+model Stream {
+  id           String   @id @default(cuid())
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  name         String
+  degreeType   String?
+  programLevel ProgramLevel?
+  durationYears Int?
+  intakeMonth  String?
+  streamFee    Decimal? @db.Decimal(12, 2)
+  tuitionYear1 Decimal? @db.Decimal(12, 2)
+  tuitionTotal Decimal? @db.Decimal(12, 2)
+  collegeFee   Decimal? @db.Decimal(12, 2)
+  applicationFee Decimal? @db.Decimal(12, 2)
+  eligibility  String?
+  totalSeats   Int      @default(0)
+  filledSeats  Int      @default(0)
+  sortOrder    Int      @default(0)
+  leads        AdmissionLead[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([universityId, name])
+  @@index([universityId])
+}
+
 model AdmissionLead {
   id               String              @id @default(cuid())
   universityId     String
@@ -159,32 +281,56 @@ model AdmissionLead {
   consultantCode   String
   consultantRoleId String
   consultantRole   Role                @relation(fields: [consultantRoleId], references: [id], onDelete: Restrict)
-  admissionStatus  AdmissionLeadStatus @default(NEW)
+  admissionStatus  AdmissionLeadStatus @default(NEW_LEAD)
   pipelineStatus   LeadPipelineStatus  @default(NEW)
   nationality      String?
   specialization   String?
-  /// Referrer contact (optional section on consultant lead form).
   referralFirstName String?
   referralLastName  String?
   referralPhone     String?
   referralEmail     String?
-  /// e.g. state where student seeks admission (replaces academic year in consultant UI).
   admissionState    String?
-  /// Set for Qspiders branch leads; denormalized from creator at insert.
   branchName        String?
+  /// Extended PRD §5.4 fields
+  gender            String?
+  dateOfBirth       DateTime?
+  whatsappNumber    String?
+  programInterest   ProgramLevel?
+  address           String?
+  district          String?
+  state             String?
+  pincode           String?
+  familyIncome      Decimal?            @db.Decimal(14, 2)
+  fatherName        String?
+  fatherMobile      String?
+  motherName        String?
+  motherMobile      String?
+  photoUrl          String?
+  aadhaarAvailable  Boolean?
+  panAvailable      Boolean?
+  certificationDone Boolean?
+  sslcBoard         String?
+  sslcYear          Int?
+  sslcPercent       Decimal?            @db.Decimal(5, 2)
+  pucBoard          String?
+  pucYear           Int?
+  pucPercent        Decimal?            @db.Decimal(5, 2)
+  degreeName        String?
+  degreeStream      String?
+  degreeCollege     String?
+  degreeUniversity  String?
+  degreePercent     Decimal?            @db.Decimal(5, 2)
   createdByUserId  String?
   createdBy        User?               @relation("LeadCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  /// When set, this lead came from that batch’s Lead Punch / brochure QR flow.
   batchId          String?
   batch            Batch?              @relation(fields: [batchId], references: [id], onDelete: SetNull)
-  /// Snapshot of the assigned admission partner’s display name at lead creation (Lead Punch owner). Not exposed to students.
   assignedPartnerDisplayName String?
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
 
   application Application?
-
   statusHistory AdmissionLeadStatusHistory[]
+  payments      LeadPayment[]
 
   @@index([universityId])
   @@index([academicYearId])
@@ -195,6 +341,24 @@ model AdmissionLead {
   @@index([batchId])
   @@index([email])
   @@index([mobile])
+  @@index([admissionStatus])
+  @@index([createdAt])
+}
+
+model LeadPayment {
+  id              String                   @id @default(cuid())
+  leadId          String
+  lead            AdmissionLead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  amount          Decimal                  @db.Decimal(12, 2)
+  status          PaymentTransactionStatus @default(PENDING)
+  transactionRef  String                   @unique @default(cuid())
+  collectedBy     PaymentCollectedBy
+  collectedByUserId String?
+  collectedByUser User?                    @relation(fields: [collectedByUserId], references: [id], onDelete: SetNull)
+  paymentMethod   String?
+  createdAt       DateTime                 @default(now())
+
+  @@index([leadId])
 }
 
 model AdmissionLeadStatusHistory {
@@ -216,15 +380,22 @@ model User {
   email     String     @unique
   name      String?
   phone     String?
-  /// Optional second contact number (student-entered on application).
   phoneAlternate String?
-  /// Reserved for future password-based flows; sign-in is OTP-only.
   passwordHash String?
   accountStatus UserAccountStatus @default(ACTIVE)
+  /// Consultant profile (§4.3)
+  companyName   String?
+  designation   String?
+  gstNumber     String?
+  panNumber     String?
+  address       String?
+  city          String?
+  district      String?
+  state         String?
+  academicYear  String?
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  /// Set when a consultant invites a student; cleared after they accept. Used in /invite/accept
   inviteToken      String?   @unique
   inviteSentAt     DateTime?
   inviteAcceptedAt DateTime?
@@ -232,18 +403,39 @@ model User {
   universityId String?
   university   University? @relation(fields: [universityId], references: [id], onDelete: SetNull)
 
-  /// When role is `student`, optional link to the consultant who manages this student.
   studentOfId String?
   studentOf   User?   @relation("StudentToConsultant", fields: [studentOfId], references: [id], onDelete: SetNull)
   students    User[]  @relation("StudentToConsultant")
 
-  /// Admission partner invited by another consultant (Manage users → Invite counsellors). Null for master-created accounts.
   reportsToConsultantId String?
   reportsToConsultant   User?   @relation("ConsultantInvites", fields: [reportsToConsultantId], references: [id], onDelete: SetNull)
   invitedTeamMembers    User[]  @relation("ConsultantInvites")
 
-  /// Qspiders branch accounts: displayed on leads and in student comms.
   branchName String?
+
+  /// Student profile (§7.3)
+  gender         String?
+  dateOfBirth    DateTime?
+  whatsappNumber String?
+  pincode        String?
+  districtStudent String?
+  stateStudent   String?
+  ieltsScore     String?
+  toeflScore     String?
+  passportNumber String?
+  passportExpiry DateTime?
+  sslcSchool     String?
+  sslcBoard      String?
+  sslcPercent    Decimal?  @db.Decimal(5, 2)
+  pucType        String?
+  pucInstitution String?
+  pucYear        Int?
+  pucPercent     Decimal?  @db.Decimal(5, 2)
+  degreeName     String?
+  degreeStream   String?
+  degreeCollege  String?
+  degreeUniversity String?
+  degreePercent  Decimal?  @db.Decimal(5, 2)
 
   roles         UserRole[]
   batches       Batch[]
@@ -251,10 +443,39 @@ model User {
   leadsCreated  AdmissionLead[] @relation("LeadCreator")
   consultantUniversities ConsultantUniversity[]
   admissionLeadStatusHistory AdmissionLeadStatusHistory[]
+  consultantDocuments ConsultantDocument[]
+  leadPaymentsCollected LeadPayment[]
+  passwordResets PasswordResetToken[]
 
   @@index([universityId])
   @@index([studentOfId])
   @@index([reportsToConsultantId])
+}
+
+model ConsultantDocument {
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind         DocumentKind
+  fileName     String
+  fileUrl      String
+  academicYear String
+  uploadedAt   DateTime     @default(now())
+
+  @@index([userId])
+  @@index([academicYear])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Batch {
@@ -265,7 +486,6 @@ model Batch {
   admissionEndDate DateTime
   ownerId          String?
   owner            User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  /// Unguessable token for brochure / QR “Lead Punch” — public form at `/ref/[leadPunchToken]`.
   leadPunchToken   String?  @unique
   applications     Application[]
   admissionLeads   AdmissionLead[]
@@ -275,7 +495,6 @@ model Batch {
   @@index([ownerId])
 }
 
-/// Student application pipeline (one current stage per row; metrics count by status).
 enum ApplicationStatus {
   APPLICATION_DETAILS_PENDING
   REGISTRATION_FEE_PENDING
@@ -290,7 +509,6 @@ enum ApplicationStatus {
   COMPLETED
 }
 
-/// Student-selected admission route (sets registration fee tier).
 enum ApplicationAdmissionPath {
   NATIONAL_EXAM
   DIRECT_ADMISSION
@@ -298,7 +516,6 @@ enum ApplicationAdmissionPath {
 
 model Application {
   id        String   @id @default(cuid())
-  /// Human-readable id for display (e.g. APP-QSPU1-000001). Internal `id` remains the primary key.
   referenceCode String? @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -316,29 +533,17 @@ model Application {
   lead   AdmissionLead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
 
   status ApplicationStatus @default(APPLICATION_DETAILS_PENDING)
-
   paymentStatus   ApplicationPaymentStatus @default(NONE)
   admissionReview AdmissionReviewStatus @default(PENDING)
-
-  /// National-entrance vs direct-application path; required before standard registration checkout.
   admissionPath ApplicationAdmissionPath?
 
-  /// Admission visit date as entered (DD/MM/YYYY), with slot and address (see `admissionVisitAt` derived).
   admissionVisitDateText  String?
   admissionVisitTimeSlot  String?
   admissionVisitAddress   String?
-
-  /// Scheduled admission counselling / office visit (student-selected).
   admissionVisitAt DateTime?
-  /// Scheduled campus tour (legacy); new flow uses a single `admissionVisitAt` only.
   campusTourAt     DateTime?
-
-  /// Student's current / boarding address (visit step).
   boardingAddress    String?
-  /// Headcount for the scheduled visit.
   visitVisitorCount  Int?
-
-  /// Last Razorpay order id created for this application (used to validate payment web callback).
   lastRazorpayOrderId String?
 
   @@index([userId])

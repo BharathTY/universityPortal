@@ -3,9 +3,11 @@ import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import {
   canAccessLeadsAndBatches,
+  canManageSpocs,
   isConsultant,
   isConsultantOnly,
-  isCounsellorOnly,
+  isConsultantPrincipal,
+  isConsultantSpoc,
   isMaster,
   isStudent,
   isUniversity,
@@ -40,6 +42,27 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
+    if (path.startsWith("/dashboard/consultant-home") && !isConsultantPrincipal(roles)) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
+    if (path.startsWith("/dashboard/spoc") && !isConsultantSpoc(roles)) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
+    if (path.startsWith("/dashboard/consultant/spocs") && !canManageSpocs(roles)) {
+      return NextResponse.redirect(new URL("/dashboard/consultant-home", request.url));
+    }
+
+    if (
+      path.startsWith("/dashboard/consultant") &&
+      !path.startsWith("/dashboard/consultant-home") &&
+      consultantOnly &&
+      !consultant
+    ) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
     if (path.startsWith("/dashboard/university")) {
       const uniStaff = university || (consultant && !isStudent(roles));
       if (!master && !uniStaff) {
@@ -62,19 +85,14 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
-    const leadsPath =
-      path.startsWith("/dashboard/batches") || nonBatchLeadsPath;
+    const leadsPath = path.startsWith("/dashboard/batches") || nonBatchLeadsPath;
 
     if (leadsPath && !leadsOk) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
-    if (path.startsWith("/dashboard/consultant") && !leadsOk && !master && !university) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
-    }
-
-    if (path.startsWith("/dashboard/consultant/students") && isCounsellorOnly(roles)) {
-      return NextResponse.redirect(new URL("/dashboard/university", request.url));
+    if (path.startsWith("/dashboard/consultant/students") && isConsultantSpoc(roles)) {
+      return NextResponse.redirect(new URL("/dashboard/spoc", request.url));
     }
 
     if (path.startsWith("/dashboard/counsellor") && !consultant && !master && !university) {

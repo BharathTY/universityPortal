@@ -1,12 +1,26 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { Prisma } from "@prisma/client";
+import { ListQueryToolbar, SORT_USERS } from "@/components/list-controls";
 import { requireAuth } from "@/lib/auth";
 import { ADMISSION_PARTNER_ROLE_SLUGS } from "@/lib/admission-partner-slugs";
+import {
+  paginationMeta,
+  parsePage,
+  parsePageSize,
+  searchParamOne,
+  userOrderBy,
+  userTextSearchWhere,
+} from "@/lib/list-query";
 import { prisma } from "@/lib/prisma";
 import { isMaster } from "@/lib/roles";
 import { ConsultantRowActions } from "@/app/dashboard/master/consultants/consultant-row-actions";
 
 export const dynamic = "force-dynamic";
+
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -16,25 +30,42 @@ function formatDate(d: Date) {
   }).format(d);
 }
 
-export default async function MasterConsultantsListPage() {
+export default async function MasterConsultantsListPage(props: PageProps) {
   const session = await requireAuth();
   if (!isMaster(session.roles)) {
     redirect("/dashboard");
   }
 
-  const consultants = await prisma.user.findMany({
-    where: {
-      roles: { some: { role: { slug: { in: [...ADMISSION_PARTNER_ROLE_SLUGS] } } } },
-    },
-    orderBy: { createdAt: "desc" },
-    include: {
-      university: { select: { id: true, name: true, code: true } },
-      consultantUniversities: {
-        include: { university: { select: { id: true, name: true, code: true } } },
+  const sp = await props.searchParams;
+  const q = searchParamOne(sp, "q");
+  const sort = searchParamOne(sp, "sort") ?? "latest";
+  const page = parsePage(searchParamOne(sp, "page"));
+  const pageSize = parsePageSize(searchParamOne(sp, "pageSize"), 25);
+
+  const baseWhere: Prisma.UserWhereInput = {
+    roles: { some: { role: { slug: { in: [...ADMISSION_PARTNER_ROLE_SLUGS] } } } },
+  };
+  const textWhere = userTextSearchWhere(q);
+  const where: Prisma.UserWhereInput = textWhere ? { AND: [baseWhere, textWhere] } : baseWhere;
+
+  const [total, consultants] = await Promise.all([
+    prisma.user.count({ where }),
+    prisma.user.findMany({
+      where,
+      orderBy: userOrderBy(sort),
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        university: { select: { id: true, name: true, code: true } },
+        consultantUniversities: {
+          include: { university: { select: { id: true, name: true, code: true } } },
+        },
+        roles: { include: { role: true } },
       },
-      roles: { include: { role: true } },
-    },
-  });
+    }),
+  ]);
+
+  const { page: safePage, totalPages } = paginationMeta(total, page, pageSize);
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
@@ -57,16 +88,30 @@ export default async function MasterConsultantsListPage() {
         </Link>
       </div>
 
+      <ListQueryToolbar
+        className="mt-8"
+        total={total}
+        page={safePage}
+        pageSize={pageSize}
+        totalPages={totalPages}
+        q={q ?? ""}
+        sort={sort}
+        sortOptions={SORT_USERS}
+        searchPlaceholder="Name, email, phone, or company"
+        itemLabel="consultant"
+      />
+
       {consultants.length === 0 ? (
-        <p className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-10 text-center text-sm text-[var(--foreground-muted)]">
-          No consultants yet. Click <strong className="text-[var(--foreground)]">Add consultant</strong>.
+        <p className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-10 text-center text-sm text-[var(--foreground-muted)]">
+          {q ? "No consultants match your search." : "No consultants yet. Click Add consultant."}
         </p>
       ) : (
-        <div className="mt-8 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40">
               <tr>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Consultant name</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Company</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Email</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Phone</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Assigned universities</th>
@@ -85,6 +130,8 @@ export default async function MasterConsultantsListPage() {
                     : u.university
                       ? [`${u.university.name} (${u.university.code})`]
                       : [];
+                const primaryUni = uniLabels[0] ?? null;
+                const extraUniCount = uniLabels.length > 1 ? uniLabels.length - 1 : 0;
                 return (
                   <tr
                     key={u.id}
@@ -93,12 +140,26 @@ export default async function MasterConsultantsListPage() {
                     }`}
                   >
                     <td className="px-3 py-3 font-medium text-[var(--foreground)]">{u.name ?? "—"}</td>
+                    <td className="max-w-[10rem] truncate px-3 py-3 text-[var(--foreground-muted)]" title={u.companyName ?? undefined}>
+                      {u.companyName?.trim() || "—"}
+                    </td>
                     <td className="max-w-[12rem] truncate px-3 py-3" title={u.email}>
                       {u.email}
                     </td>
                     <td className="px-3 py-3 tabular-nums">{u.phone ?? "—"}</td>
-                    <td className="max-w-[20rem] px-3 py-3 text-[var(--foreground-muted)]">
-                      {uniLabels.length ? uniLabels.join("; ") : "—"}
+                    <td className="max-w-[16rem] px-3 py-3 text-[var(--foreground-muted)]">
+                      {primaryUni ? (
+                        <span title={uniLabels.join("\n")}>
+                          {primaryUni}
+                          {extraUniCount > 0 ? (
+                            <span className="ml-1 rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs font-medium text-[var(--foreground)]">
+                              +{extraUniCount}
+                            </span>
+                          ) : null}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="px-3 py-3">
                       <span

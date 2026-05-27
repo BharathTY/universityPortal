@@ -9,7 +9,27 @@ import { generateInviteToken } from "@/lib/student-invite";
 
 const bodySchema = z.object({
   email: z.string().email(),
-  name: z.string().trim().max(120).optional(),
+  name: z
+    .string()
+    .trim()
+    .min(1, { message: "Name is required" })
+    .max(120),
+  mobile: z
+    .string()
+    .trim()
+    .superRefine((s, ctx) => {
+      if (s.length === 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Mobile number is required" });
+        return;
+      }
+      if (!/^\d+$/.test(s)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Only numbers are allowed" });
+        return;
+      }
+      if (s.length !== 10) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Mobile number must be 10 digits" });
+      }
+    }),
 });
 
 /** Counsellors, consultants, and consultant_master can invite students (same backend rules). */
@@ -35,11 +55,16 @@ export async function handleInviteStudentRequest(req: Request): Promise<Response
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    const flat = parsed.error.flatten();
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid input", fieldErrors: flat.fieldErrors },
+      { status: 400 },
+    );
   }
 
   const email = parsed.data.email.toLowerCase();
-  const name = parsed.data.name?.trim() || null;
+  const name = parsed.data.name.trim();
+  const mobile = parsed.data.mobile.trim();
 
   const staff = await prisma.user.findUnique({
     where: { id: session.sub },
@@ -72,6 +97,7 @@ export async function handleInviteStudentRequest(req: Request): Promise<Response
     data: {
       email,
       name,
+      phone: mobile,
       universityId: staff.universityId,
       studentOfId: staff.id,
       inviteToken: token,

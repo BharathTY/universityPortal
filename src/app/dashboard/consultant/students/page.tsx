@@ -1,8 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
+import { ListQueryToolbar, SORT_USERS } from "@/components/list-controls";
 import { requireAuth } from "@/lib/auth";
 import { getAllowedConsultantUniversityIds, getConsultantAssignedUniversitiesForDisplay } from "@/lib/consultant-universities";
+import {
+  paginationMeta,
+  parsePage,
+  parsePageSize,
+  searchParamOne,
+  userOrderBy,
+  userTextSearchWhere,
+} from "@/lib/list-query";
 import { prisma } from "@/lib/prisma";
 import {
   canAccessLeadsAndBatches,
@@ -24,8 +33,17 @@ const PARTNER_ROSTER_SLUGS = [
   ROLES.qspidersBranch,
 ] as const;
 
-export default async function ConsultantStudentsPage() {
+export default async function ConsultantStudentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await requireAuth();
+  const sp = await searchParams;
+  const q = searchParamOne(sp, "q");
+  const sort = searchParamOne(sp, "sort") ?? "email";
+  const page = parsePage(searchParamOne(sp, "page"));
+  const pageSize = parsePageSize(searchParamOne(sp, "pageSize"), 25);
   if (isCounsellorOnly(session.roles)) {
     redirect("/dashboard/university");
   }
@@ -43,20 +61,31 @@ export default async function ConsultantStudentsPage() {
     studentWhere.universityId = session.universityId;
   }
 
-  const students = await prisma.user.findMany({
-    where: studentWhere,
-    orderBy: { email: "asc" },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      inviteToken: true,
-      inviteAcceptedAt: true,
-      university: { select: { name: true, code: true } },
-      studentOf: { select: { email: true } },
-    },
-    take: 100,
-  });
+  const textWhere = userTextSearchWhere(q);
+  const finalStudentWhere: Prisma.UserWhereInput = textWhere
+    ? { AND: [studentWhere, textWhere] }
+    : studentWhere;
+
+  const [totalStudents, students] = await Promise.all([
+    prisma.user.count({ where: finalStudentWhere }),
+    prisma.user.findMany({
+      where: finalStudentWhere,
+      orderBy: userOrderBy(sort),
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        inviteToken: true,
+        inviteAcceptedAt: true,
+        university: { select: { name: true, code: true } },
+        studentOf: { select: { email: true } },
+      },
+    }),
+  ]);
+
+  const { page: safePage, totalPages } = paginationMeta(totalStudents, page, pageSize);
 
   const canInvite = isConsultant(session.roles) && !isCounsellorOnly(session.roles);
 
@@ -168,7 +197,7 @@ export default async function ConsultantStudentsPage() {
                           m.accountStatus === "ACTIVE"
                             ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
                             : m.inviteToken
-                              ? "bg-amber-500/15 text-amber-800 dark:text-amber-200"
+                              ? "badge-pending"
                               : "bg-[var(--muted)] text-[var(--foreground-muted)]"
                         }`}
                       >
@@ -211,12 +240,27 @@ export default async function ConsultantStudentsPage() {
         )
       )}
 
+      <ListQueryToolbar
+        className={isConsultantOnly(session.roles) ? "mt-12" : "mt-8"}
+        total={totalStudents}
+        page={safePage}
+        pageSize={pageSize}
+        totalPages={totalPages}
+        q={q ?? ""}
+        sort={sort}
+        sortOptions={[
+          { value: "email", label: "Email (A–Z)" },
+          { value: "email-desc", label: "Email (Z–A)" },
+          { value: "name", label: "Name (A–Z)" },
+          { value: "latest", label: "Recently added" },
+          { value: "oldest", label: "Oldest first" },
+        ]}
+        searchPlaceholder="Name, email, or phone"
+        itemLabel="student"
+      />
+
       <div
-        className={
-          isConsultantOnly(session.roles)
-            ? "mt-12 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm"
-            : "mt-8 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm"
-        }
+        className="mt-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm"
       >
         <table className="w-full text-left text-sm">
           <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40 text-[var(--foreground-muted)]">
@@ -231,13 +275,20 @@ export default async function ConsultantStudentsPage() {
             </tr>
           </thead>
           <tbody>
-            {students.map((s) => (
+            {students.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-[var(--foreground-muted)]">
+                  No students match your search.
+                </td>
+              </tr>
+            ) : (
+              students.map((s) => (
               <tr key={s.id} className="border-b border-[var(--border)] last:border-0">
                 <td className="px-4 py-3 font-medium text-[var(--foreground)]">{s.email}</td>
                 <td className="px-4 py-3 text-[var(--foreground-muted)]">{s.name ?? "—"}</td>
                 <td className="px-4 py-3 text-[var(--foreground-muted)]">
                   {s.inviteToken ? (
-                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200">
+                    <span className="badge-pending">
                       Pending
                     </span>
                   ) : (
@@ -281,12 +332,10 @@ export default async function ConsultantStudentsPage() {
                   </div>
                 </td>
               </tr>
-            ))}
+              ))
+            )}
           </tbody>
         </table>
-        {students.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-[var(--foreground-muted)]">No student users found.</p>
-        ) : null}
       </div>
     </div>
   );

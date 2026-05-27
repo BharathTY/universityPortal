@@ -172,7 +172,7 @@ export function PortalWorkflowMap(props: Props) {
           className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[var(--accent-blue)]/[0.07] blur-3xl motion-safe:animate-pulse"
           style={{ animationDuration: "4s" }}
         />
-        <div className="pointer-events-none absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-violet-500/[0.06] blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-[var(--accent)]/[0.06] blur-2xl" />
         <div className="relative p-5 sm:p-7">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>

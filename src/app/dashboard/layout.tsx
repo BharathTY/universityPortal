@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/auth";
-import { DashboardHeader } from "@/components/dashboard-header";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { SessionInactivityGuard } from "@/components/session-inactivity-guard";
 import { isMaster, isStudent } from "@/lib/roles";
 
 export default async function DashboardLayout({
@@ -11,17 +11,13 @@ export default async function DashboardLayout({
   const session = await requireAuth();
   const studentView = isStudent(session.roles) && !isMaster(session.roles);
   const brandTitle = studentView ? "Student Portal" : "University Portal";
-  const brandSubtitle = studentView ? "Your application hub" : "portal.ams";
+  const brandSubtitle = studentView ? "Study abroad · QSpiders" : "Backed by QSpiders";
 
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--background)]">
-      <DashboardHeader
-        email={session.email}
-        roles={session.roles}
-        brandTitle={brandTitle}
-        brandSubtitle={brandSubtitle}
-      />
+    <div className="min-h-screen bg-[var(--background)]">
+      <SessionInactivityGuard />
       <DashboardShell
+        email={session.email}
         roles={session.roles}
         universityId={session.universityId}
         brandTitle={brandTitle}

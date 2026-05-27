@@ -1,4 +1,6 @@
 import { randomBytes } from "node:crypto";
+import { readFileSync, existsSync } from "node:fs";
+import path from "node:path";
 import { ApplicationStatus, PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -7,8 +9,9 @@ async function main() {
   const roleDefs = [
     { slug: "student", name: "Student" },
     { slug: "consultant", name: "Consultant" },
+    { slug: "consultant_spoc", name: "Consultant SPOC" },
     { slug: "university", name: "University" },
-    { slug: "master", name: "Master" },
+    { slug: "master", name: "Master Admin" },
     { slug: "admin", name: "Admin" },
     { slug: "counsellor", name: "Counsellor" },
     { slug: "consultant_master", name: "Consultant Master" },
@@ -24,6 +27,48 @@ async function main() {
   }
 
   const role = (slug: string) => prisma.role.findUniqueOrThrow({ where: { slug } });
+
+  const masterUniPath = path.join(process.cwd(), "prisma", "data", "master-universities.json");
+  if (existsSync(masterUniPath)) {
+    const existing = await prisma.masterUniversity.count();
+    if (existing === 0) {
+      const raw = JSON.parse(readFileSync(masterUniPath, "utf8")) as {
+        externalId: string;
+        name: string;
+        shortname?: string;
+        state: string;
+        stateCode?: string;
+        district: string;
+        address?: string;
+        city?: string;
+        pincode?: string;
+        website?: string;
+        universityType: string;
+        priority?: boolean;
+      }[];
+      const batchSize = 200;
+      for (let i = 0; i < raw.length; i += batchSize) {
+        await prisma.masterUniversity.createMany({
+          data: raw.slice(i, i + batchSize).map((r) => ({
+            externalId: r.externalId,
+            name: r.name,
+            shortname: r.shortname ?? null,
+            state: r.state,
+            stateCode: r.stateCode ?? null,
+            district: r.district,
+            address: r.address ?? null,
+            city: r.city ?? null,
+            pincode: r.pincode ?? null,
+            website: r.website ?? null,
+            universityType: r.universityType as "PRIVATE" | "DEEMED" | "STATE_GOVT",
+            priority: r.priority ?? false,
+          })),
+          skipDuplicates: true,
+        });
+      }
+      console.log(`Seeded ${raw.length} master universities`);
+    }
+  }
 
   const uni1 = await prisma.university.upsert({
     where: { code: "QSP-U1" },
@@ -129,22 +174,26 @@ async function main() {
     where: { email: "counsellor@university.local" },
     create: {
       email: "counsellor@university.local",
-      name: "Demo Counsellor",
+      name: "Demo SPOC",
       phone: "+91-0000000004",
       universityId: uni1.id,
       studentOfId: null,
+      reportsToConsultantId: consultantUser.id,
+      designation: "Admission SPOC",
       accountStatus: "ACTIVE",
     },
     update: {
-      name: "Demo Counsellor",
+      name: "Demo SPOC",
       phone: "+91-0000000004",
       universityId: uni1.id,
+      reportsToConsultantId: consultantUser.id,
+      designation: "Admission SPOC",
       accountStatus: "ACTIVE",
     },
   });
   await prisma.userRole.deleteMany({ where: { userId: counsellorUser.id } });
   await prisma.userRole.create({
-    data: { userId: counsellorUser.id, roleId: (await role("counsellor")).id },
+    data: { userId: counsellorUser.id, roleId: (await role("consultant_spoc")).id },
   });
 
   const branchUser = await prisma.user.upsert({
@@ -257,7 +306,7 @@ async function main() {
       mobile: "+919999000001",
       consultantCode: "CONS-DEMO",
       consultantRoleId: (await role("consultant")).id,
-      admissionStatus: "NEW",
+      admissionStatus: "NEW_LEAD",
       nationality: "India",
       specialization: "CSE",
       admissionState: "Karnataka",
@@ -275,7 +324,7 @@ async function main() {
       mobile: "+919999000002",
       consultantCode: "COUNS-DEMO",
       consultantRoleId: (await role("counsellor")).id,
-      admissionStatus: "CONTACTED",
+      admissionStatus: "INTERESTED",
       nationality: "India",
       specialization: "MBA",
       admissionState: "Karnataka",

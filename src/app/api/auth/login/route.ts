@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { COOKIE_NAME, buildSessionCookieOptions, createSessionToken, defaultSessionMaxAgeSec } from "@/lib/auth";
 import { initialSessionUniversityIdForUser } from "@/lib/consultant-universities";
 import { verifyPassword } from "@/lib/password";
+import { defaultDashboardPath } from "@/lib/roles";
 
 const schema = z.object({
   email: z.string().email(),
@@ -125,7 +126,7 @@ export async function POST(req: Request) {
     const cookieStore = await cookies();
     cookieStore.set(COOKIE_NAME, token, buildSessionCookieOptions(defaultSessionMaxAgeSec));
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, redirectTo: defaultDashboardPath(roles) });
   } catch (e) {
     console.error("auth/login", e);
     const message = e instanceof Error ? e.message : "Unknown error";

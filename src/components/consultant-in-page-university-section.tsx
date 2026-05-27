@@ -124,7 +124,7 @@ export function ConsultantInPageUniversitySection({ roles, variant }: Props) {
                   </span>
                 ) : (
                   <span
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-600 text-xs font-bold text-white"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg brand-logo-gradient text-xs font-bold text-white"
                     aria-hidden
                   >
                     {u.code.slice(0, 2).toUpperCase()}

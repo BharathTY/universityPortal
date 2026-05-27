@@ -246,7 +246,7 @@ export async function POST(req: Request) {
           mobile: row.mobile,
           consultantCode,
           consultantRoleId,
-          admissionStatus: AdmissionLeadStatus.NEW,
+          admissionStatus: AdmissionLeadStatus.NEW_LEAD,
           pipelineStatus: LeadPipelineStatus.NEW,
           nationality: row.nationality ?? null,
           specialization: "Bulk CSV",

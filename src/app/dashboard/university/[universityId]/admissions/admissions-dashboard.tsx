@@ -2,6 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
+import { ListQueryToolbar, SORT_LEADS } from "@/components/list-controls";
+import { LEAD_STATUS_OPTIONS, leadStatusLabel } from "@/lib/lead-status";
 
 export type AdmissionsYearOption = { id: string; label: string };
 export type AdmissionsStreamOption = { id: string; name: string };
@@ -33,27 +35,13 @@ type AdmissionsDashboardProps = {
   totalPages: number;
   selectedYearId: string | null;
   selectedStreamId: string | null;
+  initialQ?: string;
+  initialSort?: string;
   /** When true, status is display-only (e.g. master oversight). */
   readOnlyLeadStatus?: boolean;
 };
 
-const statusLabel: Record<string, string> = {
-  NEW: "New",
-  CONTACTED: "Contacted",
-  QUALIFIED: "Qualified",
-  ADMITTED: "Admitted",
-  REJECTED: "Rejected",
-  WITHDRAWN: "Withdrawn",
-};
-
-const LEAD_STATUS_OPTIONS = [
-  "NEW",
-  "CONTACTED",
-  "QUALIFIED",
-  "ADMITTED",
-  "REJECTED",
-  "WITHDRAWN",
-] as const;
+const LEAD_STATUS_VALUES = LEAD_STATUS_OPTIONS.map((o) => o.value);
 
 type HistoryEntry = {
   id: string;
@@ -88,9 +76,12 @@ export function AdmissionsDashboard({
   leads,
   total,
   page,
+  pageSize,
   totalPages,
   selectedYearId,
   selectedStreamId,
+  initialQ = "",
+  initialSort = "latest",
   readOnlyLeadStatus = false,
 }: AdmissionsDashboardProps) {
   const router = useRouter();
@@ -251,12 +242,22 @@ export function AdmissionsDashboard({
         </div>
       </div>
 
-      <div className="mt-8 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
+      <ListQueryToolbar
+        className="mt-6"
+        total={total}
+        page={page}
+        pageSize={pageSize}
+        totalPages={totalPages}
+        q={initialQ}
+        sort={initialSort}
+        sortOptions={SORT_LEADS}
+        searchPlaceholder="Name, email, or mobile"
+        itemLabel="lead"
+      />
+
+      <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm">
         <div className="flex flex-col gap-2 border-b border-[var(--border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-semibold text-[var(--foreground)]">Leads</p>
-          <p className="text-xs text-[var(--foreground-muted)]">
-            Showing {leads.length} of {total} lead{total === 1 ? "" : "s"}
-          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
@@ -289,7 +290,7 @@ export function AdmissionsDashboard({
                     <td className="px-4 py-3">
                       {readOnlyLeadStatus ? (
                         <span className="text-sm font-medium text-[var(--foreground)]">
-                          {statusLabel[row.admissionStatus] ?? row.admissionStatus}
+                          {leadStatusLabel(row.admissionStatus as never) ?? row.admissionStatus}
                         </span>
                       ) : (
                         <div className="flex min-w-[11rem] flex-col gap-1.5">
@@ -300,9 +301,9 @@ export function AdmissionsDashboard({
                             className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-xs font-medium text-[var(--foreground)] disabled:opacity-50"
                             aria-label={`Status for ${row.firstName} ${row.lastName}`}
                           >
-                            {LEAD_STATUS_OPTIONS.map((v) => (
-                              <option key={v} value={v}>
-                                {statusLabel[v] ?? v}
+                            {LEAD_STATUS_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
                               </option>
                             ))}
                           </select>
@@ -329,31 +330,6 @@ export function AdmissionsDashboard({
           </table>
         </div>
 
-        {totalPages > 1 ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] px-4 py-3 text-sm text-[var(--foreground-muted)]">
-            <span>
-              Page {page} of {totalPages}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setFilter({ page: page - 1 })}
-                className="rounded-lg border border-[var(--border)] px-3 py-1.5 font-medium disabled:opacity-40"
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => setFilter({ page: page + 1 })}
-                className="rounded-lg border border-[var(--border)] px-3 py-1.5 font-medium disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        ) : null}
       </div>
 
       {historyLeadId ? (
@@ -396,7 +372,7 @@ export function AdmissionsDashboard({
                       className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
                     >
                       <p className="font-medium text-[var(--foreground)]">
-                        {statusLabel[e.fromStatus] ?? e.fromStatus} → {statusLabel[e.toStatus] ?? e.toStatus}
+                        {leadStatusLabel(e.fromStatus as never)} → {leadStatusLabel(e.toStatus as never)}
                       </p>
                       <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">{formatDateTime(e.createdAt)}</p>
                       <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">

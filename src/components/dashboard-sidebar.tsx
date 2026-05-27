@@ -11,74 +11,104 @@ import { PortalLogoSvg } from "@/components/portal-logo";
 
 type DashboardSidebarProps = {
   onNavigate?: () => void;
+  onCloseMobile?: () => void;
+  mobileOpen?: boolean;
   collapsed: boolean;
   onToggleCollapse: () => void;
   roles: string[];
   universityId: string | null;
-  /** Sidebar title (e.g. Student Portal for students). */
   brandTitle?: string;
   brandSubtitle?: string;
 };
 
 export function DashboardSidebar({
   onNavigate,
+  onCloseMobile,
+  mobileOpen,
   collapsed,
   onToggleCollapse,
   roles,
   universityId,
   brandTitle = "University Portal",
-  brandSubtitle = "portal.ams",
+  brandSubtitle = "Backed by QSpiders",
 }: DashboardSidebarProps) {
   const pathname = usePathname() ?? "";
   const groups = buildDashboardNav(roles, { universityId });
 
   return (
-    <aside className="flex h-full flex-col px-2 pb-6 pt-4 md:px-3 md:pt-6">
+    <aside className="flex h-full max-h-screen flex-col overflow-hidden">
+      {/* Brand strip — single source of truth for portal identity */}
       <div
-        className={`mb-4 flex w-full gap-2 ${collapsed ? "flex-col items-center gap-3" : "items-start justify-between"}`}
+        className={`relative shrink-0 bg-[var(--navy-900)] ${
+          collapsed ? "px-2 py-3" : "px-4 py-4"
+        }`}
       >
-        <Link
-          href="/dashboard"
-          onClick={onNavigate}
-          className={`group flex min-w-0 items-center gap-2.5 rounded-xl p-1.5 -m-1.5 transition-all duration-200 ease-out hover:bg-[var(--muted)]/80 focus-visible:bg-[var(--muted)]/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-blue)]/50 active:scale-[0.98] md:hover:shadow-sm ${
-            collapsed ? "flex-col justify-center" : "flex-1"
-          }`}
-          title="Go to dashboard"
+        <div
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[var(--navy-900)] via-[var(--navy-800)] to-[var(--navy-900)]"
+          aria-hidden
+        />
+        <div
+          className={`relative flex items-center gap-2 ${collapsed ? "flex-col" : "justify-between"}`}
         >
-          <span
-            className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-orange-600 text-white shadow-md ring-2 ring-amber-400/25 transition-all duration-200 ease-out group-hover:scale-105 group-hover:shadow-lg group-hover:ring-amber-400/45 group-active:scale-95 dark:from-amber-500 dark:via-amber-600 dark:to-orange-700"
-            aria-hidden
+          <Link
+            href="/dashboard"
+            onClick={onNavigate}
+            className={`group flex min-w-0 items-center rounded-lg transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 ${
+              collapsed ? "flex-col gap-1.5 p-1" : "flex-1 gap-3 p-1"
+            }`}
+            title="Go to dashboard"
           >
-            <PortalLogoSvg className="h-6 w-6 drop-shadow-sm" />
-          </span>
-          {!collapsed ? (
-            <div className="min-w-0 leading-tight transition-colors group-hover:text-[var(--foreground)]">
-              <p className="text-sm font-bold tracking-tight text-[var(--foreground)]">{brandTitle}</p>
-              <p className="text-xs text-[var(--foreground-muted)] group-hover:text-[var(--foreground-muted)]/90">
-                {brandSubtitle}
-              </p>
-            </div>
-          ) : (
-            <span className="sr-only">{brandTitle}</span>
-          )}
-        </Link>
-        <button
-          type="button"
-          onClick={onToggleCollapse}
-          className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--muted)]/50 text-[var(--foreground-muted)] transition hover:bg-[var(--muted)] hover:text-[var(--foreground)] md:inline-flex"
-          aria-expanded={!collapsed}
-          aria-controls="dashboard-main-nav"
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-        </button>
+            <span
+              className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg brand-logo-gradient text-white shadow-md ring-1 ring-white/20"
+              aria-hidden
+            >
+              <PortalLogoSvg className="h-5 w-5 drop-shadow-sm" />
+            </span>
+            {!collapsed ? (
+              <div className="min-w-0 leading-tight">
+                <p className="truncate text-sm font-bold tracking-tight text-white">{brandTitle}</p>
+                <p className="truncate text-[0.7rem] text-slate-400">{brandSubtitle}</p>
+              </div>
+            ) : (
+              <span className="sr-only">{brandTitle}</span>
+            )}
+          </Link>
+
+          <div className={`flex shrink-0 items-center gap-1 ${collapsed ? "flex-col" : ""}`}>
+            {mobileOpen ? (
+              <button
+                type="button"
+                onClick={onCloseMobile}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-white md:hidden"
+                aria-label="Close menu"
+              >
+                <CloseIcon />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white md:inline-flex"
+              aria-expanded={!collapsed}
+              aria-controls="dashboard-main-nav"
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+            </button>
+          </div>
+        </div>
       </div>
 
-      <nav id="dashboard-main-nav" className="flex flex-col gap-5" aria-label="Main">
+      {/* Navigation */}
+      <nav
+        id="dashboard-main-nav"
+        className="flex flex-1 flex-col gap-4 overflow-y-auto px-2 py-4 md:px-3"
+        aria-label="Main"
+      >
         {groups.map((group, gi) => (
           <div key={`${group.title}-${gi}`}>
             <p
-              className={`mb-2 px-2 text-[0.65rem] font-semibold uppercase tracking-wide text-[var(--foreground-muted)] ${
+              className={`mb-1.5 px-2.5 text-[0.65rem] font-semibold uppercase tracking-wider text-[var(--foreground-muted)] ${
                 collapsed ? "sr-only" : ""
               }`}
             >
@@ -112,6 +142,14 @@ export function DashboardSidebar({
         ))}
       </nav>
     </aside>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+    </svg>
   );
 }
 
@@ -193,6 +231,13 @@ function NavIcon({ name, active }: { name: NavIconName; active: boolean }) {
       return (
         <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
           <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M8.5 7a4 4 0 108 0 4 4 0 00-8 0zM20 8v6M23 11h-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case "creditCard":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <path d="M2 10h20" strokeLinecap="round" />
         </svg>
       );
     default:

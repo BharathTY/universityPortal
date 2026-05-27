@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
+import { leadOrderBy, leadTextSearchWhere, searchParamOne } from "@/lib/list-query";
 import { prisma } from "@/lib/prisma";
 import { isMaster } from "@/lib/roles";
 import { assertUniversityScope } from "@/lib/university-scope";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{ universityId: string }>;
-  searchParams: Promise<{ year?: string; stream?: string; page?: string; pageSize?: string }>;
+  searchParams: Promise<{ year?: string; stream?: string; page?: string; pageSize?: string; q?: string; sort?: string }>;
 };
 
 export default async function UniversityAdmissionsPage(props: PageProps) {
@@ -24,6 +25,8 @@ export default async function UniversityAdmissionsPage(props: PageProps) {
   const sp = await props.searchParams;
   const selectedYearId = sp.year && sp.year.length > 0 ? sp.year : null;
   const selectedStreamId = sp.stream && sp.stream.length > 0 ? sp.stream : null;
+  const q = searchParamOne(sp, "q");
+  const sort = searchParamOne(sp, "sort") ?? "latest";
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
   const pageSize = Math.min(50, Math.max(5, Number(sp.pageSize ?? "10") || 10));
 
@@ -43,17 +46,21 @@ export default async function UniversityAdmissionsPage(props: PageProps) {
     }),
   ]);
 
-  const where: Prisma.AdmissionLeadWhereInput = {
+  const baseWhere: Prisma.AdmissionLeadWhereInput = {
     universityId,
     ...(selectedYearId ? { academicYearId: selectedYearId } : {}),
     ...(selectedStreamId ? { streamId: selectedStreamId } : {}),
   };
+  const textWhere = leadTextSearchWhere(q);
+  const where: Prisma.AdmissionLeadWhereInput = textWhere
+    ? { AND: [baseWhere, textWhere] }
+    : baseWhere;
 
   const [total, leadRows] = await Promise.all([
     prisma.admissionLead.count({ where }),
     prisma.admissionLead.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: leadOrderBy(sort),
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
@@ -89,6 +96,8 @@ export default async function UniversityAdmissionsPage(props: PageProps) {
       totalPages={totalPages}
       selectedYearId={selectedYearId}
       selectedStreamId={selectedStreamId}
+      initialQ={q ?? ""}
+      initialSort={sort}
       pageSubtitle="All admission leads for your institution — partner and university team — filter by academic year and degree."
       readOnlyLeadStatus={isMaster(session.roles)}
     />

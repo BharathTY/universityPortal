@@ -1,17 +1,16 @@
-import { ApplicationPaymentStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { getStudentApplication } from "@/lib/student-application-data";
 import { prisma } from "@/lib/prisma";
 import { isStudent } from "@/lib/roles";
 import { getRazorpayKeyIdPublic, isRazorpayConfigured, razorpayCreateOrder } from "@/lib/razorpay-server";
-import { PROGRAM_PAISE, registrationPaiseForPath, type StudentAdmissionPath } from "@/lib/student-application-fees";
+import { studentPaymentPanelState } from "@/lib/student-portal";
 
 const bodySchema = z.object({
   applicationId: z.string().min(1),
-  kind: z.enum(["registration", "program", "custom"]),
-  /** Required when kind is `custom` — amount in paise (e.g. ₹500 → 50000). */
-  customAmountPaise: z.number().int().min(100).max(50_000_000).optional(),
+  /** Amount in paise for partial application fee payment. */
+  amountPaise: z.number().int().min(100).max(50_000_000),
 });
 
 export async function POST(req: Request) {
@@ -22,7 +21,10 @@ export async function POST(req: Request) {
 
   if (!isRazorpayConfigured()) {
     return NextResponse.json(
-      { error: "Razorpay is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET, or use simulated pay in development." },
+      {
+        error:
+          "Razorpay is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET, or use simulated pay in development.",
+      },
       { status: 503 },
     );
   }
@@ -39,58 +41,45 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
 
-  if (parsed.data.kind === "custom" && parsed.data.customAmountPaise == null) {
-    return NextResponse.json({ error: "customAmountPaise is required for custom payments" }, { status: 400 });
-  }
-
-  const app = await prisma.application.findFirst({
-    where: { id: parsed.data.applicationId, userId: session.sub },
-    select: { id: true, paymentStatus: true, admissionPath: true },
-  });
-  if (!app) {
+  const appData = await getStudentApplication(session.sub, parsed.data.applicationId);
+  if (!appData) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 });
   }
 
-  const canPayRegistration =
-    app.paymentStatus === ApplicationPaymentStatus.NONE ||
-    app.paymentStatus === ApplicationPaymentStatus.REGISTRATION_PENDING;
-  const canPayProgram =
-    app.paymentStatus === ApplicationPaymentStatus.REGISTRATION_PAID ||
-    app.paymentStatus === ApplicationPaymentStatus.PROGRAM_PENDING;
+  const { paymentSummary, lead } = appData;
+  const panelState = studentPaymentPanelState(
+    lead?.admissionStatus ?? null,
+    paymentSummary.applicationFee,
+    paymentSummary.paidRupees,
+  );
 
-  if (parsed.data.kind === "registration" && !canPayRegistration) {
-    return NextResponse.json({ error: "Registration is already recorded" }, { status: 409 });
-  }
-  if (parsed.data.kind === "custom" && !canPayRegistration) {
-    return NextResponse.json({ error: "Custom registration payment is already recorded" }, { status: 409 });
-  }
-  if (parsed.data.kind === "program" && !canPayProgram) {
-    return NextResponse.json({ error: "Program fee is not available yet or already paid" }, { status: 409 });
-  }
-
-  if (parsed.data.kind === "registration" && !app.admissionPath) {
+  if (panelState !== "ready_to_pay") {
     return NextResponse.json(
-      { error: "Choose national exam or direct admission before paying the registration fee." },
+      { error: "Payment is not available until your consultant marks the lead as Ready to Pay." },
+      { status: 409 },
+    );
+  }
+
+  const remainingPaise = Math.round(paymentSummary.remainingDue * 100);
+  if (remainingPaise <= 0) {
+    return NextResponse.json({ error: "Application fee is already fully paid" }, { status: 409 });
+  }
+
+  if (parsed.data.amountPaise > remainingPaise) {
+    return NextResponse.json(
+      { error: `Amount cannot exceed remaining due of ₹${paymentSummary.remainingDue.toLocaleString("en-IN")}` },
       { status: 400 },
     );
   }
 
-  let amountPaise: number;
-  if (parsed.data.kind === "registration") {
-    amountPaise = registrationPaiseForPath(app.admissionPath as StudentAdmissionPath | null);
-  } else if (parsed.data.kind === "program") {
-    amountPaise = PROGRAM_PAISE;
-  } else {
-    amountPaise = parsed.data.customAmountPaise!;
-  }
-
   const order = await razorpayCreateOrder({
-    amountPaise,
-    receipt: `app_${app.id}`.slice(0, 40),
+    amountPaise: parsed.data.amountPaise,
+    receipt: `app_${appData.id}`.slice(0, 40),
     notes: {
-      applicationId: app.id,
-      kind: parsed.data.kind,
+      applicationId: appData.id,
+      kind: "application",
       userId: session.sub,
+      leadId: lead?.id ?? "",
     },
   });
 
@@ -99,7 +88,7 @@ export async function POST(req: Request) {
   }
 
   await prisma.application.update({
-    where: { id: app.id },
+    where: { id: appData.id },
     data: { lastRazorpayOrderId: order.orderId },
   });
 
@@ -113,6 +102,6 @@ export async function POST(req: Request) {
     amount: order.amount,
     currency: order.currency,
     keyId,
-    kind: parsed.data.kind,
+    kind: "application",
   });
 }

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { SessionPayload } from "@/lib/auth";
 import { ensureBatchLeadPunchToken } from "@/lib/batch-lead-punch-token";
 import { resolveConsultantActiveUniversityId } from "@/lib/consultant-universities";
+import { leadOrderBy, leadTextSearchWhere, paginationMeta, parsePage, parsePageSize } from "@/lib/list-query";
 import { prisma } from "@/lib/prisma";
 import {
   canSeeAdmissionLeadAssignedPartnerName,
@@ -29,7 +30,18 @@ export type BatchLeadListRow = {
   assignedPartnerDisplayName: string | null;
 };
 
-export async function loadBatchLeadsViewModel(batchId: string, session: SessionPayload) {
+export type BatchLeadsQuery = {
+  q?: string;
+  sort?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export async function loadBatchLeadsViewModel(
+  batchId: string,
+  session: SessionPayload,
+  query: BatchLeadsQuery = {},
+) {
   const batch = await prisma.batch.findUnique({
     where: { id: batchId },
     select: {
@@ -87,33 +99,37 @@ export async function loadBatchLeadsViewModel(batchId: string, session: SessionP
 
   const canSeePartner = canSeeAdmissionLeadAssignedPartnerName(session.roles);
 
-  /** Raw SQL avoids PrismaClientValidationError when the generated client is stale vs `schema.prisma` (e.g. Windows EPERM on `prisma generate`). */
-  let leadsRaw: Array<{
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    mobile: string;
-    admissionState: string | null;
-    pipelineStatus: string;
-    createdAt: Date;
-    assignedPartnerDisplayName: string | null;
-  }>;
-  try {
-    leadsRaw = await prisma.$queryRaw(
-      Prisma.sql`
-        SELECT "id", "firstName", "lastName", "email", "mobile", "admissionState", "pipelineStatus", "createdAt", "assignedPartnerDisplayName"
-        FROM "AdmissionLead"
-        WHERE "batchId" = ${batch.id}
-        ORDER BY "createdAt" DESC
-        LIMIT 200
-      `,
-    );
-  } catch {
-    leadsRaw = [];
-  }
+  const page = parsePage(String(query.page ?? 1));
+  const pageSize = parsePageSize(String(query.pageSize ?? 25), 25, 100);
+  const textWhere = leadTextSearchWhere(query.q);
+  const where: Prisma.AdmissionLeadWhereInput = textWhere
+    ? { AND: [{ batchId: batch.id }, textWhere] }
+    : { batchId: batch.id };
 
-  const leads: BatchLeadListRow[] = leadsRaw.map((l) => ({
+  const [total, leadRows] = await Promise.all([
+    prisma.admissionLead.count({ where }),
+    prisma.admissionLead.findMany({
+      where,
+      orderBy: leadOrderBy(query.sort),
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        mobile: true,
+        admissionState: true,
+        pipelineStatus: true,
+        createdAt: true,
+        assignedPartnerDisplayName: true,
+      },
+    }),
+  ]);
+
+  const { page: safePage, totalPages } = paginationMeta(total, page, pageSize);
+
+  const leads: BatchLeadListRow[] = leadRows.map((l) => ({
     id: l.id,
     firstName: l.firstName,
     lastName: l.lastName,
@@ -131,6 +147,10 @@ export async function loadBatchLeadsViewModel(batchId: string, session: SessionP
     referralFormPath: `/ref/${token}`,
     bulkConsultant,
     leads,
+    total,
+    page: safePage,
+    pageSize,
+    totalPages,
     showAssignedPartnerColumn: canSeePartner,
   };
 }

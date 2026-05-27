@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
+import { ListQueryToolbar, SORT_APPLICATIONS } from "@/components/list-controls";
 
 type Year = { id: string; label: string };
 type Stream = { id: string; name: string };
@@ -22,6 +23,12 @@ type Props = {
   years: Year[];
   streams: Stream[];
   applications: AppRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  q?: string;
+  sort?: string;
 };
 
 const reviewLabel: Record<string, string> = {
@@ -42,6 +49,7 @@ export function UniversityApplicationsClient(props: Props) {
     else p.delete("year");
     if (s) p.set("stream", s);
     else p.delete("stream");
+    p.delete("page");
     router.push(`/dashboard/university/${props.universityId}/applications?${p.toString()}`);
   }
 
@@ -82,7 +90,20 @@ export function UniversityApplicationsClient(props: Props) {
         </select>
       </div>
 
-      <div className="mt-8 overflow-x-auto rounded-xl border border-[var(--border)]">
+      <ListQueryToolbar
+        className="mt-6"
+        total={props.total}
+        page={props.page}
+        pageSize={props.pageSize}
+        totalPages={props.totalPages}
+        q={props.q ?? ""}
+        sort={props.sort ?? "latest"}
+        sortOptions={SORT_APPLICATIONS}
+        searchPlaceholder="Student, application ID, or mobile"
+        itemLabel="application"
+      />
+
+      <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40">
             <tr>
@@ -95,18 +116,26 @@ export function UniversityApplicationsClient(props: Props) {
             </tr>
           </thead>
           <tbody>
-            {props.applications.map((a) => (
-              <tr key={a.id} className="border-b border-[var(--border)] last:border-0">
-                <td className="px-3 py-2 font-mono text-xs">{a.displayId}</td>
-                <td className="px-3 py-2">{a.studentName}</td>
-                <td className="px-3 py-2">{a.mobile}</td>
-                <td className="px-3 py-2">{a.course}</td>
-                <td className="px-3 py-2">{reviewLabel[a.status] ?? a.status}</td>
-                <td className="px-3 py-2 text-xs text-[var(--foreground-muted)]">
-                  {new Date(a.leadCreatedAt).toLocaleString()}
+            {props.applications.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-3 py-10 text-center text-[var(--foreground-muted)]">
+                  No applications match your filters.
                 </td>
               </tr>
-            ))}
+            ) : (
+              props.applications.map((a) => (
+                <tr key={a.id} className="border-b border-[var(--border)] last:border-0">
+                  <td className="px-3 py-2 font-mono text-xs">{a.displayId}</td>
+                  <td className="px-3 py-2">{a.studentName}</td>
+                  <td className="px-3 py-2">{a.mobile}</td>
+                  <td className="px-3 py-2">{a.course}</td>
+                  <td className="px-3 py-2">{reviewLabel[a.status] ?? a.status}</td>
+                  <td className="px-3 py-2 text-xs text-[var(--foreground-muted)]">
+                    {new Date(a.leadCreatedAt).toLocaleString()}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

@@ -1,6 +1,8 @@
+import { DocumentKind } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { sendConsultantAccountCreatedEmail } from "@/lib/email";
+import { storeUpload } from "@/lib/file-storage";
 import { requireMasterApi } from "@/lib/master-session";
 import { generateRandomPassword, hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
@@ -54,36 +56,81 @@ const consultantPhoneSchema = z
     }
   });
 
+const optionalText = (max: number) =>
+  z.preprocess((v) => {
+    if (v === null || v === undefined) return undefined;
+    if (typeof v === "string" && v.trim() === "") return undefined;
+    return typeof v === "string" ? v.trim() : v;
+  }, z.string().max(max).optional());
+
 const createSchema = z.object({
   name: consultantNameSchema,
   email: consultantEmailSchema,
   phone: consultantPhoneSchema,
   password: z.union([z.string().min(8).max(128), z.literal("")]).optional(),
-  /** At least one university required when creating from master portal. */
   universityIds: z.preprocess(
     (v) => (Array.isArray(v) ? v : []),
-    z
-      .array(z.string().min(1))
-      .min(1, { message: "Please select at least one university" }),
+    z.array(z.string().min(1)).min(1, { message: "Please select at least one university" }),
   ),
-  /** Default admission partner (consultant) or Qspiders branch replica. */
   partnerRole: z.enum(["consultant", "qspiders_branch"]).optional(),
-  /** Required when partnerRole is qspiders_branch (shown on leads and student comms). */
   branchName: z.string().max(120).optional().nullable(),
+  companyName: optionalText(200),
+  designation: optionalText(120),
+  gstNumber: optionalText(20),
+  panNumber: optionalText(20),
+  address: optionalText(2000),
+  city: optionalText(120),
+  district: optionalText(120),
+  state: optionalText(120),
+  academicYear: optionalText(10),
 });
+
+async function parseConsultantRequest(req: Request): Promise<{ data: unknown; mouFile?: File }> {
+  const ct = req.headers.get("content-type") ?? "";
+  if (ct.includes("multipart/form-data")) {
+    let form: FormData;
+    try {
+      form = await req.formData();
+    } catch {
+      throw new Error("Invalid form data");
+    }
+    const payloadRaw = form.get("payload");
+    let data: unknown;
+    try {
+      data = JSON.parse(typeof payloadRaw === "string" ? payloadRaw : "{}");
+    } catch {
+      throw new Error("Invalid payload JSON");
+    }
+    const mouRaw = form.get("mouFile");
+    return {
+      data,
+      mouFile: mouRaw instanceof File && mouRaw.size > 0 ? mouRaw : undefined,
+    };
+  }
+
+  try {
+    return { data: await req.json() };
+  } catch {
+    throw new Error("Invalid JSON");
+  }
+}
 
 export async function POST(req: Request) {
   const gate = await requireMasterApi();
   if (!gate.ok) return gate.response;
 
-  let json: unknown;
+  let data: unknown;
+  let mouFile: File | undefined;
   try {
-    json = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    const parsed = await parseConsultantRequest(req);
+    data = parsed.data;
+    mouFile = parsed.mouFile;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Invalid request body";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 
-  const parsed = createSchema.safeParse(json);
+  const parsed = createSchema.safeParse(data);
   if (!parsed.success) {
     const flat = parsed.error.flatten();
     const msg = parsed.error.issues[0]?.message ?? "Invalid input";
@@ -93,6 +140,13 @@ export async function POST(req: Request) {
   const partnerRole = parsed.data.partnerRole ?? "consultant";
   if (partnerRole === "qspiders_branch" && !parsed.data.branchName?.trim()) {
     return NextResponse.json({ error: "Branch name is required for Qspiders branch accounts" }, { status: 400 });
+  }
+
+  if (mouFile && !parsed.data.academicYear) {
+    return NextResponse.json(
+      { error: "Academic year is required when uploading MOU", fieldErrors: { academicYear: ["Required for MOU"] } },
+      { status: 400 },
+    );
   }
 
   const email = parsed.data.email.toLowerCase();
@@ -129,6 +183,16 @@ export async function POST(req: Request) {
   const branchName =
     partnerSlug === ROLES.qspidersBranch ? parsed.data.branchName?.trim() ?? null : null;
 
+  let mouDoc: { fileName: string; fileUrl: string } | null = null;
+  if (mouFile) {
+    try {
+      mouDoc = await storeUpload(mouFile, "consultants/mou", "mou");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "MOU upload failed";
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+  }
+
   const user = await prisma.user.create({
     data: {
       email,
@@ -138,11 +202,32 @@ export async function POST(req: Request) {
       accountStatus: "ACTIVE",
       universityId: universityIds[0] ?? null,
       branchName,
+      companyName: parsed.data.companyName ?? null,
+      designation: parsed.data.designation ?? null,
+      gstNumber: parsed.data.gstNumber ?? null,
+      panNumber: parsed.data.panNumber ?? null,
+      address: parsed.data.address ?? null,
+      city: parsed.data.city ?? null,
+      district: parsed.data.district ?? null,
+      state: parsed.data.state ?? null,
+      academicYear: parsed.data.academicYear ?? null,
       roles: {
         create: { roleId: roleRow.id },
       },
     },
   });
+
+  if (mouDoc && parsed.data.academicYear) {
+    await prisma.consultantDocument.create({
+      data: {
+        userId: user.id,
+        kind: DocumentKind.MOU,
+        fileName: mouDoc.fileName,
+        fileUrl: mouDoc.fileUrl,
+        academicYear: parsed.data.academicYear,
+      },
+    });
+  }
 
   if (universityIds.length > 0) {
     await replaceConsultantUniversityAssignments(user.id, universityIds);

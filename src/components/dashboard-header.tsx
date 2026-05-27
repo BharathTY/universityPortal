@@ -1,10 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConsultantUniversitySwitcher } from "@/components/consultant-university-switcher";
-import { PortalLogoSvg } from "@/components/portal-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { formatRoleLabel, isConsultant } from "@/lib/roles";
 
@@ -21,16 +19,10 @@ function displayNameFromEmail(email: string): string {
 type DashboardHeaderProps = {
   email: string;
   roles: string[];
-  brandTitle?: string;
-  brandSubtitle?: string;
+  onOpenMenu?: () => void;
 };
 
-export function DashboardHeader({
-  email,
-  roles,
-  brandTitle = "University Portal",
-  brandSubtitle = "portal.ams",
-}: DashboardHeaderProps) {
+export function DashboardHeader({ email, roles, onOpenMenu }: DashboardHeaderProps) {
   const pathname = usePathname() ?? "";
   const hideConsultantUniSwitcher =
     isConsultant(roles) &&
@@ -66,103 +58,98 @@ export function DashboardHeader({
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur-md">
-      <div className="flex w-full items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-6 lg:px-8">
-        <Link
-          href="/dashboard"
-          className="group flex min-w-0 max-w-[min(100%,14rem)] shrink-0 items-center gap-2.5 rounded-xl p-1 -m-1 transition hover:bg-[var(--muted)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-blue)]/45 sm:max-w-md"
-          title="Go to dashboard"
-        >
-          <span
-            className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-amber-400 via-amber-500 to-orange-600 text-white shadow-md ring-2 ring-amber-400/20 transition group-hover:shadow-lg dark:from-amber-500 dark:via-amber-600 dark:to-orange-700"
-            aria-hidden
-          >
-            <PortalLogoSvg className="h-[1.35rem] w-[1.35rem] drop-shadow-sm" />
-          </span>
-          <span className="min-w-0 text-left leading-tight">
-            <span className="block truncate text-sm font-bold tracking-tight text-[var(--foreground)]">
-              {brandTitle}
-            </span>
-            <span className="hidden truncate text-xs text-[var(--foreground-muted)] sm:block">{brandSubtitle}</span>
-          </span>
-        </Link>
-
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
-        {!hideConsultantUniSwitcher ? <ConsultantUniversitySwitcher roles={roles} /> : null}
-        <ThemeToggle />
-
-        <div className="relative" ref={wrapRef}>
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center border-b border-[var(--border)] bg-[var(--card)]/95 px-4 backdrop-blur-md sm:px-6">
+      <div className="flex w-full items-center justify-between gap-3">
+        {/* Left: mobile menu + contextual tools */}
+        <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            aria-haspopup="menu"
-            className="flex max-w-[min(100vw-8rem,18rem)] items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 text-left shadow-sm transition hover:bg-[var(--muted)]/40 sm:max-w-xs"
+            onClick={onOpenMenu}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--muted)]/50 text-[var(--foreground)] transition hover:bg-[var(--muted)] md:hidden"
+            aria-label="Open navigation menu"
           >
-            <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-white shadow-inner ring-2 ring-white/25"
-              aria-hidden
-            >
-              <span className="sr-only">{displayName}</span>
-              <UserAvatarIcon className="h-5 w-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-[var(--foreground)]">
-                {displayName}
-              </span>
-              <span className="block truncate text-xs text-[var(--foreground-muted)]">
-                {primaryRoleLine}
-              </span>
-            </span>
-            <ChevronUpDownIcon className="h-4 w-4 shrink-0 text-[var(--foreground-muted)]" />
+            <MenuIcon />
           </button>
-
-          {open ? (
-            <div
-              role="menu"
-              aria-label="Account menu"
-              className="absolute right-0 top-[calc(100%+0.5rem)] z-[60] w-[min(calc(100vw-2rem),20rem)] rounded-2xl border border-[var(--border)] bg-[var(--background)] py-4 shadow-lg"
-            >
-              <div className="flex flex-col items-center px-4 pb-2">
-                <span
-                  className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-white shadow-md ring-4 ring-[var(--muted)]"
-                  aria-hidden
-                >
-                  <UserAvatarIcon className="h-9 w-9" />
-                </span>
-                <p className="mt-3 text-center text-base font-semibold text-[var(--foreground)]">
-                  {roleText}
-                </p>
-                <p className="mt-1 max-w-full truncate px-1 text-center text-sm text-[var(--foreground-muted)]">
-                  {email}
-                </p>
-              </div>
-              <div className="mx-3 my-2 border-t border-[var(--border)]" />
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  void logout();
-                }}
-                className="mx-2 flex w-[calc(100%-1rem)] items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]"
-              >
-                <LogoutDoorIcon className="h-5 w-5 shrink-0 text-[var(--foreground-muted)]" />
-                Log out
-              </button>
-            </div>
+          {!hideConsultantUniSwitcher ? (
+            <ConsultantUniversitySwitcher roles={roles} />
           ) : null}
         </div>
+
+        {/* Right: theme + account */}
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <ThemeToggle />
+
+          <div className="relative" ref={wrapRef}>
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              aria-haspopup="menu"
+              className="flex max-w-[min(100vw-6rem,16rem)] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-left shadow-sm transition hover:bg-[var(--muted)]/40 sm:max-w-xs sm:px-2.5 sm:py-2"
+            >
+              <span
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--navy-800)] text-sm font-semibold text-white sm:h-9 sm:w-9"
+                aria-hidden
+              >
+                {displayName.charAt(0)}
+              </span>
+              <span className="min-w-0 flex-1 hidden sm:block">
+                <span className="block truncate text-sm font-semibold text-[var(--foreground)]">
+                  {displayName}
+                </span>
+                <span className="block truncate text-xs text-[var(--foreground-muted)]">
+                  {primaryRoleLine}
+                </span>
+              </span>
+              <ChevronUpDownIcon className="h-4 w-4 shrink-0 text-[var(--foreground-muted)] hidden sm:block" />
+            </button>
+
+            {open ? (
+              <div
+                role="menu"
+                aria-label="Account menu"
+                className="absolute right-0 top-[calc(100%+0.5rem)] z-[60] w-[min(calc(100vw-2rem),20rem)] rounded-2xl border border-[var(--border)] bg-[var(--background)] py-4 shadow-lg"
+              >
+                <div className="flex flex-col items-center px-4 pb-2">
+                  <span
+                    className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--navy-800)] text-lg font-semibold text-white ring-4 ring-[var(--muted)]"
+                    aria-hidden
+                  >
+                    {displayName.charAt(0)}
+                  </span>
+                  <p className="mt-3 text-center text-base font-semibold text-[var(--foreground)]">
+                    {roleText}
+                  </p>
+                  <p className="mt-1 max-w-full truncate px-1 text-center text-sm text-[var(--foreground-muted)]">
+                    {email}
+                  </p>
+                </div>
+                <div className="mx-3 my-2 border-t border-[var(--border)]" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false);
+                    void logout();
+                  }}
+                  className="mx-2 flex w-[calc(100%-1rem)] items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]"
+                >
+                  <LogoutDoorIcon className="h-5 w-5 shrink-0 text-[var(--foreground-muted)]" />
+                  Log out
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </header>
   );
 }
 
-function UserAvatarIcon({ className }: { className?: string }) {
+function MenuIcon() {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-3.33 0-8 1.67-8 5v1h16v-1c0-3.33-4.67-5-8-5z" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
     </svg>
   );
 }

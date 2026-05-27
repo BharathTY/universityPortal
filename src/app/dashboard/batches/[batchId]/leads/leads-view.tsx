@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 import QRCode from "qrcode";
 import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
+import { ListQueryToolbar, SORT_LEADS } from "@/components/list-controls";
 import type { BatchLeadListRow, BatchLeadsBulkConsultant } from "@/lib/batch-leads-view-model";
+
 
 export type { BatchLeadListRow, BatchLeadsBulkConsultant };
 
@@ -19,6 +21,12 @@ type LeadsViewProps = {
   bulkConsultant?: BatchLeadsBulkConsultant | null;
   /** Lead Punch / brochure referrals for this batch (also listed in the assigned partner’s pipeline). */
   leads?: BatchLeadListRow[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
+  q?: string;
+  sort?: string;
   /** When true, show the saved assigned partner snapshot (Manager / Admin / Counsellor / Master). */
   showAssignedPartnerColumn?: boolean;
 };
@@ -44,6 +52,12 @@ export function LeadsView({
   referralFormPath,
   bulkConsultant,
   leads = [],
+  total = 0,
+  page = 1,
+  pageSize = 25,
+  totalPages = 1,
+  q = "",
+  sort = "latest",
   showAssignedPartnerColumn = false,
 }: LeadsViewProps) {
   const router = useRouter();
@@ -226,37 +240,17 @@ export function LeadsView({
       ) : null}
 
       <div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-[var(--foreground)]">Leads</p>
-            <p className="text-xs text-[var(--foreground-muted)]">
-              Showing {leads.length} of {leads.length} lead{leads.length === 1 ? "" : "s"}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)]"
-              aria-label="Search"
-            >
-              <SearchIcon />
-            </button>
-            <select
-              className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)]"
-              defaultValue="all"
-              aria-label="Filter"
-            >
-              <option value="all">All (No Filters)</option>
-            </select>
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm font-medium text-[var(--foreground)]"
-            >
-              <SlidersIcon />
-              View
-            </button>
-          </div>
-        </div>
+        <ListQueryToolbar
+          total={total}
+          page={page}
+          pageSize={pageSize}
+          totalPages={totalPages}
+          q={q}
+          sort={sort}
+          sortOptions={SORT_LEADS}
+          searchPlaceholder="Name, email, or mobile"
+          itemLabel="lead"
+        />
 
         <div className="mt-4 overflow-x-auto overflow-y-hidden rounded-xl border border-[var(--border)]">
           <table className="w-full min-w-[720px] text-left text-sm">
@@ -311,35 +305,7 @@ export function LeadsView({
             </tbody>
           </table>
         </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm text-[var(--foreground-muted)]">
-          <label className="flex items-center gap-2">
-            Rows Per Page
-            <select className="rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-[var(--foreground)]" defaultValue="10">
-              <option value="10">10</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-            </select>
-          </label>
-        </div>
       </div>
     </div>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <circle cx="11" cy="11" r="7" />
-      <path d="M21 21l-4.3-4.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SlidersIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" strokeLinecap="round" />
-    </svg>
   );
 }

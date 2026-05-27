@@ -1,13 +1,26 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
+import { ListQueryToolbar, SORT_UNIVERSITIES } from "@/components/list-controls";
 import { requireAuth } from "@/lib/auth";
+import {
+  paginationMeta,
+  parsePage,
+  parsePageSize,
+  searchParamOne,
+  universityOrderBy,
+  universityTextSearchWhere,
+} from "@/lib/list-query";
 import { prisma } from "@/lib/prisma";
 import { isMaster } from "@/lib/roles";
 import { UniversityRowActions } from "@/app/dashboard/master/universities/university-row-actions";
 import { universityHasDetailsSaved } from "@/lib/university-details-saved";
 
 export const dynamic = "force-dynamic";
+
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
 function formatDate(d: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -24,26 +37,43 @@ function formatFee(value: { toString(): string } | null): string {
   return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default async function MasterUniversitiesListPage() {
+export default async function MasterUniversitiesListPage(props: PageProps) {
   const session = await requireAuth();
   if (!isMaster(session.roles)) {
     redirect("/dashboard");
   }
 
-  const rows = await prisma.university.findMany({
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      code: true,
-      email: true,
-      phone: true,
-      applicationFee: true,
-      logoUrl: true,
-      status: true,
-      createdAt: true,
-    },
-  });
+  const sp = await props.searchParams;
+  const q = searchParamOne(sp, "q");
+  const sort = searchParamOne(sp, "sort") ?? "latest";
+  const page = parsePage(searchParamOne(sp, "page"));
+  const pageSize = parsePageSize(searchParamOne(sp, "pageSize"), 25);
+
+  const textWhere = universityTextSearchWhere(q);
+  const where: Prisma.UniversityWhereInput = textWhere ?? {};
+
+  const [total, rows] = await Promise.all([
+    prisma.university.count({ where }),
+    prisma.university.findMany({
+      where,
+      orderBy: universityOrderBy(sort),
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        email: true,
+        phone: true,
+        applicationFee: true,
+        logoUrl: true,
+        status: true,
+        createdAt: true,
+      },
+    }),
+  ]);
+
+  const { page: safePage, totalPages } = paginationMeta(total, page, pageSize);
 
   const ids = rows.map((r) => r.id);
   const locationById: Record<string, string | null> = {};
@@ -107,12 +137,25 @@ export default async function MasterUniversitiesListPage() {
         </p>
       </div>
 
+      <ListQueryToolbar
+        className="mt-8"
+        total={total}
+        page={safePage}
+        pageSize={pageSize}
+        totalPages={totalPages}
+        q={q ?? ""}
+        sort={sort}
+        sortOptions={SORT_UNIVERSITIES}
+        searchPlaceholder="University name, code, or email"
+        itemLabel="university"
+      />
+
       {universities.length === 0 ? (
-        <p className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-10 text-center text-sm text-[var(--foreground-muted)]">
-          No universities yet. Click <strong className="text-[var(--foreground)]">Add university</strong>.
+        <p className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-10 text-center text-sm text-[var(--foreground-muted)]">
+          {q ? "No universities match your search." : "No universities yet. Click Add university."}
         </p>
       ) : (
-        <div className="mt-8 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
           <table className="w-full min-w-[1100px] text-left text-sm">
             <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40">
               <tr>

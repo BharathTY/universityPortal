@@ -1,19 +1,32 @@
-/** Role slugs stored in DB and JWT */
+/** Role slugs stored in DB and JWT — PRD §2 four-role model + legacy aliases. */
 export const ROLES = {
   student: "student",
+  /** PRD: Consultant */
   consultant: "consultant",
-  university: "university",
+  /** PRD: Consultant SPOC (sub-user under consultant) */
+  consultantSpoc: "consultant_spoc",
+  /** PRD: Master Admin */
   master: "master",
+  /** Legacy — treated as Master Admin */
   admin: "admin",
-  /** @deprecated use consultant */
+  /** Legacy university staff — admissions back-office */
+  university: "university",
+  /** @deprecated alias for consultant_spoc */
   counsellor: "counsellor",
-  /** @deprecated use consultant */
+  /** @deprecated manager under consultant */
   consultantMaster: "consultant_master",
-  /** Qspiders branch login — same portal as consultant; branch name on leads. */
+  /** Legacy branch partner */
   qspidersBranch: "qspiders_branch",
 } as const;
 
 export type RoleSlug = (typeof ROLES)[keyof typeof ROLES];
+
+const SPOC_SLUGS = new Set<string>([ROLES.consultantSpoc, ROLES.counsellor]);
+const CONSULTANT_SLUGS = new Set<string>([
+  ROLES.consultant,
+  ROLES.consultantMaster,
+  ROLES.qspidersBranch,
+]);
 
 export function isMaster(roles: string[]): boolean {
   return roles.includes(ROLES.master) || roles.includes(ROLES.admin);
@@ -23,32 +36,36 @@ export function isUniversity(roles: string[]): boolean {
   return roles.includes(ROLES.university);
 }
 
-/** Counsellor, consultant, consultant_master, or Qspiders branch (lead/student workflows). */
-export function isConsultant(roles: string[]): boolean {
+/** PRD Consultant (primary admission partner, not SPOC-only). */
+export function isConsultantPrincipal(roles: string[]): boolean {
   return (
     roles.includes(ROLES.consultant) ||
-    roles.includes(ROLES.counsellor) ||
     roles.includes(ROLES.consultantMaster) ||
     roles.includes(ROLES.qspidersBranch)
   );
 }
 
-export function isCounsellor(roles: string[]): boolean {
-  return roles.includes(ROLES.counsellor);
-}
-
-/** Counsellor without consultant / manager / branch partner roles (leads-only workspace). */
-export function isCounsellorOnly(roles: string[]): boolean {
+/** PRD Consultant SPOC — sub-user with lead management, no SPOC tab. */
+export function isConsultantSpoc(roles: string[]): boolean {
   return (
-    isConsultantOnly(roles) &&
-    isCounsellor(roles) &&
-    !roles.includes(ROLES.consultant) &&
-    !roles.includes(ROLES.consultantMaster) &&
-    !roles.includes(ROLES.qspidersBranch)
+    (roles.includes(ROLES.consultantSpoc) || roles.includes(ROLES.counsellor)) &&
+    !isConsultantPrincipal(roles)
   );
 }
 
-/** Consultant / counsellor / consultant_master without Master or University staff roles (student-mentor workflows only). */
+/** Any consultant-side role (principal or SPOC). */
+export function isConsultant(roles: string[]): boolean {
+  return isConsultantPrincipal(roles) || isConsultantSpoc(roles);
+}
+
+export function isCounsellor(roles: string[]): boolean {
+  return roles.includes(ROLES.counsellor) || roles.includes(ROLES.consultantSpoc);
+}
+
+export function isCounsellorOnly(roles: string[]): boolean {
+  return isConsultantSpoc(roles);
+}
+
 export function isConsultantOnly(roles: string[]): boolean {
   return isConsultant(roles) && !isMaster(roles) && !isUniversity(roles);
 }
@@ -57,59 +74,63 @@ export function isStudent(roles: string[]): boolean {
   return roles.includes(ROLES.student);
 }
 
-/**
- * Whether internal UIs may show the assigned admission partner name on a lead
- * (Lead Punch snapshot). Never use for student-facing APIs or pages.
- * Intended for Manager (`consultant_master`), `admin`, `counsellor`, and `master` oversight.
- */
+export function canManageSpocs(roles: string[]): boolean {
+  return isConsultantPrincipal(roles) && !isConsultantSpoc(roles);
+}
+
+export function canSeeMouPanel(roles: string[]): boolean {
+  return isConsultantPrincipal(roles);
+}
+
 export function canSeeAdmissionLeadAssignedPartnerName(roles: string[]): boolean {
   return (
     roles.includes(ROLES.admin) ||
     roles.includes(ROLES.master) ||
-    roles.includes(ROLES.counsellor) ||
+    isCounsellor(roles) ||
     roles.includes(ROLES.consultantMaster)
   );
 }
 
-/** Consultants & university staff & master can open lead/batch tools */
 export function canAccessLeadsAndBatches(roles: string[]): boolean {
   return isMaster(roles) || isUniversity(roles) || isConsultant(roles);
 }
 
-const ADMISSION_PARTNER_SLUGS = new Set<string>([
-  ROLES.consultant,
-  ROLES.counsellor,
-  ROLES.consultantMaster,
-  ROLES.qspidersBranch,
-]);
-
-/** User-facing role line in headers and dashboards. */
-export function formatRoleLabel(slug: string): string {
-  if (slug === ROLES.counsellor) {
-    return "Counsellor";
-  }
-  if (ADMISSION_PARTNER_SLUGS.has(slug)) {
-    return "Admission Partner";
-  }
-  return slug
-    .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
+/** Post-login redirect per PRD §3. */
+export function defaultDashboardPath(roles: string[]): string {
+  if (isMaster(roles)) return "/dashboard/master";
+  if (isConsultantSpoc(roles)) return "/dashboard/spoc";
+  if (isConsultantPrincipal(roles)) return "/dashboard/consultant-home";
+  if (isStudent(roles)) return "/dashboard/student/application";
+  if (isUniversity(roles)) return "/dashboard";
+  return "/dashboard";
 }
 
-/** Distinct labels on the consultant Manage users → Team roster (not collapsed to "Admission Partner"). */
-export function formatTeamMemberRole(slug: string): string {
+export function formatRoleLabel(slug: string): string {
   switch (slug) {
+    case ROLES.master:
+    case ROLES.admin:
+      return "Master Admin";
+    case ROLES.consultant:
+      return "Consultant";
+    case ROLES.consultantSpoc:
     case ROLES.counsellor:
-      return "Counsellor";
+      return "Consultant SPOC";
     case ROLES.consultantMaster:
       return "Manager";
     case ROLES.qspidersBranch:
-      return "Branch";
-    case ROLES.consultant:
-      return "Admission partner";
+      return "Branch Partner";
+    case ROLES.student:
+      return "Student";
+    case ROLES.university:
+      return "University Staff";
     default:
-      return formatRoleLabel(slug);
+      return slug
+        .split("_")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ");
   }
 }
 
+export function formatTeamMemberRole(slug: string): string {
+  return formatRoleLabel(slug);
+}

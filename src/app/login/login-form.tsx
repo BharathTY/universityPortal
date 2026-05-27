@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 const REMEMBER_KEY = "qsp_auth_remember";
@@ -97,14 +98,14 @@ export function LoginForm({ requireOtpLogin }: Props) {
       }),
       credentials: "include",
     });
-    const data = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
+    const data = (await res.json().catch(() => ({}))) as { error?: string; detail?: string; redirectTo?: string };
     if (!res.ok) {
       const msg = data.error || "Something went wrong";
       setError(data.detail ? `${msg}: ${data.detail}` : msg);
       return;
     }
     persistRememberChoice(emailNorm);
-    router.push("/dashboard");
+    router.push(data.redirectTo ?? "/dashboard");
     router.refresh();
   }
 
@@ -175,14 +176,8 @@ export function LoginForm({ requireOtpLogin }: Props) {
     }
   }
 
-  const floatingLabelClass =
-    "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 origin-left text-[#2563eb] transition-all duration-200 " +
-    "peer-focus:top-2 peer-focus:-translate-y-0 peer-focus:text-xs " +
-    "peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:-translate-y-0 peer-[:not(:placeholder-shown)]:text-xs";
-
-  const inputClass =
-    "peer block w-full rounded-lg border-2 border-slate-200 bg-white px-3 pb-2.5 pt-5 text-slate-900 shadow-sm outline-none " +
-    "transition focus:border-[#2563eb] hover:border-slate-300";
+  const floatingLabelClass = "auth-floating-label peer-focus:top-2 peer-focus:-translate-y-0 peer-focus:text-xs peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:-translate-y-0 peer-[:not(:placeholder-shown)]:text-xs";
+  const inputClass = "auth-input peer";
 
   return (
     <form onSubmit={onSubmit} className="mt-10 space-y-6">
@@ -239,22 +234,19 @@ export function LoginForm({ requireOtpLogin }: Props) {
             type="checkbox"
             checked={remember}
             onChange={(e) => setRemember(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-[#2563eb] focus:ring-[#2563eb]"
+            className="auth-checkbox h-4 w-4 rounded focus:ring-[var(--primary)]"
           />
           Remember me
         </label>
-        <a
-          href="mailto:support@university.edu?subject=Login%20help"
-          className="text-sm font-medium text-[#2563eb] hover:underline"
-        >
-          Need help?
-        </a>
+        <Link href="/forgot-password" className="auth-link">
+          Forgot password?
+        </Link>
       </div>
 
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-lg bg-[#2563eb] px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-[#1d4ed8] disabled:opacity-60"
+        className="auth-btn-primary disabled:opacity-60"
       >
         {loading ? "Signing in…" : requireOtpLogin ? "Continue" : "Sign in"}
       </button>
