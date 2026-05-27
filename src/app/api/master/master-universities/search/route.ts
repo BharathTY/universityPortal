@@ -11,19 +11,18 @@ export async function GET(req: Request) {
   const q = (url.searchParams.get("q") ?? "").trim();
   const limit = Math.min(Number(url.searchParams.get("limit") ?? 20), 50);
 
-  if (q.length < 2) {
-    return NextResponse.json({ items: [] });
-  }
-
   const items = await prisma.masterUniversity.findMany({
-    where: {
-      OR: [
-        { name: { contains: q, mode: "insensitive" } },
-        { shortname: { contains: q, mode: "insensitive" } },
-        { district: { contains: q, mode: "insensitive" } },
-        { state: { contains: q, mode: "insensitive" } },
-      ],
-    },
+    where:
+      q.length > 0
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { shortname: { contains: q, mode: "insensitive" } },
+              { district: { contains: q, mode: "insensitive" } },
+              { state: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : undefined,
     orderBy: [{ priority: "desc" }, { name: "asc" }],
     take: limit,
     select: {

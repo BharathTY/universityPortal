@@ -5,8 +5,11 @@ import assert from "node:assert";
 import type { PrismaClient } from "@prisma/client";
 import {
   buildSelectableYopYears,
+  formatAcademicYearLabel,
   isSelectableYopYear,
   minSelectableYopYear,
+  normalizeAcademicYearLabel,
+  parseAcademicYearStartYear,
 } from "../src/lib/academic-year-yop";
 import { resolveAcademicYearIdWithPrisma } from "../src/lib/consultant-default-year";
 import { isAdmissionLeadRoleSlug } from "../src/lib/admission-lead-role";
@@ -182,6 +185,15 @@ async function main() {
     assert.strictEqual(isSelectableYopYear(2026, now), true);
     assert.strictEqual(isSelectableYopYear(2027, now), true);
   });
+  await test("academic year labels use YYYY/YY format", () => {
+    assert.strictEqual(formatAcademicYearLabel(2026), "2026/27");
+    assert.strictEqual(formatAcademicYearLabel(2027), "2027/28");
+    assert.strictEqual(normalizeAcademicYearLabel("2026/27"), "2026/27");
+    assert.strictEqual(normalizeAcademicYearLabel("2026"), "2026/27");
+    assert.strictEqual(parseAcademicYearStartYear("2026/27"), 2026);
+    assert.strictEqual(parseAcademicYearStartYear("2026"), 2026);
+    assert.strictEqual(normalizeAcademicYearLabel("2026/28"), null);
+  });
 
   section("resolveAcademicYearIdWithPrisma (in-memory mock)");
   await test("preferred id wins when row exists", async () => {
@@ -233,7 +245,7 @@ async function main() {
     const items = buildDashboardNav(roles).flatMap((g) => g.items);
     assert.ok(items.some((i) => i.href === "/dashboard/master"));
     assert.ok(items.some((i) => i.href === "/dashboard/master/consultants"));
-    assert.ok(items.some((i) => i.href === "/dashboard/master/applications"));
+    assert.ok(items.some((i) => i.href === "/dashboard/master/payments"));
   });
 
   await test("university@university.local — University staff (linked to QSP-U1 in seed)", () => {

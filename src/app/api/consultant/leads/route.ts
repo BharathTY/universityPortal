@@ -1,4 +1,4 @@
-import { AdmissionLeadStatus, LeadPipelineStatus } from "@prisma/client";
+import { AdmissionLeadStatus, LeadPipelineStatus, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import type { SessionPayload } from "@/lib/auth";
@@ -7,32 +7,23 @@ import { isAdmissionLeadRoleSlug } from "@/lib/admission-lead-role";
 import { resolveAcademicYearIdForLead } from "@/lib/consultant-default-year";
 import { consultantCodeFromUserId } from "@/lib/consultant-code";
 import { requireConsultantUniversity } from "@/lib/consultant-api";
-import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
+import {
+  getConsultantLeadsFilterOptions,
+  getConsultantLeadsSummary,
+  listConsultantLeads,
+  parseConsultantLeadsQueryFromSearchParams,
+} from "@/lib/consultant-leads-data";
+import {
+  buildLeadExtendedData,
+  consultantLeadBodySchema,
+  parseConsultantLeadRequest,
+} from "@/lib/consultant-lead-payload";
+import { sendAdmissionLeadWelcomeEmail } from "@/lib/email";
+import { storeUpload } from "@/lib/file-storage";
 import { leadOrderBy, leadTextSearchWhere, parsePage, parsePageSize } from "@/lib/list-query";
 import { canSeeAdmissionLeadAssignedPartnerName } from "@/lib/roles";
-import { sendAdmissionLeadWelcomeEmail } from "@/lib/email";
 
-const createSchema = z.object({
-  universityId: z.string().min(1).optional(),
-  academicYearId: z.string().min(1).optional(),
-  streamId: z.string().min(1),
-  firstName: z.string().min(1).max(120).trim(),
-  lastName: z.string().min(1).max(120).trim(),
-  email: z.string().email().max(254).trim(),
-  mobile: z
-    .string()
-    .trim()
-    .refine((s) => {
-      const digits = s.replace(/\D/g, "");
-      return digits.length >= 10 && digits.length <= 15;
-    }, { message: "Enter a valid mobile number (10–15 digits)" }),
-  nationality: z.string().max(120).trim().optional().nullable(),
-  admissionState: z.string().min(1).max(120).trim(),
-  referralFirstName: z.string().max(120).trim().optional().nullable(),
-  referralLastName: z.string().max(120).trim().optional().nullable(),
-  referralPhone: z.string().max(32).trim().optional().nullable(),
-  referralEmail: z.string().max(254).trim().optional().nullable(),
-});
+const createSchema = consultantLeadBodySchema;
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -59,15 +50,35 @@ export async function GET(req: Request) {
     const gate = await requireConsultantUniversity(null);
     if (!gate.ok) return gate.response;
     session = gate.session;
-    const allowed = await getAllowedConsultantUniversityIds(session.sub);
-    if (allowed.length === 0) {
-      return NextResponse.json({ leads: [], total: 0, page, pageSize, totalPages: 1 });
-    }
-    baseWhere = {
-      createdByUserId: session.sub,
-      universityId: { in: allowed },
-      ...(pipeline ? { pipelineStatus: pipeline } : {}),
-    };
+
+    const query = parseConsultantLeadsQueryFromSearchParams({
+      q: url.searchParams.get("q") ?? undefined,
+      universityId: url.searchParams.get("universityId") ?? undefined,
+      streamId: url.searchParams.get("streamId") ?? undefined,
+      status: url.searchParams.get("status") ?? undefined,
+      createdFrom: url.searchParams.get("createdFrom") ?? undefined,
+      createdTo: url.searchParams.get("createdTo") ?? undefined,
+      sort: url.searchParams.get("sort") ?? undefined,
+      page: url.searchParams.get("page") ?? undefined,
+      pageSize: url.searchParams.get("pageSize") ?? undefined,
+    });
+
+    const includeMeta = url.searchParams.get("includeMeta") === "1";
+    const [list, summary, filterOptions] = await Promise.all([
+      listConsultantLeads(session.sub, query),
+      includeMeta ? getConsultantLeadsSummary(session.sub) : Promise.resolve(undefined),
+      includeMeta ? getConsultantLeadsFilterOptions(session.sub) : Promise.resolve(undefined),
+    ]);
+
+    return NextResponse.json({
+      leads: list.leads,
+      total: list.total,
+      page: list.page,
+      pageSize: list.pageSize,
+      totalPages: list.totalPages,
+      ...(summary ? { summary } : {}),
+      ...(filterOptions ? { filterOptions } : {}),
+    });
   } else {
     const gate = await requireConsultantUniversity(scoped);
     if (!gate.ok) return gate.response;
@@ -117,10 +128,13 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   let json: unknown;
+  let photoFile: File | null = null;
   try {
-    json = await req.json();
+    const parsedReq = await parseConsultantLeadRequest(req);
+    json = parsedReq.data;
+    photoFile = parsedReq.photoFile;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid JSON or form data" }, { status: 400 });
   }
 
   const parsed = createSchema.safeParse(json);
@@ -132,6 +146,28 @@ export async function POST(req: Request) {
         fieldErrors: flat.fieldErrors,
         formErrors: flat.formErrors,
       },
+      { status: 400 },
+    );
+  }
+
+  if (!photoFile) {
+    return NextResponse.json(
+      {
+        error: "Photo is required",
+        fieldErrors: { photoFile: ["Upload a JPG, JPEG, or PNG photo (max 2 MB)"] },
+      },
+      { status: 400 },
+    );
+  }
+
+  let photoUrl: string;
+  try {
+    const stored = await storeUpload(photoFile, "leads/photos", "image");
+    photoUrl = stored.fileUrl;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Photo upload failed";
+    return NextResponse.json(
+      { error: msg, fieldErrors: { photoFile: [msg] } },
       { status: 400 },
     );
   }
@@ -167,19 +203,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No admission partner role on your account" }, { status: 400 });
   }
 
-  const email = parsed.data.email.toLowerCase();
-  const dup = await prisma.admissionLead.findFirst({
-    where: { universityId, email },
-  });
-  if (dup) {
-    return NextResponse.json({ error: "A lead with this email already exists for this university" }, { status: 409 });
-  }
-
-  let referralEmail: string | null = null;
-  const refE = parsed.data.referralEmail?.trim();
-  if (refE) {
-    const ok = z.string().email().safeParse(refE);
-    if (!ok.success) {
+  let extended;
+  try {
+    extended = buildLeadExtendedData(parsed.data);
+  } catch (e) {
+    const code = e instanceof Error ? e.message : "";
+    if (code === "INVALID_REFERRAL_EMAIL") {
       return NextResponse.json(
         {
           error: "Invalid input",
@@ -189,19 +218,25 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    referralEmail = refE.toLowerCase();
+    if (code === "INVALID_REFERRAL_PHONE") {
+      return NextResponse.json(
+        {
+          error: "Invalid input",
+          fieldErrors: { referralPhone: ["Enter a valid contact number (at least 10 digits)"] },
+          formErrors: [],
+        },
+        { status: 400 },
+      );
+    }
+    throw e;
   }
 
-  const refPhone = parsed.data.referralPhone?.trim();
-  if (refPhone && refPhone.replace(/\D/g, "").length < 10) {
-    return NextResponse.json(
-      {
-        error: "Invalid input",
-        fieldErrors: { referralPhone: ["Enter a valid contact number (at least 10 digits)"] },
-        formErrors: [],
-      },
-      { status: 400 },
-    );
+  const email = extended.email;
+  const dup = await prisma.admissionLead.findFirst({
+    where: { universityId, email },
+  });
+  if (dup) {
+    return NextResponse.json({ error: "A lead with this email already exists for this university" }, { status: 409 });
   }
 
   const assignedPartnerDisplayName = (creator?.name?.trim() || creator?.email?.trim() || "Admission partner").slice(
@@ -214,23 +249,15 @@ export async function POST(req: Request) {
       universityId,
       academicYearId: yearId,
       streamId: parsed.data.streamId,
-      firstName: parsed.data.firstName,
-      lastName: parsed.data.lastName,
-      email,
-      mobile: parsed.data.mobile,
       consultantCode: consultantCodeFromUserId(session.sub),
       consultantRoleId: consultantRole.roleId,
       admissionStatus: AdmissionLeadStatus.NEW_LEAD,
       pipelineStatus: LeadPipelineStatus.NEW,
-      nationality: parsed.data.nationality ?? null,
-      admissionState: parsed.data.admissionState,
-      referralFirstName: parsed.data.referralFirstName?.trim() || null,
-      referralLastName: parsed.data.referralLastName?.trim() || null,
-      referralPhone: parsed.data.referralPhone?.trim() || null,
-      referralEmail,
+      photoUrl,
       branchName: creator?.branchName?.trim() || null,
       createdByUserId: session.sub,
       assignedPartnerDisplayName,
+      ...extended,
     },
   });
 

@@ -16,6 +16,11 @@ import { generateRandomPassword, hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { ROLES } from "@/lib/roles";
 import { generateUniqueUniversityCode } from "@/lib/university-code";
+import {
+  isSelectableYopYearLabel,
+  normalizeAcademicYearLabel,
+  parseAcademicYearStartYear,
+} from "@/lib/academic-year-yop";
 
 const nameSchema = z.string().trim().min(1).max(200);
 
@@ -76,6 +81,13 @@ const createSchema = z.object({
   otherAdminCharges: z.string().trim().max(500).optional().nullable(),
   otherAdminAmount: optionalNullableFee,
   cetSeats: z.array(cetSeatSchema).max(80).optional(),
+  academicYearLabel: z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .refine((s) => !s || isSelectableYopYearLabel(s), { message: "Select a valid academic year" })
+    .transform((s) => (s ? normalizeAcademicYearLabel(s) : null)),
   hostelFees: z
     .object({
       girlsAc2: hostelFeeValue,
@@ -258,6 +270,16 @@ export async function POST(req: Request) {
     );
   }
 
+  if ((files.mouFile || files.eventPhotos.length > 0) && !parsed.data.academicYearLabel?.trim()) {
+    return NextResponse.json(
+      {
+        error: "Academic year is required when uploading MOU or event photos",
+        fieldErrors: { academicYear: ["Select an academic year for MOU and event photos"] },
+      },
+      { status: 400 },
+    );
+  }
+
   let logoUrl = parsed.data.logoUrl?.trim() || null;
   if (files.logoFile) {
     try {
@@ -275,13 +297,24 @@ export async function POST(req: Request) {
 
   let mouFileUrl: string | null = null;
   const eventPhotoUrls: string[] = [];
-  const documentRows: { kind: DocumentKind; fileName: string; fileUrl: string }[] = [];
+  const docAcademicYear = parsed.data.academicYearLabel ?? null;
+  const documentRows: {
+    kind: DocumentKind;
+    fileName: string;
+    fileUrl: string;
+    academicYear: string | null;
+  }[] = [];
 
   if (files.mouFile) {
     try {
       const stored = await storeUpload(files.mouFile, "universities/mou", "mou");
       mouFileUrl = stored.fileUrl;
-      documentRows.push({ kind: DocumentKind.MOU, fileName: stored.fileName, fileUrl: stored.fileUrl });
+      documentRows.push({
+        kind: DocumentKind.MOU,
+        fileName: stored.fileName,
+        fileUrl: stored.fileUrl,
+        academicYear: docAcademicYear,
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "MOU upload failed";
       return NextResponse.json({ error: msg }, { status: 400 });
@@ -292,7 +325,12 @@ export async function POST(req: Request) {
     try {
       const stored = await storeUpload(photo, "universities/events", "image");
       eventPhotoUrls.push(stored.fileUrl);
-      documentRows.push({ kind: DocumentKind.EVENT_PHOTO, fileName: stored.fileName, fileUrl: stored.fileUrl });
+      documentRows.push({
+        kind: DocumentKind.EVENT_PHOTO,
+        fileName: stored.fileName,
+        fileUrl: stored.fileUrl,
+        academicYear: docAcademicYear,
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Event photo upload failed";
       return NextResponse.json({ error: msg }, { status: 400 });
@@ -440,7 +478,22 @@ export async function POST(req: Request) {
           kind: doc.kind,
           fileName: doc.fileName,
           fileUrl: doc.fileUrl,
+          academicYear: doc.academicYear,
         },
+      });
+    }
+
+    if (docAcademicYear) {
+      await tx.academicYear.upsert({
+        where: {
+          universityId_label: { universityId: university.id, label: docAcademicYear },
+        },
+        create: {
+          universityId: university.id,
+          label: docAcademicYear,
+          sortOrder: parseAcademicYearStartYear(docAcademicYear) ?? 0,
+        },
+        update: {},
       });
     }
 

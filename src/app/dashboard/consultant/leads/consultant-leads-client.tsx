@@ -6,9 +6,18 @@ import * as React from "react";
 import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
 import { ListQueryToolbar, SORT_LEADS } from "@/components/list-controls";
 import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
+import type { SerializedConsultantLeadDetail } from "@/lib/consultant-lead-payload";
 
 type Stream = { id: string; name: string };
 type AcademicYearOption = { id: string; label: string };
+
+type UniversityOption = {
+  id: string;
+  name: string;
+  code: string;
+  streams: Stream[];
+  academicYears: AcademicYearOption[];
+};
 
 type LeadRow = {
   id: string;
@@ -36,11 +45,16 @@ type Props = {
   universityCode: string;
   streams: Stream[];
   academicYears?: AcademicYearOption[];
+  /** All assignable universities for the add-lead form dropdown. */
+  universityOptions?: UniversityOption[];
+  initialUniversityId?: string;
   /** POST `/api/auth/active-university` when the scoped university changes (multi-university consultants). */
   setActiveUniversityOnMount?: boolean;
   showBulkUpload?: boolean;
-  /** `hub`: leads table under the university hub; `addOnly`: full-page add lead form */
-  layoutMode: "hub" | "addOnly";
+  /** `hub`: leads table under the university hub; `addOnly`: full-page add lead form; `edit`: edit existing lead */
+  layoutMode: "hub" | "addOnly" | "edit";
+  leadId?: string;
+  initialLead?: SerializedConsultantLeadDetail;
 };
 
 function looksLikeEmail(s: string): boolean {
@@ -66,10 +80,13 @@ function validateLeadForm(input: {
   academicYearId: string;
   admissionState: string;
   nationality: string;
+  address: string;
+  hasPhoto: boolean;
   refEmail: string;
   refPhone: string;
   academicYearsCount: number;
   streamsCount: number;
+  extendedFields: boolean;
 }): Record<string, string> {
   const e: Record<string, string> = {};
   if (!input.firstName.trim()) e.firstName = "First name is required";
@@ -83,13 +100,18 @@ function validateLeadForm(input: {
   else if (digits.length < 10 || digits.length > 15) e.mobile = "Enter a valid mobile number (10–15 digits)";
   if (input.streamsCount === 0 || !input.streamId) e.streamId = "Select a degree type";
   if (input.academicYearsCount === 0) {
-    e.academicYearId = "No academic year (YOP) is configured for this university";
+    e.academicYearId = "No academic year is configured for this university";
   } else if (!input.academicYearId) {
-    e.academicYearId = "Select the year (YOP)";
+    e.academicYearId = "Select an academic year";
   }
   if (!input.admissionState) e.admissionState = "Select state";
   const nat = input.nationality.trim();
   if (!nat) e.nationality = "Nationality is required";
+
+  if (input.extendedFields) {
+    if (!input.address.trim()) e.address = "Address is required";
+    if (!input.hasPhoto) e.photoFile = "Photo is required (JPG, JPEG, or PNG, max 2 MB)";
+  }
 
   const rE = input.refEmail.trim();
   if (rE && !looksLikeEmail(rE)) e.referralEmail = "Enter a valid email address";
@@ -102,7 +124,41 @@ function validateLeadForm(input: {
 export function ConsultantLeadsClient(props: Props) {
   const showBulk = props.showBulkUpload ?? false;
   const setActive = props.setActiveUniversityOnMount ?? false;
-  const academicYears = React.useMemo(() => props.academicYears ?? [], [props.academicYears]);
+  const universityOptions = props.universityOptions ?? [];
+  const isEdit = props.layoutMode === "edit";
+  const isAddOnly = props.layoutMode === "addOnly";
+  const useExtendedFields = isAddOnly || isEdit;
+  const hasUniversityPicker = (isAddOnly || isEdit) && universityOptions.length > 0;
+
+  const [selectedUniversityId, setSelectedUniversityId] = React.useState(
+    props.initialUniversityId ?? props.universityId,
+  );
+
+  const activeUniversity = React.useMemo(() => {
+    if (hasUniversityPicker) {
+      return universityOptions.find((u) => u.id === selectedUniversityId) ?? universityOptions[0]!;
+    }
+    return {
+      id: props.universityId,
+      name: props.universityName,
+      code: props.universityCode,
+      streams: props.streams,
+      academicYears: props.academicYears ?? [],
+    };
+  }, [
+    hasUniversityPicker,
+    universityOptions,
+    selectedUniversityId,
+    props.universityId,
+    props.universityName,
+    props.universityCode,
+    props.streams,
+    props.academicYears,
+  ]);
+
+  const activeStreams = activeUniversity.streams;
+  const academicYears = activeUniversity.academicYears;
+  const activeUniversityId = activeUniversity.id;
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -111,7 +167,8 @@ export function ConsultantLeadsClient(props: Props) {
   const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
   const pageSize = Math.min(100, Math.max(5, Number(searchParams.get("pageSize") ?? "20") || 20));
 
-  const [loading, setLoading] = React.useState(props.layoutMode !== "addOnly");
+  const [loading, setLoading] = React.useState(props.layoutMode === "hub");
+  const [deleting, setDeleting] = React.useState(false);
   const [rows, setRows] = React.useState<LeadRow[]>([]);
   const [total, setTotal] = React.useState(0);
   const [totalPages, setTotalPages] = React.useState(1);
@@ -123,13 +180,70 @@ export function ConsultantLeadsClient(props: Props) {
   const [mobile, setMobile] = React.useState("");
   const [nat, setNat] = React.useState("India");
   const [streamId, setStreamId] = React.useState(props.streams[0]?.id ?? "");
-  const [academicYearId, setAcademicYearId] = React.useState(academicYears[0]?.id ?? "");
+  const [academicYearId, setAcademicYearId] = React.useState(props.academicYears?.[0]?.id ?? "");
   const [admissionState, setAdmissionState] = React.useState("");
   const [refFn, setRefFn] = React.useState("");
   const [refLn, setRefLn] = React.useState("");
   const [refPhone, setRefPhone] = React.useState("");
   const [refEmail, setRefEmail] = React.useState("");
+  const [address, setAddress] = React.useState("");
+  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
+  const [existingPhotoUrl, setExistingPhotoUrl] = React.useState<string | null>(
+    props.initialLead?.photoUrl ?? null,
+  );
+  const [photoPreview, setPhotoPreview] = React.useState<string | null>(props.initialLead?.photoUrl ?? null);
+  const [pucBoard, setPucBoard] = React.useState("");
+  const [pucYear, setPucYear] = React.useState("");
+  const [pucPercent, setPucPercent] = React.useState("");
+  const [gender, setGender] = React.useState("");
+  const [dateOfBirth, setDateOfBirth] = React.useState("");
+  const [pincode, setPincode] = React.useState("");
+  const [degreePercent, setDegreePercent] = React.useState("");
+  const [degreeCollege, setDegreeCollege] = React.useState("");
+  const [degreeName, setDegreeName] = React.useState("");
+  const [ieltsScore, setIeltsScore] = React.useState("");
+  const [toeflScore, setToeflScore] = React.useState("");
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
+
+  React.useEffect(() => {
+    if (photoFile) {
+      const url = URL.createObjectURL(photoFile);
+      setPhotoPreview(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setPhotoPreview(existingPhotoUrl);
+  }, [photoFile, existingPhotoUrl]);
+
+  React.useEffect(() => {
+    if (!isEdit || !props.initialLead) return;
+    const l = props.initialLead;
+    setSelectedUniversityId(l.universityId);
+    setFn(l.firstName);
+    setLn(l.lastName);
+    setEmail(l.email);
+    setMobile(l.mobile);
+    setNat(l.nationality ?? "India");
+    setStreamId(l.streamId);
+    setAcademicYearId(l.academicYearId);
+    setAdmissionState(l.admissionState);
+    setRefFn(l.referralFirstName ?? "");
+    setRefLn(l.referralLastName ?? "");
+    setRefPhone(l.referralPhone ?? "");
+    setRefEmail(l.referralEmail ?? "");
+    setAddress(l.address);
+    setExistingPhotoUrl(l.photoUrl);
+    setPucBoard(l.pucBoard ?? "");
+    setPucYear(l.pucYear != null ? String(l.pucYear) : "");
+    setPucPercent(l.pucPercent);
+    setGender(l.gender ?? "");
+    setDateOfBirth(l.dateOfBirth);
+    setPincode(l.pincode ?? "");
+    setDegreePercent(l.degreePercent);
+    setDegreeCollege(l.degreeCollege ?? "");
+    setDegreeName(l.degreeName ?? "");
+    setIeltsScore(l.ieltsScore ?? "");
+    setToeflScore(l.toeflScore ?? "");
+  }, [isEdit, props.initialLead]);
 
   function borderFor(key: string) {
     return fieldErrors[key] ? "border-red-500" : "border-[var(--border)]";
@@ -166,14 +280,14 @@ export function ConsultantLeadsClient(props: Props) {
   }, [props.universityId, page, pageSize, q, sort]);
 
   React.useEffect(() => {
-    if (props.layoutMode === "addOnly") return;
+    if (props.layoutMode === "addOnly" || props.layoutMode === "edit") return;
     void load();
   }, [props.layoutMode, load]);
 
   React.useEffect(() => {
-    const first = props.streams[0]?.id ?? "";
-    setStreamId((prev) => (props.streams.some((s) => s.id === prev) ? prev : first));
-  }, [props.streams]);
+    const first = activeStreams[0]?.id ?? "";
+    setStreamId((prev) => (activeStreams.some((s) => s.id === prev) ? prev : first));
+  }, [activeStreams]);
 
   React.useEffect(() => {
     const first = academicYears[0]?.id ?? "";
@@ -181,16 +295,13 @@ export function ConsultantLeadsClient(props: Props) {
   }, [academicYears]);
 
   React.useEffect(() => {
-    if (!setActive || !props.universityId) return;
-    void (async () => {
-      await fetch("/api/auth/active-university", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ universityId: props.universityId }),
-      });
-      router.refresh();
-    })();
-  }, [setActive, props.universityId, router]);
+    if (!setActive || !activeUniversityId) return;
+    void fetch("/api/auth/active-university", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ universityId: activeUniversityId }),
+    });
+  }, [setActive, activeUniversityId]);
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -204,10 +315,13 @@ export function ConsultantLeadsClient(props: Props) {
       academicYearId,
       admissionState,
       nationality: nat,
+      address,
+      hasPhoto: Boolean(photoFile) || Boolean(existingPhotoUrl),
       refEmail,
       refPhone,
       academicYearsCount: academicYears.length,
-      streamsCount: props.streams.length,
+      streamsCount: activeStreams.length,
+      extendedFields: useExtendedFields,
     });
     if (Object.keys(clientErr).length > 0) {
       setFieldErrors(clientErr);
@@ -215,24 +329,52 @@ export function ConsultantLeadsClient(props: Props) {
     }
     setFieldErrors({});
 
-    const res = await fetch("/api/consultant/leads", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        universityId: props.universityId,
-        academicYearId: academicYearId || undefined,
-        firstName: fn.trim(),
-        lastName: ln.trim(),
-        email: email.trim(),
-        mobile: mobile.trim(),
-        nationality: nat.trim() || null,
-        streamId,
-        admissionState,
-        referralFirstName: refFn.trim() || null,
-        referralLastName: refLn.trim() || null,
-        referralPhone: refPhone.trim() || null,
-        referralEmail: refEmail.trim() || null,
-      }),
+    const payload = {
+      universityId: activeUniversityId,
+      academicYearId: academicYearId || undefined,
+      firstName: fn.trim(),
+      lastName: ln.trim(),
+      email: email.trim(),
+      mobile: mobile.trim(),
+      nationality: nat.trim() || null,
+      streamId,
+      admissionState,
+      address: address.trim(),
+      gender: gender || null,
+      dateOfBirth: dateOfBirth || null,
+      pincode: pincode.trim() || null,
+      pucBoard: pucBoard.trim() || null,
+      pucYear: pucYear.trim() || null,
+      pucPercent: pucPercent.trim() || null,
+      degreePercent: degreePercent.trim() || null,
+      degreeCollege: degreeCollege.trim() || null,
+      degreeName: degreeName.trim() || null,
+      ieltsScore: ieltsScore.trim() || null,
+      toeflScore: toeflScore.trim() || null,
+      referralFirstName: refFn.trim() || null,
+      referralLastName: refLn.trim() || null,
+      referralPhone: refPhone.trim() || null,
+      referralEmail: refEmail.trim() || null,
+    };
+
+    let body: BodyInit;
+    const useMultipart = useExtendedFields && Boolean(photoFile);
+    if (useMultipart && photoFile) {
+      const form = new FormData();
+      form.set("payload", JSON.stringify(payload));
+      form.set("photoFile", photoFile);
+      body = form;
+    } else {
+      body = JSON.stringify(payload);
+    }
+
+    const url = isEdit && props.leadId ? `/api/consultant/leads/${props.leadId}` : "/api/consultant/leads";
+    const method = isEdit ? "PATCH" : "POST";
+
+    const res = await fetch(url, {
+      method,
+      headers: useMultipart ? undefined : { "Content-Type": "application/json" },
+      body,
     });
     const data = (await res.json().catch(() => ({}))) as {
       error?: string;
@@ -241,7 +383,11 @@ export function ConsultantLeadsClient(props: Props) {
     if (!res.ok) {
       const apiFe = mapApiFieldErrors(data.fieldErrors);
       if (Object.keys(apiFe).length > 0) setFieldErrors(apiFe);
-      setError(data.error ?? "Could not create lead");
+      setError(data.error ?? (isEdit ? "Could not update lead" : "Could not create lead"));
+      return;
+    }
+    if (isEdit) {
+      router.push("/dashboard/consultant/leads");
       return;
     }
     setFn("");
@@ -254,13 +400,45 @@ export function ConsultantLeadsClient(props: Props) {
     setRefLn("");
     setRefPhone("");
     setRefEmail("");
+    setAddress("");
+    setPhotoFile(null);
+    setExistingPhotoUrl(null);
+    setPucBoard("");
+    setPucYear("");
+    setPucPercent("");
+    setGender("");
+    setDateOfBirth("");
+    setPincode("");
+    setDegreePercent("");
+    setDegreeCollege("");
+    setDegreeName("");
+    setIeltsScore("");
+    setToeflScore("");
     setFieldErrors({});
     setAcademicYearId(academicYears[0]?.id ?? "");
-    if (props.layoutMode === "addOnly") {
-      router.push("/dashboard/university");
+    if (isAddOnly) {
+      router.push("/dashboard/consultant/leads");
       return;
     }
     await load();
+  }
+
+  async function onDeleteLead() {
+    if (!isEdit || !props.leadId) return;
+    if (!window.confirm("Delete this lead? This cannot be undone.")) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/consultant/leads/${props.leadId}`, { method: "DELETE" });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Could not delete lead");
+        return;
+      }
+      router.push("/dashboard/consultant/leads");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   const showAssignedPartnerCol = rows.some((r) =>
@@ -274,16 +452,42 @@ export function ConsultantLeadsClient(props: Props) {
   }
 
   const isHub = props.layoutMode === "hub";
-  const isAddOnly = props.layoutMode === "addOnly";
 
   const canSubmitLead =
-    props.streams.length > 0 &&
+    activeStreams.length > 0 &&
     Boolean(streamId) &&
     academicYears.length > 0 &&
-    Boolean(academicYearId);
+    Boolean(academicYearId) &&
+    (!useExtendedFields || (address.trim().length > 0 && (Boolean(photoFile) || Boolean(existingPhotoUrl))));
 
   const addLeadForm = (
     <form onSubmit={onCreate} className="mt-4 space-y-6" noValidate>
+      {hasUniversityPicker ? (
+        <div>
+          <label className="text-sm font-medium">University</label>
+          <select
+            value={selectedUniversityId}
+            onChange={(e) => {
+              setSelectedUniversityId(e.target.value);
+              setFieldErrors((f) => {
+                const n = { ...f };
+                delete n.universityId;
+                return n;
+              });
+            }}
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("universityId")}`}
+          >
+            {universityOptions.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name} ({u.code})
+              </option>
+            ))}
+          </select>
+          {fieldErrors.universityId ? (
+            <p className="mt-1 text-xs text-red-600">{fieldErrors.universityId}</p>
+          ) : null}
+        </div>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="text-sm font-medium">First name</label>
@@ -373,8 +577,8 @@ export function ConsultantLeadsClient(props: Props) {
             className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("streamId")}`}
             aria-invalid={Boolean(fieldErrors.streamId)}
           >
-            {props.streams.length === 0 ? <option value="">No programs configured</option> : null}
-            {props.streams.map((s) => (
+            {activeStreams.length === 0 ? <option value="">No programs configured</option> : null}
+            {activeStreams.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
               </option>
@@ -383,7 +587,7 @@ export function ConsultantLeadsClient(props: Props) {
           {fieldErrors.streamId ? <p className="mt-1 text-xs text-red-600">{fieldErrors.streamId}</p> : null}
         </div>
         <div>
-          <label className="text-sm font-medium">Year (YOP)</label>
+          <label className="text-sm font-medium">Academic year</label>
           <select
             value={academicYearId}
             onChange={(e) => {
@@ -453,6 +657,183 @@ export function ConsultantLeadsClient(props: Props) {
         </div>
       </div>
 
+      {useExtendedFields ? (
+        <>
+          <div>
+            <label className="text-sm font-medium">Address *</label>
+            <textarea
+              value={address}
+              rows={3}
+              onChange={(e) => {
+                setAddress(e.target.value);
+                setFieldErrors((f) => {
+                  const n = { ...f };
+                  delete n.address;
+                  return n;
+                });
+              }}
+              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("address")}`}
+            />
+            {fieldErrors.address ? <p className="mt-1 text-xs text-red-600">{fieldErrors.address}</p> : null}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">
+              {isEdit ? "Photo (upload to replace)" : "Photo upload *"} (JPG/JPEG/PNG, max 2 MB)
+            </label>
+            {isEdit && existingPhotoUrl && !photoFile ? (
+              <p className="mt-1 text-xs text-[var(--foreground-muted)]">Current photo is on file. Upload only if you want to replace it.</p>
+            ) : null}
+            <div className="mt-2 flex flex-wrap items-start gap-4">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                </svg>
+                Choose photo
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setPhotoFile(file);
+                    setFieldErrors((f) => {
+                      const n = { ...f };
+                      delete n.photoFile;
+                      return n;
+                    });
+                  }}
+                />
+              </label>
+              {photoPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={photoPreview}
+                  alt="Preview"
+                  className="h-24 w-24 rounded-lg border border-[var(--border)] object-cover"
+                />
+              ) : (
+                <div className="flex h-24 w-24 items-center justify-center rounded-lg border border-dashed border-[var(--border)] bg-[var(--muted)]/30 text-xs text-[var(--foreground-muted)]">
+                  Preview
+                </div>
+              )}
+            </div>
+            {fieldErrors.photoFile ? <p className="mt-1 text-xs text-red-600">{fieldErrors.photoFile}</p> : null}
+          </div>
+
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/20 p-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
+              PUC details (optional)
+            </h3>
+            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+              <div>
+                <label className="text-sm font-medium">PUC board</label>
+                <input
+                  value={pucBoard}
+                  onChange={(e) => setPucBoard(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">PUC year</label>
+                <input
+                  value={pucYear}
+                  onChange={(e) => setPucYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">PUC %</label>
+                <input
+                  value={pucPercent}
+                  onChange={(e) => setPucPercent(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/20 p-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
+              Other (optional)
+            </h3>
+            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+              <div>
+                <label className="text-sm font-medium">Gender</label>
+                <select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                >
+                  <option value="">Select</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">DOB</label>
+                <input
+                  type="date"
+                  value={dateOfBirth}
+                  onChange={(e) => setDateOfBirth(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Pincode</label>
+                <input
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Percentage</label>
+                <input
+                  value={degreePercent}
+                  onChange={(e) => setDegreePercent(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">College name</label>
+                <input
+                  value={degreeCollege}
+                  onChange={(e) => setDegreeCollege(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Degree completed</label>
+                <input
+                  value={degreeName}
+                  onChange={(e) => setDegreeName(e.target.value)}
+                  placeholder="e.g. 12th"
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">IELTS</label>
+                <input
+                  value={ieltsScore}
+                  onChange={(e) => setIeltsScore(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">TOEFL</label>
+                <input
+                  value={toeflScore}
+                  onChange={(e) => setToeflScore(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+            </div>
+          </div>
+        </>
+      ) : null}
+
       <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-4">
         <h3 className="text-sm font-semibold text-[var(--foreground)]">Referral (optional)</h3>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
@@ -514,13 +895,25 @@ export function ConsultantLeadsClient(props: Props) {
         </div>
       </div>
 
-      <button
-        type="submit"
-        disabled={!canSubmitLead}
-        className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-      >
-        Add lead
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={!canSubmitLead || deleting}
+          className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {isEdit ? "Save changes" : "Add lead"}
+        </button>
+        {isEdit ? (
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={() => void onDeleteLead()}
+            className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/40"
+          >
+            {deleting ? "Deleting…" : "Delete lead"}
+          </button>
+        ) : null}
+      </div>
     </form>
   );
 
@@ -530,18 +923,22 @@ export function ConsultantLeadsClient(props: Props) {
         isHub ? "" : "mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8"
       }
     >
-      {isAddOnly ? (
+      {isAddOnly || isEdit ? (
         <>
           <nav className="text-sm text-[var(--foreground-muted)]">
-            <Link href="/dashboard/university" className="text-[var(--primary)] underline-offset-2 hover:underline">
-              Universities
+            <Link href="/dashboard/consultant/leads" className="text-[var(--primary)] underline-offset-2 hover:underline">
+              Student leads
             </Link>
             <span className="mx-1.5">/</span>
-            <span className="font-medium text-[var(--foreground)]">Add lead</span>
+            <span className="font-medium text-[var(--foreground)]">{isEdit ? "Edit lead" : "Add lead"}</span>
           </nav>
-          <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Add lead</h1>
+          <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">{isEdit ? "Edit lead" : "Add lead"}</h1>
           <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-            {props.universityName} ({props.universityCode})
+            {hasUniversityPicker
+              ? isEdit
+                ? "Update prospect details below."
+                : "Select a university and enter the prospect details below."
+              : `${activeUniversity.name} (${activeUniversity.code})`}
           </p>
         </>
       ) : isHub ? (
@@ -559,7 +956,7 @@ export function ConsultantLeadsClient(props: Props) {
 
       {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
 
-      {isAddOnly ? (
+      {isAddOnly || isEdit ? (
         <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
           <p className="text-sm text-[var(--foreground-muted)]">
             Admission partner name is recorded automatically from your account.
@@ -579,7 +976,7 @@ export function ConsultantLeadsClient(props: Props) {
         </section>
       ) : null}
 
-      {!isAddOnly ? (
+      {!isAddOnly && !isEdit ? (
       <section className="mt-10">
         <h2 className="text-lg font-semibold text-[var(--foreground)]">Your leads</h2>
         <ListQueryToolbar

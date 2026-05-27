@@ -3,10 +3,13 @@
 import Link from "next/link";
 import * as React from "react";
 import {
-  buildSelectableYopYears,
-  isSelectableYopYear,
-  maxSelectableYopYear,
-  minSelectableYopYear,
+  buildSelectableYopYearLabels,
+  displayAcademicYearLabel,
+  isSelectableYopYearLabel,
+  maxSelectableYopYearLabel,
+  minSelectableYopYearLabel,
+  normalizeAcademicYearLabel,
+  parseAcademicYearStartYear,
 } from "@/lib/academic-year-yop";
 
 export type AcademicYearRow = { id: string; label: string; sortOrder: number };
@@ -35,19 +38,31 @@ export function AcademicYearsManager({
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const yopMin = minSelectableYopYear();
-  const yopMax = maxSelectableYopYear();
-  const allYearOptions = React.useMemo(() => buildSelectableYopYears(), []);
-  const existingLabels = React.useMemo(() => new Set(years.map((y) => y.label)), [years]);
+  const yopMin = minSelectableYopYearLabel();
+  const yopMax = maxSelectableYopYearLabel();
+  const allYearOptions = React.useMemo(() => buildSelectableYopYearLabels(), []);
+  const existingStartYears = React.useMemo(
+    () =>
+      new Set(
+        years
+          .map((y) => parseAcademicYearStartYear(y.label))
+          .filter((n): n is number => n !== null),
+      ),
+    [years],
+  );
   const availableYearOptions = React.useMemo(
-    () => allYearOptions.filter((y) => !existingLabels.has(String(y))),
-    [allYearOptions, existingLabels],
+    () =>
+      allYearOptions.filter((label) => {
+        const start = parseAcademicYearStartYear(label);
+        return start !== null && !existingStartYears.has(start);
+      }),
+    [allYearOptions, existingStartYears],
   );
 
   React.useEffect(() => {
     if (!selectedYear) return;
-    if (!availableYearOptions.includes(Number(selectedYear))) {
-      setSelectedYear(availableYearOptions[0] ? String(availableYearOptions[0]) : "");
+    if (!availableYearOptions.includes(selectedYear)) {
+      setSelectedYear(availableYearOptions[0] ?? "");
     }
   }, [availableYearOptions, selectedYear]);
 
@@ -55,17 +70,17 @@ export function AcademicYearsManager({
     e.preventDefault();
     setError(null);
     const label = selectedYear.trim();
-    if (!label || !/^\d{4}$/.test(label)) {
+    const normalized = normalizeAcademicYearLabel(label);
+    if (!normalized) {
       setError("Select an academic year");
       return;
     }
-    const n = Number(label);
-    if (!isSelectableYopYear(n)) {
+    if (!isSelectableYopYearLabel(normalized)) {
       setError(`Select a year from ${yopMin} to ${yopMax} (past years are not available)`);
       return;
     }
-    if (years.some((y) => y.label === label)) {
-      setError(`Academic year ${label} is already added`);
+    if (years.some((y) => parseAcademicYearStartYear(y.label) === parseAcademicYearStartYear(normalized))) {
+      setError(`Academic year ${normalized} is already added`);
       return;
     }
     setBusy(true);
@@ -73,7 +88,7 @@ export function AcademicYearsManager({
       const res = await fetch(`/api/university/${universityId}/academic-years`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label }),
+        body: JSON.stringify({ label: normalized }),
       });
       const data = (await res.json()) as { academicYear?: AcademicYearRow; error?: string };
       if (!res.ok) {
@@ -130,15 +145,14 @@ export function AcademicYearsManager({
                 <option value="" disabled>
                   {availableYearOptions.length === 0 ? "All years added" : "Select year"}
                 </option>
-                {availableYearOptions.map((y) => (
-                  <option key={y} value={String(y)}>
-                    {y}
+                {availableYearOptions.map((label) => (
+                  <option key={label} value={label}>
+                    {label}
                   </option>
                 ))}
               </select>
               <p id="yop-year-hint" className="mt-1 text-xs text-[var(--foreground-muted)]">
-                Choose the intake year only — {yopMin} through {yopMax}. Past years (e.g.{" "}
-                {yopMin - 1}) are not listed.
+                Choose the intake year — {yopMin} through {yopMax}. Past years are not listed.
               </p>
             </div>
             <button
@@ -164,7 +178,7 @@ export function AcademicYearsManager({
                   href={`/dashboard/university/${universityId}/admissions/academic-years/${y.id}`}
                   className="font-medium text-[var(--primary)] underline underline-offset-2 hover:no-underline"
                 >
-                  {y.label}
+                  {displayAcademicYearLabel(y.label)}
                 </Link>
                 <Link
                   href={`/dashboard/university/${universityId}/admissions?year=${encodeURIComponent(y.id)}`}

@@ -37,3 +37,11 @@ export const INDIAN_STATES_AND_UT: { value: string; label: string }[] = [
   { value: "Lakshadweep", label: "Lakshadweep" },
   { value: "Puducherry", label: "Puducherry" },
 ];
+
+/** Match master-list state label to dropdown value (case-insensitive). */
+export function normalizeIndianState(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "";
+  const found = INDIAN_STATES_AND_UT.find((s) => s.value.toLowerCase() === t.toLowerCase());
+  return found?.value ?? t;
+}

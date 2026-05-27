@@ -2,20 +2,24 @@
 
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
+import { normalizeIndianState } from "@/lib/indian-states";
+import {
+  MasterUniversityCatalogCombobox,
+  type MasterCatalogItem,
+} from "@/components/master-university-catalog-combobox";
+import { UniversityStreamEntryEditor } from "@/components/university-stream-entry-editor";
+import { UniversityMouDocumentsSection } from "@/components/university-mou-documents-section";
+import {
+  createEmptyStreamEntry,
+  emptyHostelFeesForm,
+  streamEntriesToCreatePayload,
+  validateStreamEntries,
+  type HostelFeesForm,
+  type StreamEntry,
+} from "@/lib/stream-entry-payload";
+import { buildSelectableYopYearLabels } from "@/lib/academic-year-yop";
 
-type MasterSearchItem = {
-  id: string;
-  name: string;
-  state: string;
-  district: string;
-  address: string | null;
-  city: string | null;
-  pincode: string | null;
-  universityType: string;
-};
-
-type CetSeatRow = { programLevel: "UG" | "PG"; streamName: string; seatCount: string };
+type MasterSearchItem = MasterCatalogItem;
 
 const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 const LOGO_ALLOWED_MIME = new Set([
@@ -40,16 +44,21 @@ function looksLikeEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 }
 
-function parseOptionalFee(raw: string): number | null {
-  const t = raw.trim();
-  if (t === "") return null;
-  const n = Number(t);
-  if (!Number.isFinite(n) || n < 0) return null;
-  return n;
-}
-
 function borderFor(fieldErrors: Record<string, string>, key: string) {
   return fieldErrors[key] ? "border-red-500" : "border-[var(--border)]";
+}
+
+function formatUniversityTypeLabel(raw: string): string {
+  switch (raw) {
+    case "PRIVATE":
+      return "Private";
+    case "DEEMED":
+      return "Deemed";
+    case "STATE_GOVT":
+      return "State / Central Govt";
+    default:
+      return raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
 }
 
 async function uploadLogoFile(file: File): Promise<string> {
@@ -65,17 +74,14 @@ async function uploadLogoFile(file: File): Promise<string> {
   return data.url;
 }
 
-export function NewUniversityWizard() {
+export function NewUniversityWizard({ initialMasterId }: { initialMasterId?: string }) {
   const router = useRouter();
   const [step, setStep] = React.useState<1 | 2>(1);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
-  const [searchQuery, setSearchQuery] = React.useState("");
-  const [searchBusy, setSearchBusy] = React.useState(false);
-  const [searchResults, setSearchResults] = React.useState<MasterSearchItem[]>([]);
-  const [selectedMasterId, setSelectedMasterId] = React.useState<string | null>(null);
+  const [selectedMaster, setSelectedMaster] = React.useState<MasterSearchItem | null>(null);
 
   const [name, setName] = React.useState("");
   const [address, setAddress] = React.useState("");
@@ -83,6 +89,7 @@ export function NewUniversityWizard() {
   const [district, setDistrict] = React.useState("");
   const [city, setCity] = React.useState("");
   const [pincode, setPincode] = React.useState("");
+  const [website, setWebsite] = React.useState("");
   const [universityType, setUniversityType] = React.useState("");
 
   const [email, setEmail] = React.useState("");
@@ -92,95 +99,73 @@ export function NewUniversityWizard() {
   const [spocMobile, setSpocMobile] = React.useState("");
   const [spocEmail, setSpocEmail] = React.useState("");
 
-  const [offersUg, setOffersUg] = React.useState(false);
-  const [offersPg, setOffersPg] = React.useState(false);
-  const [ugStreams, setUgStreams] = React.useState<string[]>([""]);
-  const [pgStreams, setPgStreams] = React.useState<string[]>([""]);
-
-  const [targetStudents, setTargetStudents] = React.useState("");
-  const [registrationFee, setRegistrationFee] = React.useState("");
-  const [applicationFee, setApplicationFee] = React.useState("");
-  const [messFee, setMessFee] = React.useState("");
-  const [examFee, setExamFee] = React.useState("");
-  const [otherAdminCharges, setOtherAdminCharges] = React.useState("");
-  const [otherAdminAmount, setOtherAdminAmount] = React.useState("");
-
-  const [girlsAc2, setGirlsAc2] = React.useState("");
-  const [girlsAc4, setGirlsAc4] = React.useState("");
-  const [girlsNonAc2, setGirlsNonAc2] = React.useState("");
-  const [girlsNonAc4, setGirlsNonAc4] = React.useState("");
-  const [boysAc2, setBoysAc2] = React.useState("");
-  const [boysAc4, setBoysAc4] = React.useState("");
-  const [boysNonAc2, setBoysNonAc2] = React.useState("");
-  const [boysNonAc4, setBoysNonAc4] = React.useState("");
-
-  const [cetSeats, setCetSeats] = React.useState<CetSeatRow[]>([
-    { programLevel: "UG", streamName: "", seatCount: "" },
-  ]);
+  const [streamEntries, setStreamEntries] = React.useState<StreamEntry[]>([createEmptyStreamEntry()]);
+  const [hostelFees, setHostelFees] = React.useState<HostelFeesForm>(emptyHostelFeesForm());
 
   const [logoUrl, setLogoUrl] = React.useState("");
   const [logoPreview, setLogoPreview] = React.useState<string | null>(null);
   const [logoFileError, setLogoFileError] = React.useState<string | null>(null);
   const [mouFile, setMouFile] = React.useState<File | null>(null);
   const [eventPhotos, setEventPhotos] = React.useState<File[]>([]);
+  const [academicYear, setAcademicYear] = React.useState(() => {
+    const years = buildSelectableYopYearLabels();
+    return years[0] ?? "";
+  });
 
-  const searchTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectedMasterId = selectedMaster?.id ?? null;
 
   React.useEffect(() => {
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    const q = searchQuery.trim();
-    if (q.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    searchTimer.current = setTimeout(() => {
-      setSearchBusy(true);
-      void fetch(`/api/master/master-universities/search?q=${encodeURIComponent(q)}`)
-        .then((r) => r.json())
-        .then((data: { items?: MasterSearchItem[] }) => setSearchResults(data.items ?? []))
-        .catch(() => setSearchResults([]))
-        .finally(() => setSearchBusy(false));
-    }, 300);
-    return () => {
-      if (searchTimer.current) clearTimeout(searchTimer.current);
-    };
-  }, [searchQuery]);
+    if (!initialMasterId || selectedMasterId) return;
+    void fetch(`/api/master/master-universities/${encodeURIComponent(initialMasterId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { item?: MasterSearchItem } | null) => {
+        if (data?.item) applyMasterSelection(data.item);
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when opening with ?masterId=
+  }, [initialMasterId]);
 
   function applyMasterSelection(item: MasterSearchItem) {
-    setSelectedMasterId(item.id);
+    setSelectedMaster(item);
     setName(item.name);
     setAddress(item.address ?? "");
-    setState(item.state);
+    setState(normalizeIndianState(item.state));
     setDistrict(item.district);
-    setCity(item.city ?? "");
+    setCity(item.city ?? item.district);
     setPincode(item.pincode ?? "");
+    setWebsite(item.website ?? "");
     setUniversityType(item.universityType);
-    setSearchQuery(item.name);
-    setSearchResults([]);
-  }
-
-  function updateStreamList(setter: React.Dispatch<React.SetStateAction<string[]>>, index: number, value: string) {
-    setter((rows) => rows.map((r, i) => (i === index ? value : r)));
-  }
-
-  function addStreamRow(setter: React.Dispatch<React.SetStateAction<string[]>>) {
-    setter((rows) => [...rows, ""]);
-  }
-
-  function removeStreamRow(setter: React.Dispatch<React.SetStateAction<string[]>>, index: number) {
-    setter((rows) => {
-      const next = rows.filter((_, i) => i !== index);
-      return next.length === 0 ? [""] : next;
+    setFieldErrors((f) => {
+      const n = { ...f };
+      delete n.masterUniversity;
+      delete n.name;
+      return n;
     });
   }
 
-  function updateCetSeat(index: number, patch: Partial<CetSeatRow>) {
-    setCetSeats((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  function clearMasterSelection() {
+    setSelectedMaster(null);
+    setName("");
+    setAddress("");
+    setState("");
+    setDistrict("");
+    setCity("");
+    setPincode("");
+    setWebsite("");
+    setUniversityType("");
   }
+
+  const masterLocked = Boolean(selectedMasterId);
+  const readOnlyFieldClass =
+    "bg-[var(--muted)]/50 text-[var(--foreground)] cursor-not-allowed border-[var(--border)]";
 
   function validateStep1(): Record<string, string> {
     const e: Record<string, string> = {};
-    if (name.trim().length === 0) e.name = "University name is required";
+    if (!selectedMasterId) {
+      e.masterUniversity = "Select a university from the master list";
+    } else if (name.trim().length === 0) {
+      e.name = "University name is required";
+    }
     return e;
   }
 
@@ -200,10 +185,9 @@ export function NewUniversityWizard() {
     }
     const se = spocEmail.trim();
     if (se.length > 0 && !looksLikeEmail(se)) e.spocEmail = "Enter a valid email address";
-    const feeRaw = applicationFee.trim();
-    if (feeRaw.length > 0) {
-      if (!/^\d+$/.test(feeRaw)) e.applicationFee = "Enter a valid application fee";
-      else if (Number(feeRaw) <= 0) e.applicationFee = "Enter a valid application fee";
+    Object.assign(e, validateStreamEntries(streamEntries));
+    if ((mouFile || eventPhotos.length > 0) && !academicYear.trim()) {
+      e.academicYear = "Select an academic year for MOU and event photos";
     }
     if (logoFileError) e.logoFile = logoFileError;
     return e;
@@ -235,15 +219,7 @@ export function NewUniversityWizard() {
     setBusy(true);
 
     try {
-      const ugList = ugStreams.map((s) => s.trim()).filter(Boolean);
-      const pgList = pgStreams.map((s) => s.trim()).filter(Boolean);
-      const cetPayload = cetSeats
-        .map((r) => ({
-          programLevel: r.programLevel,
-          streamName: r.streamName.trim(),
-          seatCount: Number(r.seatCount.trim() || "0"),
-        }))
-        .filter((r) => r.streamName.length > 0);
+      const streamPayload = streamEntriesToCreatePayload(streamEntries, hostelFees);
 
       const payload: Record<string, unknown> = {
         name: name.trim(),
@@ -260,28 +236,8 @@ export function NewUniversityWizard() {
         spocDesignation: spocDesignation.trim() || null,
         spocMobile: spocMobile.trim() || undefined,
         spocEmail: spocEmail.trim() || undefined,
-        offersUg: offersUg || ugList.length > 0,
-        offersPg: offersPg || pgList.length > 0,
-        ugStreams: ugList,
-        pgStreams: pgList,
-        targetStudents: targetStudents.trim() ? Number(targetStudents.trim()) : null,
-        registrationFee: parseOptionalFee(registrationFee),
-        applicationFee: applicationFee.trim() ? Number(applicationFee.trim()) : undefined,
-        messFee: parseOptionalFee(messFee),
-        examFee: parseOptionalFee(examFee),
-        otherAdminCharges: otherAdminCharges.trim() || null,
-        otherAdminAmount: parseOptionalFee(otherAdminAmount),
-        cetSeats: cetPayload,
-        hostelFees: {
-          girlsAc2: parseOptionalFee(girlsAc2),
-          girlsAc4: parseOptionalFee(girlsAc4),
-          girlsNonAc2: parseOptionalFee(girlsNonAc2),
-          girlsNonAc4: parseOptionalFee(girlsNonAc4),
-          boysAc2: parseOptionalFee(boysAc2),
-          boysAc4: parseOptionalFee(boysAc4),
-          boysNonAc2: parseOptionalFee(boysNonAc2),
-          boysNonAc4: parseOptionalFee(boysNonAc4),
-        },
+        ...streamPayload,
+        academicYearLabel: academicYear.trim() || null,
         logoUrl: logoUrl.trim() || null,
       };
 
@@ -363,115 +319,133 @@ export function NewUniversityWizard() {
       </div>
 
       {step === 1 ? (
-        <div className="space-y-5">
+        <div className="space-y-5 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
           <div>
-            <label className="block text-sm font-medium text-[var(--foreground)]">Search master university list</label>
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Type at least 2 characters…"
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
-              disabled={locked}
-            />
-            {searchBusy ? (
-              <p className="mt-1 text-xs text-[var(--foreground-muted)]">Searching…</p>
-            ) : searchResults.length > 0 ? (
-              <ul className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--card)]">
-                {searchResults.map((item) => (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      onClick={() => applyMasterSelection(item)}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--muted)]/50"
-                    >
-                      <span className="font-medium text-[var(--foreground)]">{item.name}</span>
-                      <span className="mt-0.5 block text-xs text-[var(--foreground-muted)]">
-                        {item.district}, {item.state}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : searchQuery.trim().length >= 2 ? (
-              <p className="mt-1 text-xs text-[var(--foreground-muted)]">No matches — fill details manually below.</p>
+            <label className="block text-sm font-medium text-[var(--foreground)]">
+              University <span className="text-[var(--primary)]">*</span>
+            </label>
+            <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+              Choose from the master catalog. Search inside the dropdown to filter 1,300+ universities.
+            </p>
+            <div className="mt-3">
+              <MasterUniversityCatalogCombobox
+                value={selectedMaster}
+                onChange={applyMasterSelection}
+                disabled={locked}
+                error={fieldErrors.masterUniversity}
+                openUp={false}
+              />
+            </div>
+            {masterLocked ? (
+              <button
+                type="button"
+                onClick={clearMasterSelection}
+                disabled={locked}
+                className="mt-2 text-sm font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"
+              >
+                Change selection
+              </button>
             ) : null}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)]">University name</label>
-            <input
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setFieldErrors((f) => {
-                  const n = { ...f };
-                  delete n.name;
-                  return n;
-                });
-              }}
-              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[var(--foreground)] ${borderFor(fieldErrors, "name")}`}
-              disabled={locked}
-            />
-            {fieldErrors.name ? <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p> : null}
-          </div>
+          {masterLocked ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground-muted)]">University name</label>
+                <input
+                  value={name}
+                  readOnly
+                  tabIndex={-1}
+                  className={`mt-1 w-full rounded-lg border px-3 py-2 ${readOnlyFieldClass}`}
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)]">Address</label>
-            <textarea
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              rows={2}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
-              disabled={locked}
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground-muted)]">Address</label>
+                <textarea
+                  value={address}
+                  readOnly
+                  tabIndex={-1}
+                  rows={2}
+                  className={`mt-1 w-full rounded-lg border px-3 py-2 ${readOnlyFieldClass}`}
+                />
+              </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)]">State</label>
-              <select
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
-                disabled={locked}
-              >
-                <option value="">Select state</option>
-                {INDIAN_STATES_AND_UT.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)]">District</label>
-              <input
-                value={district}
-                onChange={(e) => setDistrict(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
-                disabled={locked}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)]">City</label>
-              <input
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
-                disabled={locked}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--foreground)]">Pincode</label>
-              <input
-                value={pincode}
-                onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                maxLength={6}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
-                disabled={locked}
-              />
-            </div>
-          </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground-muted)]">State</label>
+                  <input
+                    value={state}
+                    readOnly
+                    tabIndex={-1}
+                    className={`mt-1 w-full rounded-lg border px-3 py-2 ${readOnlyFieldClass}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground-muted)]">District</label>
+                  <input
+                    value={district}
+                    readOnly
+                    tabIndex={-1}
+                    className={`mt-1 w-full rounded-lg border px-3 py-2 ${readOnlyFieldClass}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground-muted)]">City</label>
+                  <input
+                    value={city}
+                    readOnly
+                    tabIndex={-1}
+                    className={`mt-1 w-full rounded-lg border px-3 py-2 ${readOnlyFieldClass}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground-muted)]">Pincode</label>
+                  <input
+                    value={pincode || "—"}
+                    readOnly
+                    tabIndex={-1}
+                    className={`mt-1 w-full rounded-lg border px-3 py-2 ${readOnlyFieldClass}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground-muted)]">University type</label>
+                  <input
+                    value={universityType ? formatUniversityTypeLabel(universityType) : "—"}
+                    readOnly
+                    tabIndex={-1}
+                    className={`mt-1 w-full rounded-lg border px-3 py-2 ${readOnlyFieldClass}`}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-[var(--foreground-muted)]">Website</label>
+                  {website.trim() ? (
+                    <div className={`mt-1 flex items-center gap-2 rounded-lg border px-3 py-2 ${readOnlyFieldClass}`}>
+                      <span className="min-w-0 flex-1 truncate text-sm">{website}</span>
+                      <a
+                        href={website.startsWith("http") ? website : `https://${website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 text-sm font-medium text-[var(--primary)] hover:underline"
+                      >
+                        Open
+                      </a>
+                    </div>
+                  ) : (
+                    <input
+                      value="—"
+                      readOnly
+                      tabIndex={-1}
+                      className={`mt-1 w-full rounded-lg border px-3 py-2 ${readOnlyFieldClass}`}
+                    />
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-[var(--foreground-muted)]">
+                Details are loaded from the master catalog and cannot be edited here.
+              </p>
+            </>
+          ) : null}
 
           <div className="flex gap-3 pt-2">
             <button
@@ -564,262 +538,38 @@ export function NewUniversityWizard() {
             </div>
           </section>
 
+          <UniversityStreamEntryEditor
+            entries={streamEntries}
+            onChange={setStreamEntries}
+            hostelFees={hostelFees}
+            onHostelChange={setHostelFees}
+            disabled={locked}
+            fieldErrors={fieldErrors}
+          />
+
           <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Programs (UG / PG streams)</h2>
-            <div className="mt-4 space-y-4">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={offersUg} onChange={(e) => setOffersUg(e.target.checked)} disabled={locked} />
-                Offers UG
-              </label>
-              {offersUg || ugStreams.some((s) => s.trim()) ? (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-[var(--foreground-muted)]">UG streams</p>
-                  {ugStreams.map((row, index) => (
-                    <div key={`ug-${index}`} className="flex gap-2">
-                      <input
-                        value={row}
-                        onChange={(e) => updateStreamList(setUgStreams, index, e.target.value)}
-                        placeholder="e.g. B.Tech CSE"
-                        className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
-                        disabled={locked}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeStreamRow(setUgStreams, index)}
-                        className="text-sm text-red-600 hover:underline"
-                        disabled={locked}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => addStreamRow(setUgStreams)}
-                    className="text-sm font-medium text-[var(--primary)] hover:underline"
-                    disabled={locked}
-                  >
-                    + Add UG stream
-                  </button>
-                </div>
-              ) : null}
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={offersPg} onChange={(e) => setOffersPg(e.target.checked)} disabled={locked} />
-                Offers PG
-              </label>
-              {offersPg || pgStreams.some((s) => s.trim()) ? (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-[var(--foreground-muted)]">PG streams</p>
-                  {pgStreams.map((row, index) => (
-                    <div key={`pg-${index}`} className="flex gap-2">
-                      <input
-                        value={row}
-                        onChange={(e) => updateStreamList(setPgStreams, index, e.target.value)}
-                        placeholder="e.g. MBA"
-                        className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
-                        disabled={locked}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeStreamRow(setPgStreams, index)}
-                        className="text-sm text-red-600 hover:underline"
-                        disabled={locked}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => addStreamRow(setPgStreams)}
-                    className="text-sm font-medium text-[var(--primary)] hover:underline"
-                    disabled={locked}
-                  >
-                    + Add PG stream
-                  </button>
-                </div>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">Logo</h2>
+            <div className="mt-4">
+              <label className="block text-sm font-medium">Logo (optional)</label>
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={onLogoPick} disabled={locked} className="mt-2 block w-full text-sm" />
+              {logoFileError ? <p className="mt-1 text-xs text-red-600">{logoFileError}</p> : null}
+              {logoPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoPreview} alt="" className="mt-2 h-14 w-14 rounded-lg border object-contain" />
               ) : null}
             </div>
           </section>
 
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Fees</h2>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              {[
-                ["Target students", targetStudents, setTargetStudents, false],
-                ["Registration fee", registrationFee, setRegistrationFee, true],
-                ["Application fee", applicationFee, setApplicationFee, true],
-                ["Mess fee", messFee, setMessFee, true],
-                ["Exam fee", examFee, setExamFee, true],
-                ["Other admin amount", otherAdminAmount, setOtherAdminAmount, true],
-              ].map(([label, val, setter, isFee]) => (
-                <div key={label as string}>
-                  <label className="text-sm font-medium">{label as string}</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={val as string}
-                    onChange={(e) =>
-                      (setter as React.Dispatch<React.SetStateAction<string>>)(
-                        isFee ? e.target.value.replace(/[^\d.]/g, "") : e.target.value.replace(/\D/g, ""),
-                      )
-                    }
-                    className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-sm tabular-nums ${
-                      label === "Application fee" ? borderFor(fieldErrors, "applicationFee") : "border-[var(--border)]"
-                    }`}
-                    disabled={locked}
-                  />
-                  {label === "Application fee" && fieldErrors.applicationFee ? (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.applicationFee}</p>
-                  ) : null}
-                </div>
-              ))}
-              <div className="sm:col-span-2">
-                <label className="text-sm font-medium">Other admin charges (description)</label>
-                <input
-                  value={otherAdminCharges}
-                  onChange={(e) => setOtherAdminCharges(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
-                  disabled={locked}
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Hostel fee matrix</h2>
-            <p className="mt-1 text-sm text-[var(--foreground-muted)]">AC / Non-AC × 2-sharing / 4-sharing (annual)</p>
-            <div className="mt-4 grid gap-6 sm:grid-cols-2">
-              {(
-                [
-                  ["Girls", [
-                    ["AC · 2-sharing", girlsAc2, setGirlsAc2],
-                    ["AC · 4-sharing", girlsAc4, setGirlsAc4],
-                    ["Non-AC · 2-sharing", girlsNonAc2, setGirlsNonAc2],
-                    ["Non-AC · 4-sharing", girlsNonAc4, setGirlsNonAc4],
-                  ]],
-                  ["Boys", [
-                    ["AC · 2-sharing", boysAc2, setBoysAc2],
-                    ["AC · 4-sharing", boysAc4, setBoysAc4],
-                    ["Non-AC · 2-sharing", boysNonAc2, setBoysNonAc2],
-                    ["Non-AC · 4-sharing", boysNonAc4, setBoysNonAc4],
-                  ]],
-                ] as const
-              ).map(([gender, fields]) => (
-                <div key={gender}>
-                  <h3 className="text-sm font-semibold">{gender}</h3>
-                  <div className="mt-3 space-y-3">
-                    {fields.map(([label, val, setter]) => (
-                      <div key={label}>
-                        <label className="text-xs text-[var(--foreground-muted)]">{label}</label>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={val}
-                          onChange={(e) => setter(e.target.value)}
-                          className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm tabular-nums"
-                          disabled={locked}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-lg font-semibold text-[var(--foreground)]">CET seats</h2>
-              <button
-                type="button"
-                onClick={() => setCetSeats((rows) => [...rows, { programLevel: "UG", streamName: "", seatCount: "" }])}
-                className="text-sm font-medium text-[var(--primary)] hover:underline"
-                disabled={locked}
-              >
-                + Add row
-              </button>
-            </div>
-            <div className="mt-4 space-y-3">
-              {cetSeats.map((row, index) => (
-                <div key={index} className="grid gap-2 sm:grid-cols-12">
-                  <select
-                    value={row.programLevel}
-                    onChange={(e) => updateCetSeat(index, { programLevel: e.target.value as "UG" | "PG" })}
-                    className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm sm:col-span-2"
-                    disabled={locked}
-                  >
-                    <option value="UG">UG</option>
-                    <option value="PG">PG</option>
-                  </select>
-                  <input
-                    value={row.streamName}
-                    onChange={(e) => updateCetSeat(index, { streamName: e.target.value })}
-                    placeholder="Stream name"
-                    className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm sm:col-span-6"
-                    disabled={locked}
-                  />
-                  <input
-                    value={row.seatCount}
-                    onChange={(e) => updateCetSeat(index, { seatCount: e.target.value.replace(/\D/g, "") })}
-                    placeholder="Seats"
-                    className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm tabular-nums sm:col-span-3"
-                    disabled={locked}
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCetSeats((rows) => (rows.length <= 1 ? rows : rows.filter((_, i) => i !== index)))
-                    }
-                    className="text-sm text-red-600 hover:underline sm:col-span-1"
-                    disabled={locked}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Documents</h2>
-            <div className="mt-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium">Logo (optional)</label>
-                <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={onLogoPick} disabled={locked} className="mt-2 block w-full text-sm" />
-                {logoFileError ? <p className="mt-1 text-xs text-red-600">{logoFileError}</p> : null}
-                {logoPreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoPreview} alt="" className="mt-2 h-14 w-14 rounded-lg border object-contain" />
-                ) : null}
-              </div>
-              <div>
-                <label className="block text-sm font-medium">MOU (PDF/DOC, max 2 MB)</label>
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx,application/pdf"
-                  onChange={(e) => setMouFile(e.target.files?.[0] ?? null)}
-                  disabled={locked}
-                  className="mt-2 block w-full text-sm"
-                />
-                {mouFile ? <p className="mt-1 text-xs text-[var(--foreground-muted)]">{mouFile.name}</p> : null}
-              </div>
-              <div>
-                <label className="block text-sm font-medium">Event photos (PNG/JPG, max 2 MB each)</label>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg"
-                  multiple
-                  onChange={(e) => setEventPhotos(Array.from(e.target.files ?? []))}
-                  disabled={locked}
-                  className="mt-2 block w-full text-sm"
-                />
-                {eventPhotos.length > 0 ? (
-                  <p className="mt-1 text-xs text-[var(--foreground-muted)]">{eventPhotos.length} file(s) selected</p>
-                ) : null}
-              </div>
-            </div>
-          </section>
+          <UniversityMouDocumentsSection
+            academicYear={academicYear}
+            onAcademicYearChange={setAcademicYear}
+            mouFile={mouFile}
+            onMouFileChange={setMouFile}
+            eventPhotos={eventPhotos}
+            onEventPhotosChange={setEventPhotos}
+            disabled={locked}
+            fieldErrors={fieldErrors}
+          />
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
 

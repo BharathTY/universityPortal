@@ -4,11 +4,19 @@ import { requireAuth } from "@/lib/auth";
 import { isMaster } from "@/lib/roles";
 import { NewUniversityWizard } from "@/app/dashboard/master/universities/new/new-university-wizard";
 
-export default async function NewUniversityPage() {
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function NewUniversityPage(props: PageProps) {
   const session = await requireAuth();
   if (!isMaster(session.roles)) {
     redirect("/dashboard");
   }
+
+  const sp = await props.searchParams;
+  const masterIdRaw = sp.masterId;
+  const initialMasterId = typeof masterIdRaw === "string" ? masterIdRaw : undefined;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -20,11 +28,11 @@ export default async function NewUniversityPage() {
       </Link>
       <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Add university</h1>
       <p className="mt-2 text-sm text-[var(--foreground-muted)]">
-        Step 1: search the master list and confirm location. Step 2: SPOC, programmes, fees, hostel matrix, CET seats,
-        and documents. Only the university name is required; add an admin email to create the university login now.
+        Step 1: select from the master catalog — name, address, and location auto-fill and are locked.
+        Step 2: SPOC, programmes, fees, hostel matrix, CET seats, and documents.
       </p>
       <div className="mt-8">
-        <NewUniversityWizard />
+        <NewUniversityWizard initialMasterId={initialMasterId} />
       </div>
     </div>
   );

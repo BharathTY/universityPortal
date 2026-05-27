@@ -34,6 +34,205 @@ export const SORT_APPLICATIONS: SortOption[] = [
   { value: "university", label: "University" },
 ];
 
+function useListQueryNavigate() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  return React.useCallback(
+    (patch: Record<string, string | number | undefined | null>) => {
+      const p = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === undefined || value === null || value === "") {
+          p.delete(key);
+        } else if (key === "page" && Number(value) <= 1) {
+          p.delete(key);
+        } else if (key === "pageSize" && Number(value) === 25) {
+          p.delete(key);
+        } else if (key === "sort" && value === "latest") {
+          p.delete(key);
+        } else {
+          p.set(key, String(value));
+        }
+      }
+      const qs = p.toString();
+      router.push(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [pathname, router, searchParams],
+  );
+}
+
+type ListPaginationProps = {
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  loading?: boolean;
+  itemLabel?: string;
+  showPageSize?: boolean;
+  className?: string;
+  onNavigate: (patch: Record<string, string | number | undefined | null>) => void;
+};
+
+function pluralLabel(label: string, count: number): string {
+  if (count === 1) return label;
+  const irregular: Record<string, string> = {
+    university: "universities",
+    result: "results",
+    row: "rows",
+    lead: "leads",
+    student: "students",
+    application: "applications",
+    consultant: "consultants",
+    invoice: "invoices",
+  };
+  return irregular[label] ?? `${label}s`;
+}
+
+function visiblePageNumbers(current: number, totalPages: number): (number | "ellipsis")[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  const pages = new Set<number>([1, totalPages, current, current - 1, current + 1]);
+  const sorted = [...pages].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
+  const out: (number | "ellipsis")[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const p = sorted[i]!;
+    if (i > 0 && p - sorted[i - 1]! > 1) out.push("ellipsis");
+    out.push(p);
+  }
+  return out;
+}
+
+export function ListPagination({
+  total,
+  page,
+  pageSize,
+  totalPages,
+  loading = false,
+  itemLabel = "result",
+  showPageSize = true,
+  className = "",
+  onNavigate,
+}: ListPaginationProps) {
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = total === 0 ? 0 : Math.min(page * pageSize, total);
+  const plural = pluralLabel(itemLabel, total);
+
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm ${className}`}
+    >
+      <p className="text-[var(--foreground-muted)]">
+        {loading ? (
+          "Loading…"
+        ) : total === 0 ? (
+          `No ${plural}`
+        ) : (
+          <>
+            Showing <span className="font-medium text-[var(--foreground)]">{start}–{end}</span> of{" "}
+            <span className="font-medium text-[var(--foreground)]">{total}</span> {plural}
+            {totalPages > 1 ? (
+              <>
+                {" "}
+                · page <span className="font-medium text-[var(--foreground)]">{page}</span> of {totalPages}
+              </>
+            ) : null}
+          </>
+        )}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        {showPageSize ? (
+          <label className="flex items-center gap-2 text-[var(--foreground-muted)]">
+            Rows
+            <select
+              value={pageSize}
+              disabled={loading}
+              onChange={(e) => onNavigate({ pageSize: Number(e.target.value), page: 1 })}
+              className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-sm text-[var(--foreground)]"
+            >
+              {[10, 25, 50, 100].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {total > 0 ? (
+          <nav className="flex items-center gap-1" aria-label="Pagination">
+            <button
+              type="button"
+              disabled={page <= 1 || loading}
+              onClick={() => onNavigate({ page: page - 1 })}
+              className="rounded-lg border border-[var(--border)] px-3 py-1.5 font-medium hover:bg-[var(--muted)]/50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            {visiblePageNumbers(page, totalPages).map((n, i) =>
+              n === "ellipsis" ? (
+                <span key={`ellipsis-${i}`} className="px-1 text-[var(--foreground-muted)]">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={n}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => onNavigate({ page: n })}
+                  aria-current={n === page ? "page" : undefined}
+                  className={`min-w-[2.25rem] rounded-lg border px-2 py-1.5 font-medium ${
+                    n === page
+                      ? "border-[var(--primary)] bg-[var(--primary)] text-white"
+                      : "border-[var(--border)] hover:bg-[var(--muted)]/50"
+                  }`}
+                >
+                  {n}
+                </button>
+              ),
+            )}
+            <button
+              type="button"
+              disabled={page >= totalPages || loading}
+              onClick={() => onNavigate({ page: page + 1 })}
+              className="rounded-lg border border-[var(--border)] px-3 py-1.5 font-medium hover:bg-[var(--muted)]/50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </nav>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** Standalone pagination bar (e.g. below a table). Uses URL search params. */
+export function ListPaginationBar({
+  total,
+  page,
+  pageSize,
+  totalPages,
+  loading = false,
+  itemLabel = "result",
+  showPageSize = true,
+  className = "",
+}: Omit<ListPaginationProps, "onNavigate">) {
+  const navigate = useListQueryNavigate();
+  return (
+    <ListPagination
+      total={total}
+      page={page}
+      pageSize={pageSize}
+      totalPages={totalPages}
+      loading={loading}
+      itemLabel={itemLabel}
+      showPageSize={showPageSize}
+      className={className}
+      onNavigate={navigate}
+    />
+  );
+}
+
 type ListQueryToolbarProps = {
   total: number;
   page: number;
@@ -49,6 +248,7 @@ type ListQueryToolbarProps = {
   loading?: boolean;
   itemLabel?: string;
   className?: string;
+  showPagination?: boolean;
 };
 
 export function ListQueryToolbar({
@@ -66,41 +266,19 @@ export function ListQueryToolbar({
   loading = false,
   itemLabel = "result",
   className = "",
+  showPagination = true,
 }: ListQueryToolbarProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const navigate = useListQueryNavigate();
   const [search, setSearch] = React.useState(q);
 
   React.useEffect(() => {
     setSearch(q);
   }, [q]);
 
-  function navigate(patch: Record<string, string | number | undefined | null>) {
-    const p = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === undefined || value === null || value === "") {
-        p.delete(key);
-      } else if (key === "page" && Number(value) <= 1) {
-        p.delete(key);
-      } else if (key === "pageSize" && Number(value) === 25) {
-        p.delete(key);
-      } else if (key === "sort" && value === "latest") {
-        p.delete(key);
-      } else {
-        p.set(key, String(value));
-      }
-    }
-    const qs = p.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
-  }
-
   function onSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
     navigate({ q: search.trim() || undefined, page: 1 });
   }
-
-  const plural = total === 1 ? itemLabel : `${itemLabel}s`;
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -153,50 +331,18 @@ export function ListQueryToolbar({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-        <p className="text-[var(--foreground-muted)]">
-          {loading ? "Loading…" : `${total} ${plural}${totalPages > 1 ? ` · page ${page} of ${totalPages}` : ""}`}
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          {showPageSize ? (
-            <label className="flex items-center gap-2 text-[var(--foreground-muted)]">
-              Rows
-              <select
-                value={pageSize}
-                disabled={loading}
-                onChange={(e) => navigate({ pageSize: Number(e.target.value), page: 1 })}
-                className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-sm text-[var(--foreground)]"
-              >
-                {[10, 25, 50, 100].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          {totalPages > 1 ? (
-            <>
-              <button
-                type="button"
-                disabled={page <= 1 || loading}
-                onClick={() => navigate({ page: page - 1 })}
-                className="rounded-lg border border-[var(--border)] px-3 py-1.5 font-medium disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                disabled={page >= totalPages || loading}
-                onClick={() => navigate({ page: page + 1 })}
-                className="rounded-lg border border-[var(--border)] px-3 py-1.5 font-medium disabled:opacity-50"
-              >
-                Next
-              </button>
-            </>
-          ) : null}
-        </div>
-      </div>
+      {showPagination ? (
+        <ListPagination
+          total={total}
+          page={page}
+          pageSize={pageSize}
+          totalPages={totalPages}
+          loading={loading}
+          itemLabel={itemLabel}
+          showPageSize={showPageSize}
+          onNavigate={navigate}
+        />
+      ) : null}
     </div>
   );
 }

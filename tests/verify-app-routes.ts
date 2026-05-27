@@ -111,7 +111,7 @@ export function verifyAppRoutes(): void {
     "/dashboard/master/universities/new",
     "/dashboard/master/consultants",
     "/dashboard/master/consultants/new",
-    "/dashboard/master/applications",
+    "/dashboard/master/payments",
     "/dashboard/consultant-home",
     "/dashboard/spoc",
     "/dashboard/consultant/leads",

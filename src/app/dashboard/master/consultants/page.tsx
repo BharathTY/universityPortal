@@ -12,6 +12,7 @@ import {
   userOrderBy,
   userTextSearchWhere,
 } from "@/lib/list-query";
+import { loadConsultantSpocsGrouped } from "@/lib/consultant-spoc";
 import { prisma } from "@/lib/prisma";
 import { isMaster } from "@/lib/roles";
 import { ConsultantRowActions } from "@/app/dashboard/master/consultants/consultant-row-actions";
@@ -66,6 +67,7 @@ export default async function MasterConsultantsListPage(props: PageProps) {
   ]);
 
   const { page: safePage, totalPages } = paginationMeta(total, page, pageSize);
+  const spocsByConsultantId = await loadConsultantSpocsGrouped(consultants.map((c) => c.id));
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
@@ -107,7 +109,7 @@ export default async function MasterConsultantsListPage(props: PageProps) {
         </p>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[1000px] text-left text-sm">
             <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40">
               <tr>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Consultant name</th>
@@ -115,6 +117,7 @@ export default async function MasterConsultantsListPage(props: PageProps) {
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Email</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Phone</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Assigned universities</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">SPOC</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Status</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Created</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Actions</th>
@@ -132,6 +135,13 @@ export default async function MasterConsultantsListPage(props: PageProps) {
                       : [];
                 const primaryUni = uniLabels[0] ?? null;
                 const extraUniCount = uniLabels.length > 1 ? uniLabels.length - 1 : 0;
+                const spocs = spocsByConsultantId.get(u.id) ?? [];
+                const primarySpoc = spocs[0] ?? null;
+                const extraSpocCount = spocs.length > 1 ? spocs.length - 1 : 0;
+                const spocLabels = spocs.map((s) => {
+                  const label = s.name?.trim() || s.email;
+                  return s.designation?.trim() ? `${label} (${s.designation})` : label;
+                });
                 return (
                   <tr
                     key={u.id}
@@ -154,6 +164,25 @@ export default async function MasterConsultantsListPage(props: PageProps) {
                           {extraUniCount > 0 ? (
                             <span className="ml-1 rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs font-medium text-[var(--foreground)]">
                               +{extraUniCount}
+                            </span>
+                          ) : null}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="max-w-[14rem] px-3 py-3 text-[var(--foreground-muted)]">
+                      {primarySpoc ? (
+                        <span title={spocLabels.join("\n")}>
+                          {primarySpoc.name?.trim() || primarySpoc.email}
+                          {primarySpoc.designation?.trim() ? (
+                            <span className="block text-xs text-[var(--foreground-muted)]">
+                              {primarySpoc.designation}
+                            </span>
+                          ) : null}
+                          {extraSpocCount > 0 ? (
+                            <span className="ml-1 rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs font-medium text-[var(--foreground)]">
+                              +{extraSpocCount}
                             </span>
                           ) : null}
                         </span>

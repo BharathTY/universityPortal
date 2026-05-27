@@ -1,12 +1,13 @@
 import { DocumentKind } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { sendConsultantAccountCreatedEmail } from "@/lib/email";
+import { sendConsultantAccountCreatedEmail, sendCounsellorPortalInviteEmail } from "@/lib/email";
 import { storeUpload } from "@/lib/file-storage";
 import { requireMasterApi } from "@/lib/master-session";
 import { generateRandomPassword, hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { replaceConsultantUniversityAssignments } from "@/lib/consultant-universities";
+import { getPublicAppOrigin } from "@/lib/public-app-origin";
 import { ROLES } from "@/lib/roles";
 
 const consultantNameSchema = z
@@ -63,6 +64,21 @@ const optionalText = (max: number) =>
     return typeof v === "string" ? v.trim() : v;
   }, z.string().max(max).optional());
 
+const optionalPhone10 = z.preprocess((v) => {
+  if (v === null || v === undefined) return undefined;
+  if (typeof v === "string" && v.trim() === "") return undefined;
+  return typeof v === "string" ? v.trim() : v;
+}, z.string().optional());
+
+const spocItemSchema = z.object({
+  name: consultantNameSchema,
+  email: consultantEmailSchema,
+  phone: consultantPhoneSchema,
+  password: z.union([z.string().min(8).max(128), z.literal("")]).optional(),
+  whatsapp: optionalPhone10,
+  designation: optionalText(120),
+});
+
 const createSchema = z.object({
   name: consultantNameSchema,
   email: consultantEmailSchema,
@@ -83,6 +99,9 @@ const createSchema = z.object({
   district: optionalText(120),
   state: optionalText(120),
   academicYear: optionalText(10),
+  spocs: z.array(spocItemSchema).max(20).optional(),
+  /** @deprecated use spocs */
+  spoc: spocItemSchema.optional(),
 });
 
 async function parseConsultantRequest(req: Request): Promise<{ data: unknown; mouFile?: File }> {
@@ -150,6 +169,60 @@ export async function POST(req: Request) {
   }
 
   const email = parsed.data.email.toLowerCase();
+  const spocInputs = [
+    ...(parsed.data.spocs ?? []),
+    ...(parsed.data.spoc ? [parsed.data.spoc] : []),
+  ];
+
+  const seenSpocEmails = new Set<string>();
+  for (let i = 0; i < spocInputs.length; i++) {
+    const spoc = spocInputs[i]!;
+    const spocEmail = spoc.email.toLowerCase();
+    const fieldPrefix = spocInputs.length === 1 ? "spoc" : `spocs.${i}`;
+
+    if (spocEmail === email) {
+      return NextResponse.json(
+        {
+          error: "Consultant SPOC email must differ from the consultant email",
+          fieldErrors: { [`${fieldPrefix}Email`]: ["Use a different email for the SPOC"] },
+        },
+        { status: 400 },
+      );
+    }
+    if (seenSpocEmails.has(spocEmail)) {
+      return NextResponse.json(
+        {
+          error: "Duplicate SPOC email in request",
+          fieldErrors: { [`${fieldPrefix}Email`]: ["Each SPOC must have a unique email"] },
+        },
+        { status: 400 },
+      );
+    }
+    seenSpocEmails.add(spocEmail);
+
+    const spocWhatsapp = spoc.whatsapp?.trim();
+    if (spocWhatsapp && (!/^\d+$/.test(spocWhatsapp) || spocWhatsapp.length !== 10)) {
+      return NextResponse.json(
+        {
+          error: "Invalid SPOC WhatsApp number",
+          fieldErrors: { [`${fieldPrefix}Whatsapp`]: ["WhatsApp number must be 10 digits"] },
+        },
+        { status: 400 },
+      );
+    }
+
+    const existingSpoc = await prisma.user.findUnique({ where: { email: spocEmail } });
+    if (existingSpoc) {
+      return NextResponse.json(
+        {
+          error: "SPOC email already exists",
+          fieldErrors: { [`${fieldPrefix}Email`]: ["Email already exists"] },
+        },
+        { status: 409 },
+      );
+    }
+  }
+
   const plainPassword =
     parsed.data.password && parsed.data.password.length > 0 ? parsed.data.password : generateRandomPassword();
   const passwordHash = await hashPassword(plainPassword);
@@ -233,6 +306,48 @@ export async function POST(req: Request) {
     await replaceConsultantUniversityAssignments(user.id, universityIds);
   }
 
+  const spocRole =
+    spocInputs.length > 0
+      ? await prisma.role.findUnique({ where: { slug: ROLES.consultantSpoc } })
+      : null;
+  if (spocInputs.length > 0 && !spocRole) {
+    return NextResponse.json({ error: "Consultant SPOC role is not configured. Run the database seed." }, { status: 500 });
+  }
+
+  const spocCredentialMails: { to: string; name: string; email: string; password: string }[] = [];
+  const spocUserIds: string[] = [];
+
+  for (const spocInput of spocInputs) {
+    const spocPlainPassword =
+      spocInput.password && spocInput.password.length > 0 ? spocInput.password : generateRandomPassword();
+    const spocUser = await prisma.user.create({
+      data: {
+        email: spocInput.email.toLowerCase(),
+        name: spocInput.name,
+        phone: spocInput.phone,
+        whatsappNumber: spocInput.whatsapp?.trim() || null,
+        designation: spocInput.designation ?? null,
+        passwordHash: await hashPassword(spocPlainPassword),
+        accountStatus: "ACTIVE",
+        universityId: universityIds[0] ?? null,
+        reportsToConsultantId: user.id,
+        roles: {
+          create: { roleId: spocRole!.id },
+        },
+      },
+    });
+    spocUserIds.push(spocUser.id);
+    if (universityIds.length > 0) {
+      await replaceConsultantUniversityAssignments(spocUser.id, universityIds);
+    }
+    spocCredentialMails.push({
+      to: spocInput.email.toLowerCase(),
+      name: spocInput.name,
+      email: spocInput.email.toLowerCase(),
+      password: spocPlainPassword,
+    });
+  }
+
   try {
     await sendConsultantAccountCreatedEmail({
       to: email,
@@ -244,5 +359,20 @@ export async function POST(req: Request) {
     console.error("sendConsultantAccountCreatedEmail", e);
   }
 
-  return NextResponse.json({ ok: true, userId: user.id });
+  for (const mail of spocCredentialMails) {
+    try {
+      await sendCounsellorPortalInviteEmail({
+        to: mail.to,
+        name: mail.name,
+        email: mail.email,
+        password: mail.password,
+        loginUrl: `${getPublicAppOrigin()}/login`,
+        inviterName: parsed.data.name,
+      });
+    } catch (e) {
+      console.error("sendCounsellorPortalInviteEmail", e);
+    }
+  }
+
+  return NextResponse.json({ ok: true, userId: user.id, spocUserIds });
 }

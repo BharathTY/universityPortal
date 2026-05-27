@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AddUniversityButton } from "@/app/dashboard/master/universities/add-university-button";
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { ListQueryToolbar, SORT_UNIVERSITIES } from "@/components/list-controls";
@@ -120,12 +121,7 @@ export default async function MasterUniversitiesListPage(props: PageProps) {
       <div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl">Universities</h1>
-          <Link
-            href="/dashboard/master/universities/new"
-            className="inline-flex shrink-0 items-center justify-center rounded-lg bg-[var(--accent-blue)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--accent-blue-hover)]"
-          >
-            Add university
-          </Link>
+          <AddUniversityButton />
         </div>
         <p className="mt-2 text-[var(--foreground-muted)]">
           Create and manage university organisations. Configure academic years (YOP) from each row; programs and admissions live under{" "}

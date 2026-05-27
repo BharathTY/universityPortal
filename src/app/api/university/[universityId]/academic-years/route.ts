@@ -3,18 +3,25 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isConsultantOnly } from "@/lib/roles";
-import { isSelectableYopYear, maxSelectableYopYear, minSelectableYopYear } from "@/lib/academic-year-yop";
+import {
+  isSelectableYopYearLabel,
+  maxSelectableYopYearLabel,
+  minSelectableYopYearLabel,
+  normalizeAcademicYearLabel,
+  parseAcademicYearStartYear,
+} from "@/lib/academic-year-yop";
 import { canAccessUniversityScopeAsync } from "@/lib/university-scope";
 
 const createSchema = z.object({
-  /** Four-digit calendar year only (e.g. 2027), stored as label for filtering and display. */
+  /** Academic year label e.g. 2026/27 */
   label: z
     .string()
     .trim()
-    .regex(/^\d{4}$/, "Enter a valid year using four digits")
-    .refine((s) => isSelectableYopYear(Number(s)), {
-      message: `Year must be between ${minSelectableYopYear()} and ${maxSelectableYopYear()} (past years are not allowed)`,
-    }),
+    .min(1, "Enter a valid academic year")
+    .refine((s) => isSelectableYopYearLabel(s), {
+      message: `Year must be between ${minSelectableYopYearLabel()} and ${maxSelectableYopYearLabel()} (past years are not allowed)`,
+    })
+    .transform((s) => normalizeAcademicYearLabel(s)!),
   sortOrder: z.number().int().optional(),
 });
 
@@ -65,14 +72,14 @@ export async function POST(req: Request, ctx: RouteContext) {
     where: { universityId },
     _max: { sortOrder: true },
   });
-  const sortOrder = parsed.data.sortOrder ?? (maxOrder._max.sortOrder ?? -1) + 1;
+  const startYear = parseAcademicYearStartYear(parsed.data.label) ?? (maxOrder._max.sortOrder ?? 0) + 1;
 
   try {
     const row = await prisma.academicYear.create({
       data: {
         universityId,
         label: parsed.data.label,
-        sortOrder,
+        sortOrder: parsed.data.sortOrder ?? startYear,
       },
     });
     return NextResponse.json({ academicYear: row });

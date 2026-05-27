@@ -320,6 +320,8 @@ model AdmissionLead {
   degreeCollege     String?
   degreeUniversity  String?
   degreePercent     Decimal?            @db.Decimal(5, 2)
+  ieltsScore        String?
+  toeflScore        String?
   createdByUserId  String?
   createdBy        User?               @relation("LeadCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   batchId          String?
