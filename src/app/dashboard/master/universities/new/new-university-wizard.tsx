@@ -230,6 +230,7 @@ export function NewUniversityWizard({ initialMasterId }: { initialMasterId?: str
         city: city.trim() || null,
         pincode: pincode.trim() || null,
         universityType: universityType || null,
+        website: website.trim() || null,
         email: email.trim() || undefined,
         phone: phone.trim() || undefined,
         spocName: spocName.trim() || null,

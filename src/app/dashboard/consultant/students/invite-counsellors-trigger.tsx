@@ -67,7 +67,7 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
         onClick={() => setOpen(true)}
         className="inline-flex shrink-0 items-center justify-center rounded-lg bg-[var(--accent-blue)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--accent-blue-hover)]"
       >
-        Invite Counsellors
+        Invite Consultant SPOC
       </button>
 
       {open ? (
@@ -82,11 +82,11 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
             className="relative flex h-full w-full max-w-md flex-col border-l border-zinc-200 bg-white text-zinc-900 shadow-xl"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="invite-counsellor-title"
+            aria-labelledby="invite-spoc-title"
           >
             <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-5 py-4">
-              <h2 id="invite-counsellor-title" className="text-lg font-semibold text-zinc-900">
-                Invite Counsellors
+              <h2 id="invite-spoc-title" className="text-lg font-semibold text-zinc-900">
+                Invite Consultant SPOC
               </h2>
               <button
                 type="button"
@@ -99,12 +99,12 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
             </div>
             <form onSubmit={(e) => void onSend(e)} className="flex flex-1 flex-col overflow-y-auto bg-white px-5 py-4">
               <p className="text-sm text-zinc-600">
-                Set a password for the counsellor. We email their login details so they can sign in right away.
+                Set a password for the Consultant SPOC. We email their login details so they can sign in right away.
               </p>
               <div className="mt-5 space-y-4">
                 <div>
                   <label htmlFor="c-inv-email" className="text-sm font-medium text-zinc-900">
-                    Counsellor email
+                    Consultant SPOC email
                   </label>
                   <input
                     id="c-inv-email"
@@ -118,7 +118,7 @@ export function InviteCounsellorsTrigger({ universities }: { universities: Invit
                 </div>
                 <div>
                   <label htmlFor="c-inv-name" className="text-sm font-medium text-zinc-900">
-                    Counsellor name
+                    Consultant SPOC name
                   </label>
                   <input
                     id="c-inv-name"

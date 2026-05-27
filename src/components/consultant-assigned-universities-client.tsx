@@ -2,18 +2,36 @@
 
 import * as React from "react";
 import { UniversityOrganisationDetailsReadOnly } from "@/components/university-organisation-details-read-only";
-import type { HostelFeesInitial } from "@/app/dashboard/master/universities/[id]/details/university-details-form";
+import {
+  formatInrCompact,
+  type AssignedUniversityCard,
+} from "@/lib/consultant-assigned-universities-data";
 
-export type AssignedUniversityCard = {
-  id: string;
-  name: string;
-  code: string;
-  logoUrl: string | null;
-  status: string;
-  location: string | null;
-  streams: { id: string; name: string; degreeType: string | null; streamFee: number | null }[];
-  hostel: HostelFeesInitial;
-};
+export type { AssignedUniversityCard };
+
+function ProgramPreviewCell({
+  program,
+}: {
+  program: AssignedUniversityCard["programsPreview"][number] | null;
+}) {
+  if (!program) {
+    return (
+      <div className="rounded-lg bg-[var(--muted)]/35 px-3 py-2.5 text-xs text-[var(--foreground-muted)]">
+        —
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg bg-[var(--muted)]/35 px-3 py-2.5">
+      <p className="text-sm font-semibold leading-snug text-[var(--foreground)]">{program.label}</p>
+      <p className="mt-1 text-sm font-medium tabular-nums text-[var(--foreground)]">
+        {formatInrCompact(program.fee)}
+      </p>
+      <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">{program.seatsLeft} left</p>
+    </div>
+  );
+}
 
 export function ConsultantAssignedUniversitiesClient({
   universities,
@@ -24,38 +42,73 @@ export function ConsultantAssignedUniversitiesClient({
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {universities.map((u) => (
-          <button
-            key={u.id}
-            type="button"
-            onClick={() => setSelected(u)}
-            className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 text-left shadow-sm transition hover:border-[var(--primary)]/40"
-          >
-            <div className="flex items-start gap-3">
-              {u.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- arbitrary remote logo URLs
-                <img src={u.logoUrl} alt="" className="h-12 w-12 rounded-lg object-contain" />
-              ) : (
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--muted)]/40 text-xs font-semibold text-[var(--foreground-muted)]">
-                  {u.code.slice(0, 2).toUpperCase()}
+      <div className="grid gap-5 lg:grid-cols-2">
+        {universities.map((u) => {
+          const previewSlots = [
+            u.programsPreview[0] ?? null,
+            u.programsPreview[1] ?? null,
+            u.programsPreview[2] ?? null,
+            u.programsPreview[3] ?? null,
+          ];
+
+          return (
+            <article
+              key={u.id}
+              className="flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm transition hover:border-[var(--primary)]/35"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <h2 className="font-serif text-xl font-bold leading-tight text-[var(--foreground)]">{u.name}</h2>
+                  <p className="mt-1 text-sm text-[var(--foreground-muted)]">{u.locationLine}</p>
+                  {u.status !== "ACTIVE" ? (
+                    <span className="mt-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+                      Inactive
+                    </span>
+                  ) : null}
                 </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-[var(--foreground)]">{u.name}</p>
-                <p className="text-sm text-[var(--foreground-muted)]">{u.code}</p>
-                {u.status !== "ACTIVE" ? (
-                  <span className="mt-2 badge-pending">
-                    Inactive
+                {u.totalSeats > 0 ? (
+                  <span className="shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold tabular-nums text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">
+                    {u.totalSeats} seats
                   </span>
                 ) : null}
               </div>
-            </div>
-            <p className="mt-3 line-clamp-2 text-sm text-[var(--foreground-muted)]">
-              {(u.location ?? "").trim() || "View programmes and hostel fees"}
-            </p>
-          </button>
-        ))}
+
+              {previewSlots.some(Boolean) ? (
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {previewSlots.map((program, index) => (
+                    <ProgramPreviewCell key={program?.id ?? `empty-${index}`} program={program} />
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-4 rounded-lg border border-dashed border-[var(--border)] px-3 py-6 text-center text-sm text-[var(--foreground-muted)]">
+                  No programmes configured yet.
+                </p>
+              )}
+
+              <div className="mt-4 flex items-end justify-between gap-3 border-t border-[var(--border)] pt-4">
+                <p className="text-sm text-[var(--foreground-muted)]">
+                  {u.hostelFromFee != null ? (
+                    <>
+                      Hostel from{" "}
+                      <span className="font-semibold text-[var(--foreground)]">
+                        {formatInrCompact(u.hostelFromFee)}/yr
+                      </span>
+                    </>
+                  ) : (
+                    "Hostel fees on request"
+                  )}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSelected(u)}
+                  className="text-sm font-semibold text-[var(--primary)] hover:underline"
+                >
+                  View details &gt;
+                </button>
+              </div>
+            </article>
+          );
+        })}
       </div>
 
       {universities.length === 0 ? (
@@ -79,9 +132,17 @@ export function ConsultantAssignedUniversitiesClient({
             className="relative z-[101] max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-xl"
           >
             <div className="flex items-start justify-between gap-4">
-              <h2 id="uni-detail-title" className="text-lg font-semibold text-[var(--foreground)]">
-                {selected.name}
-              </h2>
+              <div>
+                <h2 id="uni-detail-title" className="text-lg font-semibold text-[var(--foreground)]">
+                  {selected.name}
+                </h2>
+                <p className="mt-1 text-sm text-[var(--foreground-muted)]">{selected.locationLine}</p>
+                {selected.totalSeats > 0 ? (
+                  <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                    {selected.seatsRemaining} of {selected.totalSeats} seats available
+                  </p>
+                ) : null}
+              </div>
               <button
                 type="button"
                 onClick={() => setSelected(null)}
@@ -94,7 +155,7 @@ export function ConsultantAssignedUniversitiesClient({
               <UniversityOrganisationDetailsReadOnly
                 universityName={selected.name}
                 universityCode={selected.code}
-                location={selected.location}
+                location={selected.location ?? selected.locationLine}
                 streams={selected.streams}
                 hostel={selected.hostel}
               />

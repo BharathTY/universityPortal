@@ -131,7 +131,7 @@ export async function POST(req: Request, ctx: RouteContext) {
     });
     if (!r || !isAdmissionLeadRoleSlug(r.slug)) {
       return NextResponse.json(
-        { error: "Invalid role — choose a partner role (consultant, counsellor, etc.) from the directory." },
+        { error: "Invalid role — choose a partner role (consultant, Consultant SPOC, etc.) from the directory." },
         { status: 400 },
       );
     }

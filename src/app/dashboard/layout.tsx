@@ -1,6 +1,5 @@
 import { requireAuth } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { SessionInactivityGuard } from "@/components/session-inactivity-guard";
 import { isMaster, isStudent } from "@/lib/roles";
 
 export default async function DashboardLayout({
@@ -15,7 +14,6 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <SessionInactivityGuard />
       <DashboardShell
         email={session.email}
         roles={session.roles}

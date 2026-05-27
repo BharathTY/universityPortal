@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
+import { resolveConsultantSpocRole } from "@/lib/consultant-spoc";
 import { sendCounsellorPortalInviteEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { getPublicAppOrigin } from "@/lib/public-app-origin";
-import { isConsultantOnly, isCounsellorOnly, ROLES } from "@/lib/roles";
+import { isConsultantOnly, isCounsellorOnly } from "@/lib/roles";
 import { hashPassword } from "@/lib/password";
 
 const bodySchema = z.object({
@@ -52,9 +53,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
   }
 
-  const counsellorRole = await prisma.role.findUnique({ where: { slug: ROLES.counsellor } });
-  if (!counsellorRole) {
-    return NextResponse.json({ error: "Counsellor role not configured" }, { status: 500 });
+  const spocRole = await resolveConsultantSpocRole();
+  if (!spocRole) {
+    return NextResponse.json({ error: "Consultant SPOC role not configured" }, { status: 500 });
   }
 
   const inviter = await prisma.user.findUnique({
@@ -79,7 +80,7 @@ export async function POST(req: Request) {
       passwordHash,
       accountStatus: "ACTIVE",
       roles: {
-        create: { roleId: counsellorRole.id },
+        create: { roleId: spocRole.id },
       },
       consultantUniversities: {
         create: parsed.data.universityIds.map((universityId) => ({ universityId })),

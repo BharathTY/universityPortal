@@ -89,7 +89,7 @@ export default async function ManagedStudentViewPage(props: PageProps) {
           </dd>
         </div>
         <div className="grid gap-1 px-4 py-4 sm:grid-cols-3 sm:gap-4">
-          <dt className="text-sm font-medium text-[var(--foreground-muted)]">Counsellor / consultant</dt>
+          <dt className="text-sm font-medium text-[var(--foreground-muted)]">Consultant SPOC / consultant</dt>
           <dd className="text-sm text-[var(--foreground)] sm:col-span-2">
             {user.studentOf ? (
               <>

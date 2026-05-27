@@ -13,7 +13,7 @@ async function main() {
     { slug: "university", name: "University" },
     { slug: "master", name: "Master Admin" },
     { slug: "admin", name: "Admin" },
-    { slug: "counsellor", name: "Counsellor" },
+    { slug: "counsellor", name: "Consultant SPOC" },
     { slug: "consultant_master", name: "Consultant Master" },
     { slug: "qspiders_branch", name: "Qspiders Branch" },
   ];
@@ -456,7 +456,7 @@ async function main() {
   console.log("Master Admin     : master@university.local");
   console.log("Admin            : admin@university.local");
   console.log("University staff : university@university.local");
-  console.log("Counsellor       : counsellor@university.local");
+  console.log("Consultant SPOC  : counsellor@university.local");
   console.log("Consultant       : consultant@university.local");
   console.log("Qspiders branch  : branch@university.local");
   console.log("Student (couns.) : student@university.local, student2@, student3@");

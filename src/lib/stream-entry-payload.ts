@@ -76,21 +76,53 @@ function firstStreamText(entries: StreamEntry[], key: keyof StreamEntry): string
   return null;
 }
 
+export type StreamDetailPayload = {
+  programLevel: "UG" | "PG";
+  streamName: string;
+  targetStudents: number | null;
+  registrationFee: number | null;
+  applicationFee: number | null;
+  messFee: number | null;
+  examFee: number | null;
+  otherAdminCharges: string | null;
+  otherAdminAmount: number | null;
+  cetSeats: number;
+};
+
 /** Map stream cards to the existing university create API shape. */
 export function streamEntriesToCreatePayload(entries: StreamEntry[], hostelFees: HostelFeesForm) {
   const filled = entries.filter((e) => e.streamName.trim().length > 0);
   const ugStreams = filled.filter((e) => e.programLevel === "UG").map((e) => e.streamName.trim());
   const pgStreams = filled.filter((e) => e.programLevel === "PG").map((e) => e.streamName.trim());
 
-  const cetSeats = filled
-    .filter((e) => e.cetSeats.trim().length > 0)
-    .map((e) => ({
-      programLevel: e.programLevel,
-      streamName: e.streamName.trim(),
-      seatCount: Number(e.cetSeats.trim()),
+  const streamDetails: StreamDetailPayload[] = filled.map((e) => ({
+    programLevel: e.programLevel,
+    streamName: e.streamName.trim(),
+    targetStudents: (() => {
+      const n = Number(e.targetStudents.trim());
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    })(),
+    registrationFee: parseOptionalFee(e.registrationFee),
+    applicationFee: parseOptionalFee(e.applicationFee),
+    messFee: parseOptionalFee(e.messFee),
+    examFee: parseOptionalFee(e.examFee),
+    otherAdminCharges: e.otherAdminCharges.trim() || null,
+    otherAdminAmount: parseOptionalFee(e.otherAdminAmount),
+    cetSeats: (() => {
+      const n = Number(e.cetSeats.trim());
+      return Number.isFinite(n) && n >= 0 ? n : 0;
+    })(),
+  }));
+
+  const cetSeats = streamDetails
+    .filter((s) => s.cetSeats > 0)
+    .map((s) => ({
+      programLevel: s.programLevel,
+      streamName: s.streamName,
+      seatCount: s.cetSeats,
     }));
 
-  const targetStudents = filled.reduce((sum, e) => sum + (Number(e.targetStudents.trim()) || 0), 0);
+  const targetStudents = streamDetails.reduce((sum, s) => sum + (s.targetStudents ?? 0), 0);
 
   const applicationFeeRaw = firstStreamFee(filled, "applicationFee");
 
@@ -99,6 +131,7 @@ export function streamEntriesToCreatePayload(entries: StreamEntry[], hostelFees:
     offersPg: pgStreams.length > 0,
     ugStreams,
     pgStreams,
+    streamDetails,
     targetStudents: targetStudents > 0 ? targetStudents : null,
     registrationFee: firstStreamFee(filled, "registrationFee"),
     applicationFee: applicationFeeRaw !== null ? applicationFeeRaw : undefined,

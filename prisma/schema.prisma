@@ -135,6 +135,7 @@ model University {
   district  String?
   city      String?
   pincode   String?
+  website   String?
   logoUrl   String?
   /// Linked master record when onboarded via search (§4.2 step 1).
   masterUniversityId String?
@@ -254,6 +255,10 @@ model Stream {
   tuitionTotal Decimal? @db.Decimal(12, 2)
   collegeFee   Decimal? @db.Decimal(12, 2)
   applicationFee Decimal? @db.Decimal(12, 2)
+  messFee      Decimal? @db.Decimal(12, 2)
+  examFee      Decimal? @db.Decimal(12, 2)
+  otherAdminCharges String?
+  otherAdminAmount Decimal? @db.Decimal(12, 2)
   eligibility  String?
   totalSeats   Int      @default(0)
   filledSeats  Int      @default(0)

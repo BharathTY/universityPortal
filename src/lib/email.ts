@@ -387,12 +387,12 @@ export async function sendCounsellorPortalInviteEmail(params: {
   const counsellorName = params.name.trim() || params.email;
   const portalLink = params.loginUrl;
 
-  const subject = "Welcome to Eduversity — your counsellor account";
+  const subject = "Welcome to Eduversity — your Consultant SPOC account";
   const text = `Hello ${counsellorName},
 
 Welcome to Eduversity, we're glad to have you on board.
 
-${params.inviterName} has invited you to join as a counsellor for Qspiders Eduversity's University Portal.
+${params.inviterName} has invited you to join as a Consultant SPOC for Qspiders Eduversity's University Portal.
 
 Portal Link: ${portalLink}
 Email: ${params.email}
@@ -405,7 +405,7 @@ Team Eduversity`;
 
   const html = `<p>Hello <strong>${escapeHtml(counsellorName)}</strong>,</p>
 <p>Welcome to Eduversity, we're glad to have you on board.</p>
-<p><strong>${escapeHtml(params.inviterName)}</strong> has invited you to join as a counsellor for <strong>Qspiders Eduversity's University Portal</strong>.</p>
+<p><strong>${escapeHtml(params.inviterName)}</strong> has invited you to join as a <strong>Consultant SPOC</strong> for <strong>Qspiders Eduversity's University Portal</strong>.</p>
 <p><strong>Portal Link:</strong> <a href="${escapeHtml(portalLink)}">${escapeHtml(portalLink)}</a><br/>
 <strong>Email:</strong> ${escapeHtml(params.email)}<br/>
 <strong>Password:</strong> <code>${escapeHtml(params.password)}</code></p>
@@ -414,7 +414,7 @@ Team Eduversity`;
 
   if (!host || !user || !pass) {
     if (process.env.NODE_ENV === "development") {
-      console.log(`[Counsellor invite dev] To: ${params.to}\n${text}`);
+      console.log(`[Consultant SPOC invite dev] To: ${params.to}\n${text}`);
     }
     return;
   }

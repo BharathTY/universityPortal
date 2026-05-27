@@ -32,7 +32,7 @@ const bodySchema = z.object({
     }),
 });
 
-/** Counsellors, consultants, and consultant_master can invite students (same backend rules). */
+/** Consultant SPOCs, consultants, and consultant_master can invite students (same backend rules). */
 export async function handleInviteStudentRequest(req: Request): Promise<Response> {
   const session = await getSession();
   if (!session) {

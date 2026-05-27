@@ -3,6 +3,7 @@
 import * as React from "react";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
+import { SessionInactivityGuard } from "@/components/session-inactivity-guard";
 
 const STORAGE_KEY = "sidebar-collapsed";
 
@@ -49,6 +50,7 @@ export function DashboardShell({
 
   return (
     <div className="flex min-h-screen w-full">
+      <SessionInactivityGuard />
       {/* Mobile overlay */}
       {mobileOpen ? (
         <button

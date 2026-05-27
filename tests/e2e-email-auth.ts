@@ -158,7 +158,7 @@ async function runEmailContentTests(): Promise<{ passed: number; failed: number 
       inviterName: "Demo Consultant",
     });
     const m = sentMails[0]!;
-    assertIncludes(m.subject ?? "", "counsellor", "subject mentions counsellor");
+    assertIncludes(m.subject ?? "", "Consultant SPOC", "subject mentions Consultant SPOC");
     assertIncludes(m.text ?? "", "Demo Consultant", "inviter name");
     assertIncludes(m.text ?? "", "SpocPass789!", "password");
   });

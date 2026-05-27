@@ -53,12 +53,26 @@ const cetSeatSchema = z.object({
   seatCount: z.coerce.number().int().nonnegative().max(999_999),
 });
 
+const streamDetailSchema = z.object({
+  programLevel: z.enum(["UG", "PG"]),
+  streamName: z.string().trim().min(1).max(200),
+  targetStudents: z.coerce.number().int().nonnegative().max(999_999).optional().nullable(),
+  registrationFee: optionalNullableFee,
+  applicationFee: optionalNullableFee,
+  messFee: optionalNullableFee,
+  examFee: optionalNullableFee,
+  otherAdminCharges: z.string().trim().max(500).optional().nullable(),
+  otherAdminAmount: optionalNullableFee,
+  cetSeats: z.coerce.number().int().nonnegative().max(999_999).optional().default(0),
+});
+
 const createSchema = z.object({
   name: nameSchema,
   email: optionalEmail,
   phone: optionalPhone,
   applicationFee: optionalFee,
   logoUrl: z.string().max(2000).optional().nullable(),
+  website: z.string().trim().max(500).optional().nullable(),
   masterUniversityId: z.string().trim().min(1).max(64).optional().nullable(),
   address: z.string().trim().max(2000).optional().nullable(),
   state: z.string().trim().max(120).optional().nullable(),
@@ -74,6 +88,7 @@ const createSchema = z.object({
   offersPg: z.boolean().optional(),
   ugStreams: z.array(z.string().trim().min(1).max(200)).optional(),
   pgStreams: z.array(z.string().trim().min(1).max(200)).optional(),
+  streamDetails: z.array(streamDetailSchema).max(80).optional(),
   targetStudents: z.coerce.number().int().nonnegative().max(999_999).optional().nullable(),
   registrationFee: optionalNullableFee,
   messFee: optionalNullableFee,
@@ -362,13 +377,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "University role not configured" }, { status: 500 });
   }
 
+  let websiteFromMaster: string | null = null;
   if (parsed.data.masterUniversityId) {
     const master = await prisma.masterUniversity.findUnique({
       where: { id: parsed.data.masterUniversityId },
-      select: { id: true },
+      select: { id: true, website: true },
     });
     if (!master) {
       return NextResponse.json({ error: "Master university record not found" }, { status: 400 });
+    }
+    if (!parsed.data.website?.trim()) {
+      websiteFromMaster = master.website?.trim() || null;
     }
   }
 
@@ -396,6 +415,7 @@ export async function POST(req: Request) {
         district: parsed.data.district?.trim() || null,
         city: parsed.data.city?.trim() || null,
         pincode: parsed.data.pincode?.trim() || null,
+        website: parsed.data.website?.trim() || websiteFromMaster,
         location,
         universityType: parsed.data.universityType ?? null,
         spocName: parsed.data.spocName?.trim() || null,
@@ -420,25 +440,46 @@ export async function POST(req: Request) {
     });
 
     let sortOrder = 0;
-    for (const streamName of ugStreams) {
-      await tx.stream.create({
-        data: {
-          universityId: university.id,
-          name: streamName,
-          programLevel: ProgramLevel.UG,
-          sortOrder: sortOrder++,
-        },
-      });
-    }
-    for (const streamName of pgStreams) {
-      await tx.stream.create({
-        data: {
-          universityId: university.id,
-          name: streamName,
-          programLevel: ProgramLevel.PG,
-          sortOrder: sortOrder++,
-        },
-      });
+    const streamDetails = parsed.data.streamDetails ?? [];
+    if (streamDetails.length > 0) {
+      for (const stream of streamDetails) {
+        await tx.stream.create({
+          data: {
+            universityId: university.id,
+            name: stream.streamName,
+            programLevel: stream.programLevel as ProgramLevel,
+            sortOrder: sortOrder++,
+            totalSeats: stream.targetStudents ?? 0,
+            streamFee: toDecimal(stream.registrationFee ?? undefined),
+            applicationFee: toDecimal(stream.applicationFee ?? undefined),
+            messFee: toDecimal(stream.messFee ?? undefined),
+            examFee: toDecimal(stream.examFee ?? undefined),
+            otherAdminCharges: stream.otherAdminCharges?.trim() || null,
+            otherAdminAmount: toDecimal(stream.otherAdminAmount ?? undefined),
+          },
+        });
+      }
+    } else {
+      for (const streamName of ugStreams) {
+        await tx.stream.create({
+          data: {
+            universityId: university.id,
+            name: streamName,
+            programLevel: ProgramLevel.UG,
+            sortOrder: sortOrder++,
+          },
+        });
+      }
+      for (const streamName of pgStreams) {
+        await tx.stream.create({
+          data: {
+            universityId: university.id,
+            name: streamName,
+            programLevel: ProgramLevel.PG,
+            sortOrder: sortOrder++,
+          },
+        });
+      }
     }
 
     for (const seat of parsed.data.cetSeats ?? []) {

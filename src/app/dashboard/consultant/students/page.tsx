@@ -121,11 +121,11 @@ export default async function ConsultantStudentsPage({
           <>
             Manage <strong className="text-[var(--foreground)]">team members</strong> you work with and{" "}
             <strong className="text-[var(--foreground)]">students</strong> linked after you convert leads. Invite
-            counsellors with the button below; they receive email to accept and set a password.
+            Consultant SPOCs with the button below; they receive email to sign in with their credentials.
           </>
         ) : (
           <>
-            <strong className="text-[var(--foreground)]">Counsellors and consultants</strong> can add students: we send
+            <strong className="text-[var(--foreground)]">Consultant SPOCs and consultants</strong> can add students: we send
             an email with an acceptance link. After the student accepts, they can use the normal OTP login. University
             and master roles see broader lists here.
           </>
@@ -164,7 +164,7 @@ export default async function ConsultantStudentsPage({
             <div>
               <h2 className="text-lg font-semibold text-[var(--foreground)]">Team members</h2>
               <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-muted)]">
-                Admission partners assigned by your master administrator appear first; counsellors you invite are listed
+                Admission partners assigned by your master administrator appear first; Consultant SPOCs you invite are listed
                 below with the universities you assign.
               </p>
             </div>
@@ -216,9 +216,9 @@ export default async function ConsultantStudentsPage({
           </div>
 
           <div className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">Invite counsellor</h2>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">Invite Consultant SPOC</h2>
             <p className="mt-2 text-sm text-[var(--foreground-muted)]">
-              Additional <strong className="text-[var(--foreground)]">counsellor</strong>,{" "}
+              Additional <strong className="text-[var(--foreground)]">Consultant SPOC</strong>,{" "}
               <strong className="text-[var(--foreground)]">manager</strong>, and{" "}
               <strong className="text-[var(--foreground)]">branch</strong> accounts can also be created by your{" "}
               <strong className="text-[var(--foreground)]">master administrator</strong> under{" "}

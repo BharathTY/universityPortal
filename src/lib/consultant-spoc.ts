@@ -42,6 +42,13 @@ export function filledConsultantSpocRows(rows: ConsultantSpocDraft[]): Consultan
   return rows.filter(isConsultantSpocRowFilled);
 }
 
+export async function resolveConsultantSpocRole(db: Pick<PrismaClient, "role"> = prisma) {
+  return db.role.findFirst({
+    where: { slug: { in: [...CONSULTANT_SPOC_ROLE_SLUGS] } },
+    orderBy: { slug: "desc" },
+  });
+}
+
 export async function loadConsultantSpocsGrouped(
   consultantIds: string[],
   db: Pick<PrismaClient, "user"> = prisma,
