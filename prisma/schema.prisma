@@ -41,6 +41,16 @@ enum HostelSharing {
   FOUR_SHARING
 }
 
+enum ScholarshipType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum CetAllocationMode {
+  SEATS
+  PERCENT
+}
+
 enum UserAccountStatus {
   ACTIVE
   INACTIVE
@@ -146,6 +156,7 @@ model University {
   spocDesignation    String?
   spocMobile         String?
   spocEmail          String?
+  spocs              UniversitySpoc[]
   /// Programs offered flags.
   offersUg           Boolean              @default(false)
   offersPg           Boolean              @default(false)
@@ -173,17 +184,50 @@ model University {
   hostelFees    UniversityHostelFee[]
   cetSeats      UniversityCetSeat[]
   documents     UniversityDocument[]
+  scholarships  UniversityScholarship[]
+}
+
+model UniversitySpoc {
+  id           String     @id @default(cuid())
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  name         String
+  designation  String
+  mobile       String
+  email        String
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([universityId])
 }
 
 model UniversityCetSeat {
-  id           String       @id @default(cuid())
+  id              String             @id @default(cuid())
+  universityId    String
+  university      University         @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  programLevel    ProgramLevel
+  programName     String?
+  streamName      String
+  allocationMode  CetAllocationMode  @default(SEATS)
+  allocationValue Decimal?           @db.Decimal(8, 2)
+  seatCount       Int                @default(0)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([universityId])
+}
+
+model UniversityScholarship {
+  id           String           @id @default(cuid())
   universityId String
-  university   University   @relation(fields: [universityId], references: [id], onDelete: Cascade)
-  programLevel ProgramLevel
-  streamName   String
-  seatCount    Int          @default(0)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  university   University       @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  type         ScholarshipType
+  value        Decimal          @db.Decimal(12, 2)
+  criteria     String[]         @default([])
+  sortOrder    Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
   @@index([universityId])
 }
@@ -315,8 +359,10 @@ model AdmissionLead {
   panAvailable      Boolean?
   certificationDone Boolean?
   sslcBoard         String?
+  sslcSchool        String?
   sslcYear          Int?
   sslcPercent       Decimal?            @db.Decimal(5, 2)
+  qualificationType String?
   pucBoard          String?
   pucYear           Int?
   pucPercent        Decimal?            @db.Decimal(5, 2)
@@ -327,6 +373,9 @@ model AdmissionLead {
   degreePercent     Decimal?            @db.Decimal(5, 2)
   ieltsScore        String?
   toeflScore        String?
+  otherExamName     String?
+  otherExamScore    String?
+  otherExamDetails  String?
   createdByUserId  String?
   createdBy        User?               @relation("LeadCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   batchId          String?

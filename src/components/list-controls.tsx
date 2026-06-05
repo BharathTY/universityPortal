@@ -25,6 +25,8 @@ export const SORT_USERS: SortOption[] = [
 export const SORT_UNIVERSITIES: SortOption[] = [
   ...SORT_LATEST,
   { value: "name", label: "Name (A–Z)" },
+  { value: "state", label: "State (A–Z)" },
+  { value: "status", label: "Status" },
   { value: "code", label: "Code (A–Z)" },
 ];
 

@@ -17,6 +17,10 @@ import {
 } from "@/lib/consultant-lead-payload";
 import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
 import { storeUpload } from "@/lib/file-storage";
+import {
+  canTransitionLeadStatus,
+  LEAD_STATUS_WORKFLOW_MESSAGE,
+} from "@/lib/lead-status-workflow";
 import { prisma } from "@/lib/prisma";
 import { isConsultant, isConsultantSpoc } from "@/lib/roles";
 
@@ -203,6 +207,14 @@ async function patchLeadStatus(
   const nextAdmissionStatus = data.admissionStatus;
   const statusChanging =
     nextAdmissionStatus !== undefined && nextAdmissionStatus !== existing.admissionStatus;
+
+  if (
+    statusChanging &&
+    nextAdmissionStatus &&
+    !canTransitionLeadStatus(existing.admissionStatus, nextAdmissionStatus)
+  ) {
+    return NextResponse.json({ error: LEAD_STATUS_WORKFLOW_MESSAGE }, { status: 400 });
+  }
 
   try {
     const lead = await prisma.$transaction(async (tx) => {

@@ -68,6 +68,10 @@ async function main() {
       }
       console.log(`Seeded ${raw.length} master universities`);
     }
+    await prisma.masterUniversity.updateMany({
+      where: { website: "https://www.vtu.ac.in" },
+      data: { website: "https://vtu.ac.in" },
+    });
   }
 
   const uni1 = await prisma.university.upsert({
@@ -310,6 +314,8 @@ async function main() {
       nationality: "India",
       specialization: "CSE",
       admissionState: "Karnataka",
+      createdByUserId: consultantUser.id,
+      assignedPartnerDisplayName: "Demo Consultant",
     },
   });
 
@@ -445,6 +451,42 @@ async function main() {
       create: { userId: u.id, universityId: u.universityId },
       update: {},
     });
+  }
+
+  let migratedSpocs = 0;
+  const legacySpocUnis = await prisma.university.findMany({
+    where: {
+      spocName: { not: null },
+      spocs: { none: {} },
+    },
+    select: {
+      id: true,
+      spocName: true,
+      spocDesignation: true,
+      spocMobile: true,
+      spocEmail: true,
+    },
+  });
+  for (const u of legacySpocUnis) {
+    const name = u.spocName?.trim();
+    const designation = u.spocDesignation?.trim();
+    const mobile = u.spocMobile?.trim();
+    const email = u.spocEmail?.trim();
+    if (!name || !designation || !mobile || !email) continue;
+    await prisma.universitySpoc.create({
+      data: {
+        universityId: u.id,
+        name,
+        designation,
+        mobile,
+        email: email.toLowerCase(),
+        sortOrder: 0,
+      },
+    });
+    migratedSpocs++;
+  }
+  if (migratedSpocs > 0) {
+    console.log(`Migrated legacy SPOC fields for ${migratedSpocs} universities`);
   }
 
   console.log("\n=== Seed OK ===");

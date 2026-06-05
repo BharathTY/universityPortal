@@ -93,22 +93,50 @@ export function universityTextSearchWhere(q: string | undefined): Prisma.Univers
       { name: { contains: term, mode: "insensitive" } },
       { code: { contains: term, mode: "insensitive" } },
       { email: { contains: term, mode: "insensitive" } },
+      { state: { contains: term, mode: "insensitive" } },
     ],
   };
 }
 
-export function universityOrderBy(sort: string | undefined): Prisma.UniversityOrderByWithRelationInput {
+export function universityListFilters(input: {
+  status?: string;
+  program?: string;
+  state?: string;
+}): Prisma.UniversityWhereInput | undefined {
+  const parts: Prisma.UniversityWhereInput[] = [];
+  if (input.status === "ACTIVE" || input.status === "INACTIVE") {
+    parts.push({ status: input.status });
+  }
+  if (input.state?.trim()) {
+    parts.push({ state: { equals: input.state.trim(), mode: "insensitive" } });
+  }
+  if (input.program === "UG") {
+    parts.push({ offersUg: true });
+  } else if (input.program === "PG") {
+    parts.push({ offersPg: true });
+  }
+  if (parts.length === 0) return undefined;
+  return parts.length === 1 ? parts[0]! : { AND: parts };
+}
+
+export function universityOrderBy(
+  sort: string | undefined,
+): Prisma.UniversityOrderByWithRelationInput | Prisma.UniversityOrderByWithRelationInput[] {
   switch (sort) {
     case "oldest":
-      return { createdAt: "asc" };
+      return [{ createdAt: "asc" }, { id: "asc" }];
     case "name":
-      return { name: "asc" };
+      return [{ name: "asc" }, { id: "asc" }];
     case "name-desc":
-      return { name: "desc" };
+      return [{ name: "desc" }, { id: "desc" }];
+    case "state":
+      return [{ state: "asc" }, { name: "asc" }];
+    case "status":
+      return [{ status: "asc" }, { name: "asc" }];
     case "code":
-      return { code: "asc" };
+      return [{ code: "asc" }, { id: "asc" }];
     default:
-      return { createdAt: "desc" };
+      return [{ createdAt: "desc" }, { id: "desc" }];
   }
 }
 

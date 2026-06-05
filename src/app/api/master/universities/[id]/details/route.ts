@@ -1,17 +1,16 @@
-import { HostelGender, HostelRoomType, HostelSharing, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  HOSTEL_FEE_COMBOS,
+  hostelFeeAmountsFromDb,
+  type HostelFeeKey,
+} from "@/lib/hostel-fee-matrix";
 import { requireMasterApi } from "@/lib/master-session";
 import { prisma } from "@/lib/prisma";
+import { syncUniversityHostelFees } from "@/lib/university-hostel-fees-db";
 
-const HOSTEL_COMBOS = [
-  { key: "girlsAc", gender: HostelGender.GIRLS, roomType: HostelRoomType.AC, sharing: HostelSharing.TWO_SHARING },
-  { key: "girlsNonAc", gender: HostelGender.GIRLS, roomType: HostelRoomType.NON_AC, sharing: HostelSharing.TWO_SHARING },
-  { key: "boysAc", gender: HostelGender.BOYS, roomType: HostelRoomType.AC, sharing: HostelSharing.TWO_SHARING },
-  { key: "boysNonAc", gender: HostelGender.BOYS, roomType: HostelRoomType.NON_AC, sharing: HostelSharing.TWO_SHARING },
-] as const;
-
-type HostelKey = (typeof HOSTEL_COMBOS)[number]["key"];
+const hostelFeeValue = z.union([z.number().nonnegative().max(999_999_999), z.null()]).optional();
 
 const streamRowSchema = z.object({
   id: z.string().optional(),
@@ -23,22 +22,14 @@ const streamRowSchema = z.object({
 const putSchema = z.object({
   location: z.string().trim().max(2000).optional().nullable(),
   streams: z.array(streamRowSchema).max(80),
-  hostelFees: z.object({
-    girlsAc: z.union([z.number().nonnegative().max(999_999_999), z.null()]).optional(),
-    girlsNonAc: z.union([z.number().nonnegative().max(999_999_999), z.null()]).optional(),
-    boysAc: z.union([z.number().nonnegative().max(999_999_999), z.null()]).optional(),
-    boysNonAc: z.union([z.number().nonnegative().max(999_999_999), z.null()]).optional(),
-  }),
+  hostelFees: z
+    .object(
+      Object.fromEntries(
+        HOSTEL_FEE_COMBOS.map((c) => [c.key, hostelFeeValue]),
+      ) as Record<HostelFeeKey, typeof hostelFeeValue>,
+    )
+    .optional(),
 });
-
-function emptyHostelFees(): Record<HostelKey, number | null> {
-  return {
-    girlsAc: null,
-    girlsNonAc: null,
-    boysAc: null,
-    boysNonAc: null,
-  };
-}
 
 function decimalToAmount(v: Prisma.Decimal | null | undefined): number | null {
   if (v === null || v === undefined) return null;
@@ -64,18 +55,14 @@ export async function GET(_req: Request, ctx: RouteContext) {
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         select: { id: true, name: true, degreeType: true, streamFee: true },
       },
-      hostelFees: { select: { gender: true, roomType: true, amount: true } },
+      hostelFees: {
+        select: { gender: true, roomType: true, sharing: true, amount: true },
+      },
     },
   });
 
   if (!u) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  const hostelFees = emptyHostelFees();
-  for (const h of u.hostelFees) {
-    const combo = HOSTEL_COMBOS.find((c) => c.gender === h.gender && c.roomType === h.roomType);
-    if (combo) hostelFees[combo.key] = decimalToAmount(h.amount);
   }
 
   return NextResponse.json({
@@ -88,7 +75,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
       degreeType: s.degreeType ?? "",
       streamFee: decimalToAmount(s.streamFee),
     })),
-    hostelFees,
+    hostelFees: hostelFeeAmountsFromDb(u.hostelFees),
   });
 }
 
@@ -184,51 +171,8 @@ export async function PUT(req: Request, ctx: RouteContext) {
         }
       }
 
-      for (const def of HOSTEL_COMBOS) {
-        const raw = parsed.data.hostelFees[def.key];
-        if (raw === undefined) {
-          continue;
-        }
-        const val = raw === null ? null : Number(raw);
-
-        const existing = await tx.universityHostelFee.findUnique({
-          where: {
-            universityId_gender_roomType_sharing: {
-              universityId: id,
-              gender: def.gender,
-              roomType: def.roomType,
-              sharing: def.sharing,
-            },
-          },
-        });
-
-        if (val === null) {
-          if (existing) {
-            await tx.universityHostelFee.delete({ where: { id: existing.id } });
-          }
-        } else {
-          if (!Number.isFinite(val) || val < 0) {
-            throw new Error("Invalid hostel fee amount");
-          }
-          await tx.universityHostelFee.upsert({
-            where: {
-              universityId_gender_roomType_sharing: {
-                universityId: id,
-                gender: def.gender,
-                roomType: def.roomType,
-                sharing: def.sharing,
-              },
-            },
-            create: {
-              universityId: id,
-              gender: def.gender,
-              roomType: def.roomType,
-              sharing: def.sharing,
-              amount: new Prisma.Decimal(val.toFixed(2)),
-            },
-            update: { amount: new Prisma.Decimal(val.toFixed(2)) },
-          });
-        }
+      if (parsed.data.hostelFees) {
+        await syncUniversityHostelFees(tx, id, parsed.data.hostelFees);
       }
     });
   } catch (e) {

@@ -9,11 +9,13 @@ import {
   parsePage,
   parsePageSize,
   searchParamOne,
+  universityListFilters,
   universityOrderBy,
   universityTextSearchWhere,
 } from "@/lib/list-query";
 import { prisma } from "@/lib/prisma";
 import { isMaster } from "@/lib/roles";
+import { UniversityListViewModals } from "@/components/university-list-view-modals";
 import { UniversityRowActions } from "@/app/dashboard/master/universities/university-row-actions";
 import { universityHasDetailsSaved } from "@/lib/university-details-saved";
 
@@ -23,12 +25,28 @@ type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-function formatDate(d: Date) {
+function formatDateTime(d: Date) {
   return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(d);
+}
+
+function formatUniversityType(raw: string | null | undefined): string {
+  if (!raw) return "—";
+  switch (raw) {
+    case "PRIVATE":
+      return "Private";
+    case "DEEMED":
+      return "Deemed";
+    case "STATE_GOVT":
+      return "State / Central Govt";
+    default:
+      return raw.replace(/_/g, " ");
+  }
 }
 
 function formatFee(value: { toString(): string } | null): string {
@@ -47,11 +65,20 @@ export default async function MasterUniversitiesListPage(props: PageProps) {
   const sp = await props.searchParams;
   const q = searchParamOne(sp, "q");
   const sort = searchParamOne(sp, "sort") ?? "latest";
+  const statusFilter = searchParamOne(sp, "status");
+  const programFilter = searchParamOne(sp, "program");
+  const stateFilter = searchParamOne(sp, "state");
   const page = parsePage(searchParamOne(sp, "page"));
   const pageSize = parsePageSize(searchParamOne(sp, "pageSize"), 25);
 
   const textWhere = universityTextSearchWhere(q);
-  const where: Prisma.UniversityWhereInput = textWhere ?? {};
+  const filterWhere = universityListFilters({
+    status: statusFilter,
+    program: programFilter,
+    state: stateFilter,
+  });
+  const where: Prisma.UniversityWhereInput =
+    textWhere && filterWhere ? { AND: [textWhere, filterWhere] } : textWhere ?? filterWhere ?? {};
 
   const [total, rows] = await Promise.all([
     prisma.university.count({ where }),
@@ -66,10 +93,12 @@ export default async function MasterUniversitiesListPage(props: PageProps) {
         code: true,
         email: true,
         phone: true,
-        applicationFee: true,
+        state: true,
+        universityType: true,
         logoUrl: true,
         status: true,
         createdAt: true,
+        _count: { select: { applications: true } },
       },
     }),
   ]);
@@ -142,9 +171,35 @@ export default async function MasterUniversitiesListPage(props: PageProps) {
         q={q ?? ""}
         sort={sort}
         sortOptions={SORT_UNIVERSITIES}
-        searchPlaceholder="University name, code, or email"
+        searchPlaceholder="University name, state, code, or email"
         itemLabel="university"
       />
+
+      <form method="get" className="mt-4 flex flex-wrap items-end gap-3">
+        {q ? <input type="hidden" name="q" value={q} /> : null}
+        {sort !== "latest" ? <input type="hidden" name="sort" value={sort} /> : null}
+        <div>
+          <label htmlFor="filter-status" className="text-xs font-medium text-[var(--foreground-muted)]">Status</label>
+          <select id="filter-status" name="status" defaultValue={statusFilter ?? ""} className="mt-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm">
+            <option value="">All</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="filter-program" className="text-xs font-medium text-[var(--foreground-muted)]">Program type</label>
+          <select id="filter-program" name="program" defaultValue={programFilter ?? ""} className="mt-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm">
+            <option value="">All</option>
+            <option value="UG">UG</option>
+            <option value="PG">PG</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="filter-state" className="text-xs font-medium text-[var(--foreground-muted)]">State</label>
+          <input id="filter-state" name="state" defaultValue={stateFilter ?? ""} placeholder="State name" className="mt-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm" />
+        </div>
+        <button type="submit" className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-hover)]">Apply filters</button>
+      </form>
 
       {universities.length === 0 ? (
         <p className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-10 text-center text-sm text-[var(--foreground-muted)]">
@@ -152,16 +207,18 @@ export default async function MasterUniversitiesListPage(props: PageProps) {
         </p>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
-          <table className="w-full min-w-[1100px] text-left text-sm">
+          <table className="w-full min-w-[1200px] text-left text-sm">
             <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40">
               <tr>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">University name</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">State</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">University type</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Email</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Phone</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Application fee</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Contact</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Logo</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Created on</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Status</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Created</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Admissions</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Actions</th>
               </tr>
             </thead>
@@ -179,11 +236,12 @@ export default async function MasterUniversitiesListPage(props: PageProps) {
                     <div className="font-medium text-[var(--foreground)]">{u.name}</div>
                     <div className="font-mono text-xs text-[var(--foreground-muted)]">{u.code}</div>
                   </td>
+                  <td className="px-3 py-3">{u.state ?? "—"}</td>
+                  <td className="px-3 py-3">{formatUniversityType(u.universityType)}</td>
                   <td className="max-w-[10rem] truncate px-3 py-3" title={u.email ?? ""}>
                     {u.email ?? "—"}
                   </td>
                   <td className="px-3 py-3 tabular-nums">{u.phone ?? "—"}</td>
-                  <td className="px-3 py-3 tabular-nums">{formatFee(u.applicationFee)}</td>
                   <td className="px-3 py-3">
                     {u.logoUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element -- arbitrary logo URLs */
@@ -196,6 +254,7 @@ export default async function MasterUniversitiesListPage(props: PageProps) {
                       <span className="text-[var(--foreground-muted)]">—</span>
                     )}
                   </td>
+                  <td className="px-3 py-3 tabular-nums text-[var(--foreground-muted)]">{formatDateTime(u.createdAt)}</td>
                   <td className="px-3 py-3">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -207,9 +266,10 @@ export default async function MasterUniversitiesListPage(props: PageProps) {
                       {u.status === "ACTIVE" ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td className="px-3 py-3 tabular-nums text-[var(--foreground-muted)]">{formatDate(u.createdAt)}</td>
+                  <td className="px-3 py-3 tabular-nums">{u._count.applications}</td>
                   <td className="px-3 py-3 align-top">
                     <div className="flex max-w-[14rem] flex-col gap-1.5">
+                      <UniversityListViewModals universityId={u.id} universityName={u.name} />
                       <Link
                         href={`/dashboard/university/${u.id}/admissions/academic-years`}
                         className="text-[var(--primary)] underline-offset-2 hover:underline"

@@ -26,6 +26,10 @@ const patchSchema = z.object({
   sslcSchool: z.string().max(200).optional().nullable(),
   sslcBoard: z.string().max(120).optional().nullable(),
   sslcPercent: z.union([z.number(), z.string()]).optional().nullable(),
+  qualificationType: z.string().max(32).optional().nullable(),
+  otherExamName: z.string().max(120).optional().nullable(),
+  otherExamScore: z.string().max(32).optional().nullable(),
+  otherExamDetails: z.string().max(500).optional().nullable(),
   pucType: z.string().max(32).optional().nullable(),
   pucInstitution: z.string().max(200).optional().nullable(),
   pucYear: z.union([z.number().int(), z.string()]).optional().nullable(),
@@ -210,8 +214,12 @@ export async function PATCH(req: Request) {
   if (first !== undefined) leadUpdate.firstName = first.trim();
   if (last !== undefined) leadUpdate.lastName = last.trim();
   if (parsed.data.sslcBoard !== undefined) leadUpdate.sslcBoard = parsed.data.sslcBoard?.trim() || null;
+  if (parsed.data.sslcSchool !== undefined) leadUpdate.sslcSchool = parsed.data.sslcSchool?.trim() || null;
   if (parseOptionalDecimal(parsed.data.sslcPercent) !== undefined) {
     leadUpdate.sslcPercent = parseOptionalDecimal(parsed.data.sslcPercent);
+  }
+  if (parsed.data.qualificationType !== undefined) {
+    leadUpdate.qualificationType = parsed.data.qualificationType?.trim() || null;
   }
   if (parsed.data.pucInstitution !== undefined) {
     leadUpdate.pucBoard = parsed.data.pucInstitution?.trim() || null;
@@ -234,6 +242,15 @@ export async function PATCH(req: Request) {
   }
   if (parseOptionalDecimal(parsed.data.degreePercent) !== undefined) {
     leadUpdate.degreePercent = parseOptionalDecimal(parsed.data.degreePercent);
+  }
+  if (parsed.data.otherExamName !== undefined) {
+    leadUpdate.otherExamName = parsed.data.otherExamName?.trim() || null;
+  }
+  if (parsed.data.otherExamScore !== undefined) {
+    leadUpdate.otherExamScore = parsed.data.otherExamScore?.trim() || null;
+  }
+  if (parsed.data.otherExamDetails !== undefined) {
+    leadUpdate.otherExamDetails = parsed.data.otherExamDetails?.trim() || null;
   }
 
   if (application.leadId && Object.keys(leadUpdate).length > 0) {

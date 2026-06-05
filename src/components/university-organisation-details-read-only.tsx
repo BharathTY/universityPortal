@@ -1,4 +1,4 @@
-import type { HostelFeesInitial } from "@/app/dashboard/master/universities/[id]/details/university-details-form";
+import { HOSTEL_FEE_COMBOS, type HostelFeeAmounts } from "@/lib/hostel-fee-matrix";
 
 function formatInr(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
@@ -18,9 +18,10 @@ export function UniversityOrganisationDetailsReadOnly({
   universityCode: string;
   location: string | null;
   streams: StreamRow[];
-  hostel: HostelFeesInitial;
+  hostel: HostelFeeAmounts;
 }) {
   const loc = (location ?? "").trim();
+  const hostelRows = HOSTEL_FEE_COMBOS.filter((c) => hostel[c.key] != null && hostel[c.key]! > 0);
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -39,7 +40,6 @@ export function UniversityOrganisationDetailsReadOnly({
 
       <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
         <h2 className="text-lg font-semibold text-[var(--foreground)]">Degree type, stream & stream fee</h2>
-        <p className="mt-1 text-sm text-[var(--foreground-muted)]">Values entered by the master administrator.</p>
         {streams.length === 0 ? (
           <p className="mt-4 text-sm text-[var(--foreground-muted)]">No programs listed yet.</p>
         ) : (
@@ -69,35 +69,20 @@ export function UniversityOrganisationDetailsReadOnly({
 
       <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
         <h2 className="text-lg font-semibold text-[var(--foreground)]">Hostel fee (annual)</h2>
-        <p className="mt-1 text-sm text-[var(--foreground-muted)]">Girls / boys × AC / non-AC.</p>
-        <div className="mt-6 grid gap-6 sm:grid-cols-2">
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">Girls</h3>
-            <dl className="mt-3 space-y-2 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-[var(--foreground-muted)]">AC room</dt>
-                <dd className="tabular-nums text-[var(--foreground)]">{formatInr(hostel.girlsAc)}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-[var(--foreground-muted)]">Non-AC room</dt>
-                <dd className="tabular-nums text-[var(--foreground)]">{formatInr(hostel.girlsNonAc)}</dd>
-              </div>
-            </dl>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">Boys</h3>
-            <dl className="mt-3 space-y-2 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-[var(--foreground-muted)]">AC room</dt>
-                <dd className="tabular-nums text-[var(--foreground)]">{formatInr(hostel.boysAc)}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-[var(--foreground-muted)]">Non-AC room</dt>
-                <dd className="tabular-nums text-[var(--foreground)]">{formatInr(hostel.boysNonAc)}</dd>
-              </div>
-            </dl>
-          </div>
-        </div>
+        {hostelRows.length === 0 ? (
+          <p className="mt-4 text-sm text-[var(--foreground-muted)]">No hostel fees configured.</p>
+        ) : (
+          <ul className="mt-4 space-y-2 text-sm">
+            {hostelRows.map((combo) => (
+              <li key={combo.key} className="flex justify-between gap-4 border-b border-[var(--border)] py-2 last:border-0">
+                <span className="text-[var(--foreground-muted)]">
+                  {combo.genderLabel} · {combo.roomLabel} · {combo.sharingLabel}
+                </span>
+                <span className="tabular-nums font-medium text-[var(--foreground)]">{formatInr(hostel[combo.key])}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   );

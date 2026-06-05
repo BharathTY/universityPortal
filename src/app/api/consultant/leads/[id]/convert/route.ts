@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { isConsultant, ROLES } from "@/lib/roles";
 import { nextApplicationReferenceCode } from "@/lib/application-reference";
 import { sendStudentRegistrationEmail } from "@/lib/email";
+import { requireActiveUniversity } from "@/lib/require-active-university";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -48,6 +49,9 @@ export async function POST(_req: Request, ctx: Ctx) {
   if (!lead) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
+
+  const activeGate = await requireActiveUniversity(lead.universityId);
+  if (!activeGate.ok) return activeGate.response;
   const universityId = lead.universityId;
   if (lead.pipelineStatus !== LeadPipelineStatus.NEW) {
     return NextResponse.json({ error: "Lead is not eligible for conversion" }, { status: 400 });

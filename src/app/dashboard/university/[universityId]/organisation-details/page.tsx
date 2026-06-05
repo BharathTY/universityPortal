@@ -6,32 +6,11 @@ import { requireAuth } from "@/lib/auth";
 import { consultantIsAssignedToUniversity } from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
 import { isConsultant, isConsultantOnly } from "@/lib/roles";
-import { HostelGender, HostelRoomType } from "@prisma/client";
-import type { HostelFeesInitial } from "@/app/dashboard/master/universities/[id]/details/university-details-form";
+import { hostelFeeAmountsFromDb } from "@/lib/hostel-fee-matrix";
 
 export const dynamic = "force-dynamic";
 
 type PageProps = { params: Promise<{ universityId: string }> };
-
-function buildHostelInitial(
-  rows: { gender: HostelGender; roomType: HostelRoomType; amount: unknown }[],
-): HostelFeesInitial {
-  const out: HostelFeesInitial = {
-    girlsAc: null,
-    girlsNonAc: null,
-    boysAc: null,
-    boysNonAc: null,
-  };
-  for (const h of rows) {
-    const n = h.amount != null ? Number(String(h.amount)) : null;
-    const val = n !== null && Number.isFinite(n) ? n : null;
-    if (h.gender === HostelGender.GIRLS && h.roomType === HostelRoomType.AC) out.girlsAc = val;
-    if (h.gender === HostelGender.GIRLS && h.roomType === HostelRoomType.NON_AC) out.girlsNonAc = val;
-    if (h.gender === HostelGender.BOYS && h.roomType === HostelRoomType.AC) out.boysAc = val;
-    if (h.gender === HostelGender.BOYS && h.roomType === HostelRoomType.NON_AC) out.boysNonAc = val;
-  }
-  return out;
-}
 
 export default async function ConsultantOrganisationDetailsPage({ params }: PageProps) {
   const session = await requireAuth();
@@ -65,7 +44,7 @@ export default async function ConsultantOrganisationDetailsPage({ params }: Page
     ),
     prisma.universityHostelFee.findMany({
       where: { universityId },
-      select: { gender: true, roomType: true, amount: true },
+      select: { gender: true, roomType: true, sharing: true, amount: true },
     }),
   ]);
 
@@ -97,7 +76,7 @@ export default async function ConsultantOrganisationDetailsPage({ params }: Page
           universityCode={u.code}
           location={location}
           streams={streams}
-          hostel={buildHostelInitial(hostelRows)}
+          hostel={hostelFeeAmountsFromDb(hostelRows)}
         />
       </div>
     </div>

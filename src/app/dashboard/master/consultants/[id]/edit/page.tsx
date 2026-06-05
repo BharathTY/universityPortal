@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { isMaster } from "@/lib/roles";
 import { ROLES } from "@/lib/roles";
 import { EditConsultantForm } from "@/app/dashboard/master/consultants/[id]/edit/edit-consultant-form";
+import { loadConsultantSpocsGrouped } from "@/lib/consultant-spoc";
 
 const consultantSlugs = [
   ROLES.consultant,
@@ -27,6 +28,11 @@ export default async function EditConsultantPage(props: PageProps) {
     include: {
       roles: { include: { role: true } },
       consultantUniversities: { select: { universityId: true } },
+      consultantDocuments: {
+        where: { kind: "MOU" },
+        orderBy: { uploadedAt: "desc" },
+        select: { fileName: true, fileUrl: true, academicYear: true },
+      },
     },
   });
 
@@ -52,6 +58,9 @@ export default async function EditConsultantPage(props: PageProps) {
         ? [user.universityId]
         : [];
 
+  const spocsByConsultant = await loadConsultantSpocsGrouped([id]);
+  const spocs = spocsByConsultant.get(id) ?? [];
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <Link
@@ -71,6 +80,17 @@ export default async function EditConsultantPage(props: PageProps) {
             phone: user.phone ?? "",
             universityIds,
             accountStatus: user.accountStatus,
+            companyName: user.companyName ?? "",
+            designation: user.designation ?? "",
+            gstNumber: user.gstNumber ?? "",
+            panNumber: user.panNumber ?? "",
+            address: user.address ?? "",
+            city: user.city ?? "",
+            district: user.district ?? "",
+            state: user.state ?? "",
+            academicYear: user.academicYear ?? "",
+            mouDocuments: user.consultantDocuments,
+            spocs,
           }}
         />
       </div>

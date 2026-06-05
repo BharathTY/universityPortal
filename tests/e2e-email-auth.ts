@@ -500,6 +500,10 @@ async function main() {
     if (probe.ok) {
       http = await runHttpE2e(baseUrl);
       forgot = await runForgotPasswordWithPasswordUser(baseUrl);
+      const { runPortalFlowE2e } = await import("./e2e-portal-flows");
+      const portal = await runPortalFlowE2e(baseUrl);
+      http.passed += portal.passed;
+      http.failed += portal.failed;
     } else {
       console.log(`\nHTTP E2E skipped — ${baseUrl}/login returned ${probe.status}`);
     }

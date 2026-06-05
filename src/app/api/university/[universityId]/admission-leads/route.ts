@@ -6,6 +6,7 @@ import { isAdmissionLeadRoleSlug } from "@/lib/admission-lead-role";
 import { prisma } from "@/lib/prisma";
 import { ROLES } from "@/lib/roles";
 import { canAccessUniversityScopeAsync } from "@/lib/university-scope";
+import { requireActiveUniversity } from "@/lib/require-active-university";
 
 const createSchema = z
   .object({
@@ -89,6 +90,9 @@ export async function POST(req: Request, ctx: RouteContext) {
   if (!(await canAccessUniversityScopeAsync(session, universityId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const activeGate = await requireActiveUniversity(universityId);
+  if (!activeGate.ok) return activeGate.response;
 
   let json: unknown;
   try {

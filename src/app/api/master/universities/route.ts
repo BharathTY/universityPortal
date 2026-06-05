@@ -1,12 +1,4 @@
-import {
-  DocumentKind,
-  HostelGender,
-  HostelRoomType,
-  HostelSharing,
-  MasterUniversityType,
-  Prisma,
-  ProgramLevel,
-} from "@prisma/client";
+import { DocumentKind, CetAllocationMode, MasterUniversityType, Prisma, ProgramLevel, ScholarshipType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { sendAccountCredentialsEmail } from "@/lib/email";
@@ -21,6 +13,9 @@ import {
   normalizeAcademicYearLabel,
   parseAcademicYearStartYear,
 } from "@/lib/academic-year-yop";
+import { validateUniversityPhone } from "@/lib/university-phone";
+import { HOSTEL_FEE_COMBOS, type HostelFeeKey } from "@/lib/hostel-fee-matrix";
+import { syncUniversityHostelFees } from "@/lib/university-hostel-fees-db";
 
 const nameSchema = z.string().trim().min(1).max(200);
 
@@ -29,6 +24,14 @@ const optionalEmail = z.preprocess((v) => {
   if (typeof v === "string" && v.trim() === "") return undefined;
   return typeof v === "string" ? v.trim() : v;
 }, z.string().max(254).email().optional());
+
+const universityPhoneSchema = z.preprocess((v) => {
+  if (v === null || v === undefined) return "";
+  return typeof v === "string" ? v.trim() : String(v);
+}, z.string().superRefine((s, ctx) => {
+  const err = validateUniversityPhone(s);
+  if (err) ctx.addIssue({ code: z.ZodIssueCode.custom, message: err });
+}));
 
 const optionalPhone = z.preprocess((v) => {
   if (v === null || v === undefined || v === "") return undefined;
@@ -49,27 +52,50 @@ const hostelFeeValue = z.union([z.number().nonnegative().max(999_999_999), z.nul
 
 const cetSeatSchema = z.object({
   programLevel: z.enum(["UG", "PG"]),
+  programName: z.string().trim().min(1).max(120).optional(),
   streamName: z.string().trim().min(1).max(200),
-  seatCount: z.coerce.number().int().nonnegative().max(999_999),
+  allocationMode: z.enum(["SEATS", "PERCENT"]).optional().default("SEATS"),
+  allocationValue: z.coerce.number().nonnegative().max(999_999).optional(),
+  seatCount: z.coerce.number().int().nonnegative().max(999_999).optional(),
+});
+
+const scholarshipItemSchema = z.object({
+  type: z.nativeEnum(ScholarshipType),
+  value: z.coerce.number().positive().max(999_999_999),
+  criteria: z.array(z.string().trim().min(1).max(500)).min(1).max(20),
+  sortOrder: z.coerce.number().int().nonnegative().optional(),
+});
+
+const universitySpocItemSchema = z.object({
+  name: z.string().trim().min(1, { message: "SPOC name is required" }).max(200),
+  designation: z.string().trim().min(1, { message: "Designation is required" }).max(200),
+  mobile: z.string().trim().min(1, { message: "Mobile number is required" }).max(32),
+  email: z.string().trim().min(1, { message: "Email address is required" }).email().max(254),
 });
 
 const streamDetailSchema = z.object({
   programLevel: z.enum(["UG", "PG"]),
+  programName: z.string().trim().min(1).max(120),
   streamName: z.string().trim().min(1).max(200),
   targetStudents: z.coerce.number().int().nonnegative().max(999_999).optional().nullable(),
+  tuitionYear1: optionalNullableFee,
+  tuitionTotal: optionalNullableFee,
   registrationFee: optionalNullableFee,
   applicationFee: optionalNullableFee,
   messFee: optionalNullableFee,
   examFee: optionalNullableFee,
   otherAdminCharges: z.string().trim().max(500).optional().nullable(),
   otherAdminAmount: optionalNullableFee,
+  cetAllocationMode: z.enum(["SEATS", "PERCENT"]).optional().default("SEATS"),
+  cetAllocationValue: z.coerce.number().nonnegative().max(999_999).optional().default(0),
+  /** @deprecated use cetAllocationValue */
   cetSeats: z.coerce.number().int().nonnegative().max(999_999).optional().default(0),
 });
 
 const createSchema = z.object({
   name: nameSchema,
   email: optionalEmail,
-  phone: optionalPhone,
+  phone: universityPhoneSchema,
   applicationFee: optionalFee,
   logoUrl: z.string().max(2000).optional().nullable(),
   website: z.string().trim().max(500).optional().nullable(),
@@ -84,6 +110,7 @@ const createSchema = z.object({
   spocDesignation: z.string().trim().max(200).optional().nullable(),
   spocMobile: optionalPhone,
   spocEmail: optionalEmail,
+  spocs: z.array(universitySpocItemSchema).min(1).max(20).optional(),
   offersUg: z.boolean().optional(),
   offersPg: z.boolean().optional(),
   ugStreams: z.array(z.string().trim().min(1).max(200)).optional(),
@@ -96,6 +123,7 @@ const createSchema = z.object({
   otherAdminCharges: z.string().trim().max(500).optional().nullable(),
   otherAdminAmount: optionalNullableFee,
   cetSeats: z.array(cetSeatSchema).max(80).optional(),
+  scholarships: z.array(scholarshipItemSchema).max(20).optional(),
   academicYearLabel: z
     .string()
     .trim()
@@ -104,74 +132,109 @@ const createSchema = z.object({
     .refine((s) => !s || isSelectableYopYearLabel(s), { message: "Select a valid academic year" })
     .transform((s) => (s ? normalizeAcademicYearLabel(s) : null)),
   hostelFees: z
-    .object({
-      girlsAc2: hostelFeeValue,
-      girlsAc4: hostelFeeValue,
-      girlsNonAc2: hostelFeeValue,
-      girlsNonAc4: hostelFeeValue,
-      boysAc2: hostelFeeValue,
-      boysAc4: hostelFeeValue,
-      boysNonAc2: hostelFeeValue,
-      boysNonAc4: hostelFeeValue,
-    })
+    .object(
+      Object.fromEntries(
+        HOSTEL_FEE_COMBOS.map((c) => [c.key, hostelFeeValue]),
+      ) as Record<HostelFeeKey, typeof hostelFeeValue>,
+    )
     .optional(),
 });
 
-const HOSTEL_COMBOS = [
-  { key: "girlsAc2", gender: HostelGender.GIRLS, roomType: HostelRoomType.AC, sharing: HostelSharing.TWO_SHARING },
-  {
-    key: "girlsAc4",
-    gender: HostelGender.GIRLS,
-    roomType: HostelRoomType.AC,
-    sharing: HostelSharing.FOUR_SHARING,
-  },
-  {
-    key: "girlsNonAc2",
-    gender: HostelGender.GIRLS,
-    roomType: HostelRoomType.NON_AC,
-    sharing: HostelSharing.TWO_SHARING,
-  },
-  {
-    key: "girlsNonAc4",
-    gender: HostelGender.GIRLS,
-    roomType: HostelRoomType.NON_AC,
-    sharing: HostelSharing.FOUR_SHARING,
-  },
-  { key: "boysAc2", gender: HostelGender.BOYS, roomType: HostelRoomType.AC, sharing: HostelSharing.TWO_SHARING },
-  { key: "boysAc4", gender: HostelGender.BOYS, roomType: HostelRoomType.AC, sharing: HostelSharing.FOUR_SHARING },
-  {
-    key: "boysNonAc2",
-    gender: HostelGender.BOYS,
-    roomType: HostelRoomType.NON_AC,
-    sharing: HostelSharing.TWO_SHARING,
-  },
-  {
-    key: "boysNonAc4",
-    gender: HostelGender.BOYS,
-    roomType: HostelRoomType.NON_AC,
-    sharing: HostelSharing.FOUR_SHARING,
-  },
-] as const;
+const HOSTEL_COMBOS = HOSTEL_FEE_COMBOS;
 
-type HostelKey = (typeof HOSTEL_COMBOS)[number]["key"];
+type HostelKey = HostelFeeKey;
+
+type UniversitySpocInput = {
+  name: string;
+  designation: string;
+  mobile: string;
+  email: string;
+};
+
+function resolveUniversitySpocInputs(data: z.infer<typeof createSchema>): UniversitySpocInput[] {
+  if (data.spocs?.length) {
+    return data.spocs.map((spoc) => ({
+      name: spoc.name.trim(),
+      designation: spoc.designation.trim(),
+      mobile: spoc.mobile.trim(),
+      email: spoc.email.trim().toLowerCase(),
+    }));
+  }
+
+  const name = data.spocName?.trim();
+  const designation = data.spocDesignation?.trim();
+  const mobile = data.spocMobile?.trim();
+  const email = data.spocEmail?.trim();
+  if (name && designation && mobile && email) {
+    return [
+      {
+        name,
+        designation,
+        mobile,
+        email: email.toLowerCase(),
+      },
+    ];
+  }
+
+  return [];
+}
 
 function refineCreateBody(data: z.infer<typeof createSchema>, ctx: z.RefinementCtx) {
-  for (const field of ["phone", "spocMobile"] as const) {
-    const p = data[field];
-    if (p !== undefined && p.length > 0) {
-      if (!/^\d+$/.test(p)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Only numeric values are allowed",
-          path: [field],
-        });
-      } else if (p.length !== 10) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Phone number must be 10 digits",
-          path: [field],
-        });
-      }
+  const spocInputs = resolveUniversitySpocInputs(data);
+
+  if (spocInputs.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Add at least one SPOC",
+      path: ["spocs"],
+    });
+  }
+
+  const seenEmails = new Set<string>();
+  for (let i = 0; i < spocInputs.length; i++) {
+    const spoc = spocInputs[i]!;
+    const fieldPrefix = spocInputs.length === 1 && !data.spocs?.length ? "spoc" : `spocs.${i}`;
+
+    if (!/^\d+$/.test(spoc.mobile)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Only numeric values are allowed",
+        path: [`${fieldPrefix}Mobile`],
+      });
+    } else if (spoc.mobile.length !== 10) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Phone number must be 10 digits",
+        path: [`${fieldPrefix}Mobile`],
+      });
+    }
+
+    const email = spoc.email.toLowerCase();
+    if (seenEmails.has(email)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Each SPOC must have a unique email",
+        path: [`${fieldPrefix}Email`],
+      });
+    } else {
+      seenEmails.add(email);
+    }
+  }
+
+  const spocMobile = data.spocMobile;
+  if (spocMobile !== undefined && spocMobile.length > 0 && !data.spocs?.length) {
+    if (!/^\d+$/.test(spocMobile)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Only numeric values are allowed",
+        path: ["spocMobile"],
+      });
+    } else if (spocMobile.length !== 10) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Phone number must be 10 digits",
+        path: ["spocMobile"],
+      });
     }
   }
 
@@ -353,8 +416,9 @@ export async function POST(req: Request) {
   }
 
   const email = parsed.data.email?.toLowerCase() ?? null;
-  const phone = parsed.data.phone?.trim() || null;
-  const spocEmail = parsed.data.spocEmail?.toLowerCase() ?? null;
+  const phone = parsed.data.phone.trim();
+  const spocInputs = resolveUniversitySpocInputs(parsed.data);
+  const primarySpoc = spocInputs[0] ?? null;
 
   if (email) {
     const [emailUser, emailUni] = await Promise.all([
@@ -400,6 +464,7 @@ export async function POST(req: Request) {
   const location = locationParts.length > 0 ? locationParts.join(", ") : null;
 
   let credentialMail: { to: string; name: string; email: string; password: string } | null = null;
+  const spocCredentialMails: { to: string; name: string; email: string; password: string }[] = [];
 
   const result = await prisma.$transaction(async (tx) => {
     const university = await tx.university.create({
@@ -418,10 +483,10 @@ export async function POST(req: Request) {
         website: parsed.data.website?.trim() || websiteFromMaster,
         location,
         universityType: parsed.data.universityType ?? null,
-        spocName: parsed.data.spocName?.trim() || null,
-        spocDesignation: parsed.data.spocDesignation?.trim() || null,
-        spocMobile: parsed.data.spocMobile?.trim() || null,
-        spocEmail,
+        spocName: primarySpoc?.name ?? null,
+        spocDesignation: primarySpoc?.designation ?? null,
+        spocMobile: primarySpoc?.mobile ?? null,
+        spocEmail: primarySpoc?.email ?? null,
         offersUg,
         offersPg,
         ugStreams,
@@ -442,14 +507,25 @@ export async function POST(req: Request) {
     let sortOrder = 0;
     const streamDetails = parsed.data.streamDetails ?? [];
     if (streamDetails.length > 0) {
+      const usedStreamNames = new Set<string>();
       for (const stream of streamDetails) {
+        let dbName = stream.streamName;
+        const nameKey = dbName.toLowerCase();
+        if (usedStreamNames.has(nameKey)) {
+          dbName = `${stream.programName} · ${stream.streamName}`;
+        }
+        usedStreamNames.add(dbName.toLowerCase());
+
         await tx.stream.create({
           data: {
             universityId: university.id,
-            name: stream.streamName,
+            name: dbName,
+            degreeType: stream.programName,
             programLevel: stream.programLevel as ProgramLevel,
             sortOrder: sortOrder++,
             totalSeats: stream.targetStudents ?? 0,
+            tuitionYear1: toDecimal(stream.tuitionYear1 ?? undefined),
+            tuitionTotal: toDecimal(stream.tuitionTotal ?? undefined),
             streamFee: toDecimal(stream.registrationFee ?? undefined),
             applicationFee: toDecimal(stream.applicationFee ?? undefined),
             messFee: toDecimal(stream.messFee ?? undefined),
@@ -483,33 +559,36 @@ export async function POST(req: Request) {
     }
 
     for (const seat of parsed.data.cetSeats ?? []) {
+      const mode =
+        seat.allocationMode === "PERCENT" ? CetAllocationMode.PERCENT : CetAllocationMode.SEATS;
+      const value = seat.allocationValue ?? seat.seatCount ?? 0;
       await tx.universityCetSeat.create({
         data: {
           universityId: university.id,
           programLevel: seat.programLevel as ProgramLevel,
+          programName: seat.programName?.trim() || null,
           streamName: seat.streamName,
-          seatCount: seat.seatCount,
+          allocationMode: mode,
+          allocationValue: toDecimal(value),
+          seatCount: mode === CetAllocationMode.SEATS ? Math.round(value) : seat.seatCount ?? 0,
+        },
+      });
+    }
+
+    for (const scholarship of parsed.data.scholarships ?? []) {
+      await tx.universityScholarship.create({
+        data: {
+          universityId: university.id,
+          type: scholarship.type,
+          value: toDecimal(scholarship.value)!,
+          criteria: scholarship.criteria,
+          sortOrder: scholarship.sortOrder ?? 0,
         },
       });
     }
 
     if (parsed.data.hostelFees) {
-      for (const def of HOSTEL_COMBOS) {
-        const raw = parsed.data.hostelFees[def.key as HostelKey];
-        if (raw === undefined || raw === null) continue;
-        if (!Number.isFinite(raw) || raw < 0) {
-          throw new Error("Invalid hostel fee amount");
-        }
-        await tx.universityHostelFee.create({
-          data: {
-            universityId: university.id,
-            gender: def.gender,
-            roomType: def.roomType,
-            sharing: def.sharing,
-            amount: new Prisma.Decimal(Number(raw).toFixed(2)),
-          },
-        });
-      }
+      await syncUniversityHostelFees(tx, university.id, parsed.data.hostelFees);
     }
 
     for (const doc of documentRows) {
@@ -522,6 +601,45 @@ export async function POST(req: Request) {
           academicYear: doc.academicYear,
         },
       });
+    }
+
+    for (let i = 0; i < spocInputs.length; i++) {
+      const spoc = spocInputs[i]!;
+      await tx.universitySpoc.create({
+        data: {
+          universityId: university.id,
+          name: spoc.name,
+          designation: spoc.designation,
+          mobile: spoc.mobile,
+          email: spoc.email,
+          sortOrder: i,
+        },
+      });
+
+      if (universityRole && spoc.email.toLowerCase() !== email?.toLowerCase()) {
+        const existingSpocUser = await tx.user.findUnique({ where: { email: spoc.email } });
+        if (!existingSpocUser) {
+          const spocPassword = generateRandomPassword();
+          await tx.user.create({
+            data: {
+              email: spoc.email,
+              name: spoc.name,
+              phone: spoc.mobile,
+              passwordHash: await hashPassword(spocPassword),
+              accountStatus: "ACTIVE",
+              universityId: university.id,
+              designation: spoc.designation,
+              roles: { create: { roleId: universityRole.id } },
+            },
+          });
+          spocCredentialMails.push({
+            to: spoc.email,
+            name: spoc.name,
+            email: spoc.email,
+            password: spocPassword,
+          });
+        }
+      }
     }
 
     if (docAcademicYear) {
@@ -571,6 +689,14 @@ export async function POST(req: Request) {
       await sendAccountCredentialsEmail(credentialMail);
     } catch (e) {
       console.error("sendAccountCredentialsEmail", e);
+    }
+  }
+
+  for (const mail of spocCredentialMails) {
+    try {
+      await sendAccountCredentialsEmail(mail);
+    } catch (e) {
+      console.error("sendAccountCredentialsEmail spoc", e);
     }
   }
 

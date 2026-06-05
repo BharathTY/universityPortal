@@ -63,11 +63,10 @@ export async function GET(req: Request) {
       pageSize: url.searchParams.get("pageSize") ?? undefined,
     });
 
-    const includeMeta = url.searchParams.get("includeMeta") === "1";
     const [list, summary, filterOptions] = await Promise.all([
       listConsultantLeads(session.sub, query),
-      includeMeta ? getConsultantLeadsSummary(session.sub) : Promise.resolve(undefined),
-      includeMeta ? getConsultantLeadsFilterOptions(session.sub) : Promise.resolve(undefined),
+      getConsultantLeadsSummary(session.sub),
+      getConsultantLeadsFilterOptions(session.sub),
     ]);
 
     return NextResponse.json({
@@ -76,8 +75,8 @@ export async function GET(req: Request) {
       page: list.page,
       pageSize: list.pageSize,
       totalPages: list.totalPages,
-      ...(summary ? { summary } : {}),
-      ...(filterOptions ? { filterOptions } : {}),
+      summary,
+      filterOptions,
     });
   } else {
     const gate = await requireConsultantUniversity(scoped);

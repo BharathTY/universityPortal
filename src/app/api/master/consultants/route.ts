@@ -4,6 +4,7 @@ import { z } from "zod";
 import { sendConsultantAccountCreatedEmail, sendCounsellorPortalInviteEmail } from "@/lib/email";
 import { storeUpload } from "@/lib/file-storage";
 import { requireMasterApi } from "@/lib/master-session";
+import { validateGstNumber, validatePanNumber, normalizeGstNumber, normalizePanNumber } from "@/lib/indian-tax-ids";
 import { generateRandomPassword, hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { replaceConsultantUniversityAssignments } from "@/lib/consultant-universities";
@@ -102,6 +103,11 @@ const createSchema = z.object({
   spocs: z.array(spocItemSchema).max(20).optional(),
   /** @deprecated use spocs */
   spoc: spocItemSchema.optional(),
+}).superRefine((data, ctx) => {
+  const gstErr = validateGstNumber(data.gstNumber ?? "");
+  if (gstErr) ctx.addIssue({ code: z.ZodIssueCode.custom, message: gstErr, path: ["gstNumber"] });
+  const panErr = validatePanNumber(data.panNumber ?? "");
+  if (panErr) ctx.addIssue({ code: z.ZodIssueCode.custom, message: panErr, path: ["panNumber"] });
 });
 
 async function parseConsultantRequest(req: Request): Promise<{ data: unknown; mouFile?: File }> {
@@ -277,8 +283,8 @@ export async function POST(req: Request) {
       branchName,
       companyName: parsed.data.companyName ?? null,
       designation: parsed.data.designation ?? null,
-      gstNumber: parsed.data.gstNumber ?? null,
-      panNumber: parsed.data.panNumber ?? null,
+      gstNumber: parsed.data.gstNumber ? normalizeGstNumber(parsed.data.gstNumber) : null,
+      panNumber: parsed.data.panNumber ? normalizePanNumber(parsed.data.panNumber) : null,
       address: parsed.data.address ?? null,
       city: parsed.data.city ?? null,
       district: parsed.data.district ?? null,

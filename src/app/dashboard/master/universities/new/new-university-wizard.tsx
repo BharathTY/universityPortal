@@ -7,7 +7,9 @@ import {
   MasterUniversityCatalogCombobox,
   type MasterCatalogItem,
 } from "@/components/master-university-catalog-combobox";
+import { UniversitySpocEditor } from "@/components/university-spoc-editor";
 import { UniversityStreamEntryEditor } from "@/components/university-stream-entry-editor";
+import { UniversityScholarshipEditor } from "@/components/university-scholarship-editor";
 import { UniversityMouDocumentsSection } from "@/components/university-mou-documents-section";
 import {
   createEmptyStreamEntry,
@@ -18,6 +20,23 @@ import {
   type StreamEntry,
 } from "@/lib/stream-entry-payload";
 import { buildSelectableYopYearLabels } from "@/lib/academic-year-yop";
+import {
+  stripUniversityPhoneInput,
+  validateUniversityPhone,
+} from "@/lib/university-phone";
+import { resolveWebsiteHref } from "@/lib/website-url";
+import {
+  createEmptyUniversitySpocDraft,
+  filledUniversitySpocRows,
+  validateUniversitySpocRows,
+  type UniversitySpocDraft,
+} from "@/lib/university-spoc";
+import {
+  createEmptyScholarshipEntry,
+  scholarshipsToPayload,
+  validateScholarshipEntries,
+  type ScholarshipEntry,
+} from "@/lib/university-scholarship";
 
 type MasterSearchItem = MasterCatalogItem;
 
@@ -94,13 +113,16 @@ export function NewUniversityWizard({ initialMasterId }: { initialMasterId?: str
 
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
-  const [spocName, setSpocName] = React.useState("");
-  const [spocDesignation, setSpocDesignation] = React.useState("");
-  const [spocMobile, setSpocMobile] = React.useState("");
-  const [spocEmail, setSpocEmail] = React.useState("");
+  const [spocRows, setSpocRows] = React.useState<UniversitySpocDraft[]>(() => [createEmptyUniversitySpocDraft()]);
 
   const [streamEntries, setStreamEntries] = React.useState<StreamEntry[]>([createEmptyStreamEntry()]);
   const [hostelFees, setHostelFees] = React.useState<HostelFeesForm>(emptyHostelFeesForm());
+  const [targetStudentsUg, setTargetStudentsUg] = React.useState("");
+  const [targetStudentsPg, setTargetStudentsPg] = React.useState("");
+  const [foodFee, setFoodFee] = React.useState("");
+  const [scholarshipEntries, setScholarshipEntries] = React.useState<ScholarshipEntry[]>(() => [
+    createEmptyScholarshipEntry(),
+  ]);
 
   const [logoUrl, setLogoUrl] = React.useState("");
   const [logoPreview, setLogoPreview] = React.useState<string | null>(null);
@@ -173,19 +195,11 @@ export function NewUniversityWizard({ initialMasterId }: { initialMasterId?: str
     const e: Record<string, string> = {};
     const em = email.trim();
     if (em.length > 0 && !looksLikeEmail(em)) e.email = "Enter a valid email address";
-    const p = phone.trim();
-    if (p.length > 0) {
-      if (!/^\d+$/.test(p)) e.phone = "Only numeric values are allowed";
-      else if (p.length !== 10) e.phone = "Phone number must be 10 digits";
-    }
-    const sm = spocMobile.trim();
-    if (sm.length > 0) {
-      if (!/^\d+$/.test(sm)) e.spocMobile = "Only numeric values are allowed";
-      else if (sm.length !== 10) e.spocMobile = "Phone number must be 10 digits";
-    }
-    const se = spocEmail.trim();
-    if (se.length > 0 && !looksLikeEmail(se)) e.spocEmail = "Enter a valid email address";
+    const phoneError = validateUniversityPhone(phone);
+    if (phoneError) e.phone = phoneError;
+    Object.assign(e, validateUniversitySpocRows(spocRows));
     Object.assign(e, validateStreamEntries(streamEntries));
+    Object.assign(e, validateScholarshipEntries(scholarshipEntries));
     if ((mouFile || eventPhotos.length > 0) && !academicYear.trim()) {
       e.academicYear = "Select an academic year for MOU and event photos";
     }
@@ -219,7 +233,11 @@ export function NewUniversityWizard({ initialMasterId }: { initialMasterId?: str
     setBusy(true);
 
     try {
-      const streamPayload = streamEntriesToCreatePayload(streamEntries, hostelFees);
+      const streamPayload = streamEntriesToCreatePayload(streamEntries, hostelFees, {
+        targetStudentsUg,
+        targetStudentsPg,
+        foodFee,
+      });
 
       const payload: Record<string, unknown> = {
         name: name.trim(),
@@ -232,12 +250,15 @@ export function NewUniversityWizard({ initialMasterId }: { initialMasterId?: str
         universityType: universityType || null,
         website: website.trim() || null,
         email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
-        spocName: spocName.trim() || null,
-        spocDesignation: spocDesignation.trim() || null,
-        spocMobile: spocMobile.trim() || undefined,
-        spocEmail: spocEmail.trim() || undefined,
+        phone: phone.trim(),
+        spocs: filledUniversitySpocRows(spocRows).map((row) => ({
+          name: row.name.trim(),
+          designation: row.designation.trim(),
+          mobile: row.mobile.trim(),
+          email: row.email.trim(),
+        })),
         ...streamPayload,
+        scholarships: scholarshipsToPayload(scholarshipEntries),
         academicYearLabel: academicYear.trim() || null,
         logoUrl: logoUrl.trim() || null,
       };
@@ -424,7 +445,7 @@ export function NewUniversityWizard({ initialMasterId }: { initialMasterId?: str
                     <div className={`mt-1 flex items-center gap-2 rounded-lg border px-3 py-2 ${readOnlyFieldClass}`}>
                       <span className="min-w-0 flex-1 truncate text-sm">{website}</span>
                       <a
-                        href={website.startsWith("http") ? website : `https://${website}`}
+                        href={resolveWebsiteHref(website)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="shrink-0 text-sm font-medium text-[var(--primary)] hover:underline"
@@ -476,74 +497,57 @@ export function NewUniversityWizard({ initialMasterId }: { initialMasterId?: str
                 {fieldErrors.email ? <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p> : null}
               </div>
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)]">Phone (optional)</label>
+                <label className="block text-sm font-medium text-[var(--foreground)]">
+                  University contact number <span className="text-red-600">*</span>
+                </label>
                 <input
                   type="tel"
                   inputMode="numeric"
                   maxLength={10}
+                  required
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  onChange={(e) => setPhone(stripUniversityPhoneInput(e.target.value))}
                   className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor(fieldErrors, "phone")}`}
                   disabled={locked}
+                  aria-invalid={Boolean(fieldErrors.phone)}
                 />
                 {fieldErrors.phone ? <p className="mt-1 text-xs text-red-600">{fieldErrors.phone}</p> : null}
               </div>
             </div>
           </section>
 
-          <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">University SPOC</h2>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium">Name</label>
-                <input
-                  value={spocName}
-                  onChange={(e) => setSpocName(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                  disabled={locked}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Designation</label>
-                <input
-                  value={spocDesignation}
-                  onChange={(e) => setSpocDesignation(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                  disabled={locked}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Mobile</label>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  maxLength={10}
-                  value={spocMobile}
-                  onChange={(e) => setSpocMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor(fieldErrors, "spocMobile")}`}
-                  disabled={locked}
-                />
-                {fieldErrors.spocMobile ? <p className="mt-1 text-xs text-red-600">{fieldErrors.spocMobile}</p> : null}
-              </div>
-              <div>
-                <label className="text-sm font-medium">Email</label>
-                <input
-                  type="email"
-                  value={spocEmail}
-                  onChange={(e) => setSpocEmail(e.target.value)}
-                  className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor(fieldErrors, "spocEmail")}`}
-                  disabled={locked}
-                />
-                {fieldErrors.spocEmail ? <p className="mt-1 text-xs text-red-600">{fieldErrors.spocEmail}</p> : null}
-              </div>
-            </div>
-          </section>
+          <UniversitySpocEditor
+            rows={spocRows}
+            onChange={setSpocRows}
+            fieldErrors={fieldErrors}
+            onClearFieldError={(key) =>
+              setFieldErrors((f) => {
+                const next = { ...f };
+                delete next[key];
+                return next;
+              })
+            }
+            disabled={locked}
+          />
 
           <UniversityStreamEntryEditor
             entries={streamEntries}
             onChange={setStreamEntries}
             hostelFees={hostelFees}
             onHostelChange={setHostelFees}
+            targetStudentsUg={targetStudentsUg}
+            targetStudentsPg={targetStudentsPg}
+            onTargetStudentsUgChange={setTargetStudentsUg}
+            onTargetStudentsPgChange={setTargetStudentsPg}
+            foodFee={foodFee}
+            onFoodFeeChange={setFoodFee}
+            disabled={locked}
+            fieldErrors={fieldErrors}
+          />
+
+          <UniversityScholarshipEditor
+            entries={scholarshipEntries}
+            onChange={setScholarshipEntries}
             disabled={locked}
             fieldErrors={fieldErrors}
           />
@@ -552,11 +556,31 @@ export function NewUniversityWizard({ initialMasterId }: { initialMasterId?: str
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Logo</h2>
             <div className="mt-4">
               <label className="block text-sm font-medium">Logo (optional)</label>
-              <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={onLogoPick} disabled={locked} className="mt-2 block w-full text-sm" />
+              <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml" onChange={onLogoPick} disabled={locked} className="mt-2 block w-full text-sm" />
               {logoFileError ? <p className="mt-1 text-xs text-red-600">{logoFileError}</p> : null}
               {logoPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoPreview} alt="" className="mt-2 h-14 w-14 rounded-lg border object-contain" />
+                <div className="mt-2 flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={logoPreview} alt="" className="h-14 w-14 rounded-lg border object-contain" />
+                  <div className="flex flex-col gap-1">
+                    <label className="cursor-pointer text-xs font-semibold text-[var(--primary)] hover:underline">
+                      Replace logo
+                      <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml" onChange={onLogoPick} disabled={locked} className="sr-only" />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={locked}
+                      onClick={() => {
+                        setLogoUrl("");
+                        setLogoPreview(null);
+                        setLogoFileError(null);
+                      }}
+                      className="text-left text-xs font-semibold text-red-600 hover:underline disabled:opacity-50"
+                    >
+                      Delete logo
+                    </button>
+                  </div>
+                </div>
               ) : null}
             </div>
           </section>

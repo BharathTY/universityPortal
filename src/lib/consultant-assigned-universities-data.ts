@@ -1,5 +1,9 @@
-import { HostelGender, HostelRoomType, type MasterUniversityType } from "@prisma/client";
-import type { HostelFeesInitial } from "@/app/dashboard/master/universities/[id]/details/university-details-form";
+import { type MasterUniversityType } from "@prisma/client";
+import {
+  hostelFeeAmountsFromDb,
+  minHostelFeeAmount,
+  type HostelFeeAmounts,
+} from "@/lib/hostel-fee-matrix";
 import { resolveConsultantAssignmentUserId } from "@/lib/consultant-dashboard-data";
 import { getConsultantAssignedUniversitiesForDisplay } from "@/lib/consultant-universities";
 import { availableSeats } from "@/lib/seats";
@@ -26,7 +30,7 @@ export type AssignedUniversityCard = {
   /** Full location string for detail modal */
   location: string | null;
   streams: { id: string; name: string; degreeType: string | null; streamFee: number | null }[];
-  hostel: HostelFeesInitial;
+  hostel: HostelFeeAmounts;
 };
 
 const UNIVERSITY_TYPE_LABELS: Record<MasterUniversityType, string> = {
@@ -39,34 +43,6 @@ function decimalToNumber(value: unknown): number | null {
   if (value == null) return null;
   const n = Number(String(value));
   return Number.isFinite(n) ? n : null;
-}
-
-function buildHostelInitial(
-  rows: { gender: HostelGender; roomType: HostelRoomType; amount: unknown }[],
-): HostelFeesInitial {
-  const out: HostelFeesInitial = {
-    girlsAc: null,
-    girlsNonAc: null,
-    boysAc: null,
-    boysNonAc: null,
-  };
-  for (const h of rows) {
-    const val = decimalToNumber(h.amount);
-    if (h.gender === HostelGender.GIRLS && h.roomType === HostelRoomType.AC) out.girlsAc = val;
-    if (h.gender === HostelGender.GIRLS && h.roomType === HostelRoomType.NON_AC) out.girlsNonAc = val;
-    if (h.gender === HostelGender.BOYS && h.roomType === HostelRoomType.AC) out.boysAc = val;
-    if (h.gender === HostelGender.BOYS && h.roomType === HostelRoomType.NON_AC) out.boysNonAc = val;
-  }
-  return out;
-}
-
-function minHostelFee(rows: { amount: unknown }[]): number | null {
-  let min: number | null = null;
-  for (const row of rows) {
-    const n = decimalToNumber(row.amount);
-    if (n != null && n > 0 && (min == null || n < min)) min = n;
-  }
-  return min;
 }
 
 export function formatUniversityTypeLabel(type: MasterUniversityType | null | undefined): string | null {
@@ -139,7 +115,7 @@ export async function loadConsultantAssignedUniversityCards(userId: string): Pro
         },
       },
       hostelFees: {
-        select: { gender: true, roomType: true, amount: true },
+        select: { gender: true, roomType: true, sharing: true, amount: true },
       },
     },
   });
@@ -184,10 +160,10 @@ export async function loadConsultantAssignedUniversityCards(userId: string): Pro
       totalSeats,
       seatsRemaining,
       programsPreview,
-      hostelFromFee: minHostelFee(hostelRows),
+      hostelFromFee: minHostelFeeAmount(hostelRows),
       location: detail?.location?.trim() || null,
       streams: streamRows,
-      hostel: buildHostelInitial(hostelRows),
+      hostel: hostelFeeAmountsFromDb(hostelRows),
     };
   });
 }

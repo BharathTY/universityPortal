@@ -7,6 +7,7 @@ import { isStudent } from "@/lib/roles";
 import { razorpayFetchPayment, razorpayVerifyPaymentSignature } from "@/lib/razorpay-server";
 import { recordApplicationPayment } from "@/lib/student-payment";
 import { studentPaymentPanelState } from "@/lib/student-portal";
+import { requireActiveUniversity } from "@/lib/require-active-university";
 import { prisma } from "@/lib/prisma";
 
 const bodySchema = z.object({
@@ -37,6 +38,11 @@ export async function POST(req: Request) {
   const appData = await getStudentApplication(session.sub, parsed.data.applicationId);
   if (!appData) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 });
+  }
+
+  if (appData.university?.id) {
+    const activeGate = await requireActiveUniversity(appData.university.id);
+    if (!activeGate.ok) return activeGate.response;
   }
 
   const app = await prisma.application.findFirst({
@@ -111,5 +117,17 @@ export async function POST(req: Request) {
     console.error("sendPaymentSuccessEmail", e);
   }
 
-  return NextResponse.json({ ok: true });
+  const refreshed = await getStudentApplication(session.sub, parsed.data.applicationId);
+
+  return NextResponse.json({
+    ok: true,
+    paymentSummary: refreshed?.paymentSummary ?? null,
+    panelState: refreshed
+      ? studentPaymentPanelState(
+          refreshed.lead?.admissionStatus ?? null,
+          refreshed.paymentSummary.applicationFee,
+          refreshed.paymentSummary.paidRupees,
+        )
+      : null,
+  });
 }

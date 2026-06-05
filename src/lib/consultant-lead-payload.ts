@@ -24,6 +24,11 @@ export const consultantLeadBodySchema = z.object({
   gender: z.string().max(32).trim().optional().nullable(),
   dateOfBirth: z.string().max(32).optional().nullable(),
   pincode: z.string().max(12).trim().optional().nullable(),
+  sslcSchool: z.string().max(200).trim().optional().nullable(),
+  sslcBoard: z.string().max(120).trim().optional().nullable(),
+  sslcYear: optionalInt,
+  sslcPercent: optionalDecimal,
+  qualificationType: z.enum(["PUC", "DIPLOMA", "ITI"]).optional().nullable(),
   pucBoard: z.string().max(120).trim().optional().nullable(),
   pucYear: optionalInt,
   pucPercent: optionalDecimal,
@@ -32,6 +37,9 @@ export const consultantLeadBodySchema = z.object({
   degreeName: z.string().max(200).trim().optional().nullable(),
   ieltsScore: z.string().max(32).trim().optional().nullable(),
   toeflScore: z.string().max(32).trim().optional().nullable(),
+  otherExamName: z.string().max(120).trim().optional().nullable(),
+  otherExamScore: z.string().max(32).trim().optional().nullable(),
+  otherExamDetails: z.string().max(500).trim().optional().nullable(),
   referralFirstName: z.string().max(120).trim().optional().nullable(),
   referralLastName: z.string().max(120).trim().optional().nullable(),
   referralPhone: z.string().max(32).trim().optional().nullable(),
@@ -98,6 +106,11 @@ export function buildLeadExtendedData(data: ConsultantLeadBody) {
     gender: data.gender?.trim() || null,
     dateOfBirth: parseOptionalDate(data.dateOfBirth),
     pincode: data.pincode?.trim() || null,
+    sslcSchool: data.sslcSchool?.trim() || null,
+    sslcBoard: data.sslcBoard?.trim() || null,
+    sslcYear: parseOptionalInt(data.sslcYear),
+    sslcPercent: parseOptionalDecimal(data.sslcPercent),
+    qualificationType: data.qualificationType ?? null,
     pucBoard: data.pucBoard?.trim() || null,
     pucYear: parseOptionalInt(data.pucYear),
     pucPercent: parseOptionalDecimal(data.pucPercent),
@@ -106,6 +119,9 @@ export function buildLeadExtendedData(data: ConsultantLeadBody) {
     degreeName: data.degreeName?.trim() || null,
     ieltsScore: data.ieltsScore?.trim() || null,
     toeflScore: data.toeflScore?.trim() || null,
+    otherExamName: data.otherExamName?.trim() || null,
+    otherExamScore: data.otherExamScore?.trim() || null,
+    otherExamDetails: data.otherExamDetails?.trim() || null,
     referralFirstName: data.referralFirstName?.trim() || null,
     referralLastName: data.referralLastName?.trim() || null,
     referralPhone: data.referralPhone?.trim() || null,
@@ -148,6 +164,11 @@ export type SerializedConsultantLeadDetail = {
   gender: string | null;
   dateOfBirth: string;
   pincode: string | null;
+  sslcSchool: string | null;
+  sslcBoard: string | null;
+  sslcYear: number | null;
+  sslcPercent: string;
+  qualificationType: string | null;
   pucBoard: string | null;
   pucYear: number | null;
   pucPercent: string;
@@ -156,6 +177,9 @@ export type SerializedConsultantLeadDetail = {
   degreeName: string | null;
   ieltsScore: string | null;
   toeflScore: string | null;
+  otherExamName: string | null;
+  otherExamScore: string | null;
+  otherExamDetails: string | null;
   referralFirstName: string | null;
   referralLastName: string | null;
   referralPhone: string | null;
@@ -179,6 +203,11 @@ export function serializeConsultantLeadForClient(lead: ConsultantLeadDetail): Se
     gender: lead.gender,
     dateOfBirth: dateToInput(lead.dateOfBirth),
     pincode: lead.pincode,
+    sslcSchool: lead.sslcSchool,
+    sslcBoard: lead.sslcBoard,
+    sslcYear: lead.sslcYear,
+    sslcPercent: decimalToInput(lead.sslcPercent),
+    qualificationType: lead.qualificationType,
     pucBoard: lead.pucBoard,
     pucYear: lead.pucYear,
     pucPercent: decimalToInput(lead.pucPercent),
@@ -187,6 +216,9 @@ export function serializeConsultantLeadForClient(lead: ConsultantLeadDetail): Se
     degreeName: lead.degreeName,
     ieltsScore: lead.ieltsScore,
     toeflScore: lead.toeflScore,
+    otherExamName: lead.otherExamName,
+    otherExamScore: lead.otherExamScore,
+    otherExamDetails: lead.otherExamDetails,
     referralFirstName: lead.referralFirstName,
     referralLastName: lead.referralLastName,
     referralPhone: lead.referralPhone,
@@ -212,6 +244,11 @@ export const consultantLeadDetailSelect = {
   gender: true,
   dateOfBirth: true,
   pincode: true,
+  sslcSchool: true,
+  sslcBoard: true,
+  sslcYear: true,
+  sslcPercent: true,
+  qualificationType: true,
   pucBoard: true,
   pucYear: true,
   pucPercent: true,
@@ -220,6 +257,9 @@ export const consultantLeadDetailSelect = {
   degreeName: true,
   ieltsScore: true,
   toeflScore: true,
+  otherExamName: true,
+  otherExamScore: true,
+  otherExamDetails: true,
   referralFirstName: true,
   referralLastName: true,
   referralPhone: true,

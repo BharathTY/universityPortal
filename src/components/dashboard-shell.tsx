@@ -49,7 +49,7 @@ export function DashboardShell({
   const sidebarExpandedVisual = mobileOpen || !collapsed;
 
   return (
-    <div className="flex min-h-screen w-full">
+    <div className="flex h-screen w-full overflow-hidden">
       <SessionInactivityGuard />
       {/* Mobile overlay */}
       {mobileOpen ? (
@@ -63,7 +63,7 @@ export function DashboardShell({
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 flex shrink-0 flex-col border-r border-[var(--border)] bg-[var(--sidebar-bg)] shadow-xl transition-[transform,width] duration-200 ease-out md:static md:z-0 md:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-full shrink-0 flex-col border-r border-[var(--border)] bg-[var(--sidebar-bg)] shadow-xl transition-[transform,width] duration-200 ease-out md:sticky md:top-0 md:z-0 md:h-screen md:shadow-none ${
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         } w-[min(17rem,88vw)] ${sidebarExpandedVisual ? "md:w-60" : "md:w-[4.5rem]"}`}
       >
@@ -81,7 +81,7 @@ export function DashboardShell({
       </div>
 
       {/* Main column: top bar + page content */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <DashboardHeader
           email={email}
           roles={roles}

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { isStudent } from "@/lib/roles";
 import { getRazorpayKeyIdPublic, isRazorpayConfigured, razorpayCreateOrder } from "@/lib/razorpay-server";
 import { studentPaymentPanelState } from "@/lib/student-portal";
+import { requireActiveUniversity } from "@/lib/require-active-university";
 
 const bodySchema = z.object({
   applicationId: z.string().min(1),
@@ -44,6 +45,12 @@ export async function POST(req: Request) {
   const appData = await getStudentApplication(session.sub, parsed.data.applicationId);
   if (!appData) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 });
+  }
+
+  const universityId = appData.university?.id;
+  if (universityId) {
+    const activeGate = await requireActiveUniversity(universityId);
+    if (!activeGate.ok) return activeGate.response;
   }
 
   const { paymentSummary, lead } = appData;

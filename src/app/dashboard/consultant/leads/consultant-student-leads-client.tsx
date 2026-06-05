@@ -15,6 +15,11 @@ import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
 import { PaymentCollectorModal } from "@/components/payment-collector-modal";
 
 import { LEAD_STATUS_OPTIONS, isReadyToPayStatus } from "@/lib/lead-status";
+import {
+  canTransitionLeadStatus,
+  LEAD_STATUS_WORKFLOW_MESSAGE,
+  isLeadStatusOptionEnabled,
+} from "@/lib/lead-status-workflow";
 
 import { leadAgeingBadgeClass } from "@/lib/lead-status-ui";
 
@@ -503,6 +508,11 @@ export function ConsultantStudentLeadsClient(props: Props) {
   async function onStatusChange(leadId: string, nextStatus: AdmissionLeadStatus, prevStatus: AdmissionLeadStatus) {
 
     if (nextStatus === prevStatus) return;
+
+    if (!canTransitionLeadStatus(prevStatus, nextStatus)) {
+      setStatusError(LEAD_STATUS_WORKFLOW_MESSAGE);
+      return;
+    }
 
     setStatusError(null);
 
@@ -1168,7 +1178,7 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
                         {LEAD_STATUS_OPTIONS.map((opt) => (
 
-                          <option key={opt.value} value={opt.value}>
+                          <option key={opt.value} value={opt.value} disabled={!isLeadStatusOptionEnabled(l.statusRaw, opt.value)}>
 
                             {opt.label}
 
@@ -1195,22 +1205,6 @@ export function ConsultantStudentLeadsClient(props: Props) {
                           Edit
 
                         </Link>
-
-                        <button
-
-                          type="button"
-
-                          disabled={deleteBusyId === l.id || busyLeadId === l.id}
-
-                          onClick={() => void onDeleteLead(l.id, `${l.firstName} ${l.lastName}`)}
-
-                          className="inline-flex items-center rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
-
-                        >
-
-                          {deleteBusyId === l.id ? "Deleting…" : "Delete"}
-
-                        </button>
 
                         {isReadyToPayStatus(l.statusRaw) ? (
 
@@ -1441,6 +1435,9 @@ export function ConsultantStudentLeadsClient(props: Props) {
         }
 
         amountLabel={formatInr(paymentLead?.registrationFee ?? null)}
+        amountRupees={
+          paymentLead?.registrationFee != null ? Number(String(paymentLead.registrationFee)) : undefined
+        }
 
         busy={paymentBusy}
 

@@ -10,6 +10,7 @@ import {
   type ConsultantSpocDraft,
 } from "@/lib/consultant-spoc";
 import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
+import { normalizeGstNumber, normalizePanNumber, validateGstNumber, validatePanNumber } from "@/lib/indian-tax-ids";
 
 type Uni = { id: string; name: string; code: string };
 
@@ -45,6 +46,8 @@ function validateConsultantForm(input: {
   universitiesAvailable: number;
   academicYear: string;
   hasMouFile: boolean;
+  gstNumber: string;
+  panNumber: string;
   addSpoc: boolean;
   spocRows: ConsultantSpocDraft[];
 }): Record<string, string> {
@@ -77,6 +80,11 @@ function validateConsultantForm(input: {
   if (input.hasMouFile && !input.academicYear.trim()) {
     e.academicYear = "Select academic year for MOU upload";
   }
+
+  const gstErr = validateGstNumber(input.gstNumber);
+  if (gstErr) e.gstNumber = gstErr;
+  const panErr = validatePanNumber(input.panNumber);
+  if (panErr) e.panNumber = panErr;
 
   if (input.addSpoc) {
     const rowsToValidate =
@@ -150,6 +158,7 @@ export function NewConsultantForm({ universities }: Props) {
   const [academicYear, setAcademicYear] = React.useState("");
   const [mouFile, setMouFile] = React.useState<File | null>(null);
   const [selectedUniIds, setSelectedUniIds] = React.useState<Set<string>>(new Set());
+  const [uniSearch, setUniSearch] = React.useState("");
   const [addSpoc, setAddSpoc] = React.useState(true);
   const [spocRows, setSpocRows] = React.useState<ConsultantSpocDraft[]>(() => [createEmptyConsultantSpocDraft()]);
   const yearOptions = React.useMemo(() => buildAcademicYearOptions(), []);
@@ -185,11 +194,21 @@ export function NewConsultantForm({ universities }: Props) {
       universitiesAvailable: universities.length,
       academicYear,
       hasMouFile: Boolean(mouFile),
+      gstNumber,
+      panNumber,
       addSpoc,
       spocRows,
     }),
-    [name, email, phone, password, selectedUniIds.size, universities.length, academicYear, mouFile, addSpoc, spocRows],
+    [name, email, phone, password, selectedUniIds.size, universities.length, academicYear, mouFile, gstNumber, panNumber, addSpoc, spocRows],
   );
+
+  const filteredUniversities = React.useMemo(() => {
+    const term = uniSearch.trim().toLowerCase();
+    if (!term) return universities;
+    return universities.filter(
+      (u) => u.name.toLowerCase().includes(term) || u.code.toLowerCase().includes(term),
+    );
+  }, [universities, uniSearch]);
 
   const formValid = React.useMemo(
     () => Object.keys(validateConsultantForm(formSnapshot)).length === 0,
@@ -250,8 +269,8 @@ export function NewConsultantForm({ universities }: Props) {
         password: password.trim() || undefined,
         universityIds: [...selectedUniIds],
         companyName: companyName.trim() || undefined,
-        gstNumber: gstNumber.trim() || undefined,
-        panNumber: panNumber.trim() || undefined,
+        gstNumber: normalizeGstNumber(gstNumber) || undefined,
+        panNumber: normalizePanNumber(panNumber) || undefined,
         address: address.trim() || undefined,
         city: city.trim() || undefined,
         district: district.trim() || undefined,
@@ -532,17 +551,37 @@ export function NewConsultantForm({ universities }: Props) {
             <label className="block text-sm font-medium text-[var(--foreground)]">GST number</label>
             <input
               value={gstNumber}
-              onChange={(e) => setGstNumber(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+              onChange={(e) => {
+                setGstNumber(e.target.value.toUpperCase().replace(/\s+/g, "").slice(0, 15));
+                setFieldErrors((f) => {
+                  const n = { ...f };
+                  delete n.gstNumber;
+                  return n;
+                });
+              }}
+              maxLength={15}
+              placeholder="15-character GSTIN"
+              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[var(--foreground)] ${borderFor("gstNumber")}`}
             />
+            {fieldErrors.gstNumber ? <p className="mt-1 text-xs text-red-600">{fieldErrors.gstNumber}</p> : null}
           </div>
           <div>
             <label className="block text-sm font-medium text-[var(--foreground)]">PAN number</label>
             <input
               value={panNumber}
-              onChange={(e) => setPanNumber(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+              onChange={(e) => {
+                setPanNumber(e.target.value.toUpperCase().replace(/\s+/g, "").slice(0, 10));
+                setFieldErrors((f) => {
+                  const n = { ...f };
+                  delete n.panNumber;
+                  return n;
+                });
+              }}
+              maxLength={10}
+              placeholder="10-character PAN"
+              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[var(--foreground)] ${borderFor("panNumber")}`}
             />
+            {fieldErrors.panNumber ? <p className="mt-1 text-xs text-red-600">{fieldErrors.panNumber}</p> : null}
           </div>
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-[var(--foreground)]">Address</label>
@@ -635,6 +674,13 @@ export function NewConsultantForm({ universities }: Props) {
           Select one, several, or all. Partners with multiple assignments can switch the active university in their hub.
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
+          <input
+            type="search"
+            value={uniSearch}
+            onChange={(e) => setUniSearch(e.target.value)}
+            placeholder="Search universities by name or code…"
+            className="min-w-[12rem] flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-sm"
+          />
           <button
             type="button"
             onClick={selectAllUniversities}
@@ -659,8 +705,10 @@ export function NewConsultantForm({ universities }: Props) {
         >
           {universities.length === 0 ? (
             <li className="text-sm text-[var(--foreground-muted)]">No universities available.</li>
+          ) : filteredUniversities.length === 0 ? (
+            <li className="text-sm text-[var(--foreground-muted)]">No universities match your search.</li>
           ) : (
-            universities.map((u) => (
+            filteredUniversities.map((u) => (
               <li key={u.id}>
                 <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--foreground)]">
                   <input

@@ -6,6 +6,7 @@ import * as React from "react";
 import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
 import { ListQueryToolbar, SORT_LEADS } from "@/components/list-controls";
 import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
+import { QUALIFICATION_TYPES } from "@/lib/qualification-types";
 import type { SerializedConsultantLeadDetail } from "@/lib/consultant-lead-payload";
 
 type Stream = { id: string; name: string };
@@ -192,6 +193,11 @@ export function ConsultantLeadsClient(props: Props) {
     props.initialLead?.photoUrl ?? null,
   );
   const [photoPreview, setPhotoPreview] = React.useState<string | null>(props.initialLead?.photoUrl ?? null);
+  const [sslcSchool, setSslcSchool] = React.useState("");
+  const [sslcBoard, setSslcBoard] = React.useState("");
+  const [sslcYear, setSslcYear] = React.useState("");
+  const [sslcPercent, setSslcPercent] = React.useState("");
+  const [qualificationType, setQualificationType] = React.useState("");
   const [pucBoard, setPucBoard] = React.useState("");
   const [pucYear, setPucYear] = React.useState("");
   const [pucPercent, setPucPercent] = React.useState("");
@@ -203,6 +209,9 @@ export function ConsultantLeadsClient(props: Props) {
   const [degreeName, setDegreeName] = React.useState("");
   const [ieltsScore, setIeltsScore] = React.useState("");
   const [toeflScore, setToeflScore] = React.useState("");
+  const [otherExamName, setOtherExamName] = React.useState("");
+  const [otherExamScore, setOtherExamScore] = React.useState("");
+  const [otherExamDetails, setOtherExamDetails] = React.useState("");
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
@@ -232,6 +241,11 @@ export function ConsultantLeadsClient(props: Props) {
     setRefEmail(l.referralEmail ?? "");
     setAddress(l.address);
     setExistingPhotoUrl(l.photoUrl);
+    setSslcSchool(l.sslcSchool ?? "");
+    setSslcBoard(l.sslcBoard ?? "");
+    setSslcYear(l.sslcYear != null ? String(l.sslcYear) : "");
+    setSslcPercent(l.sslcPercent);
+    setQualificationType(l.qualificationType ?? "");
     setPucBoard(l.pucBoard ?? "");
     setPucYear(l.pucYear != null ? String(l.pucYear) : "");
     setPucPercent(l.pucPercent);
@@ -243,6 +257,9 @@ export function ConsultantLeadsClient(props: Props) {
     setDegreeName(l.degreeName ?? "");
     setIeltsScore(l.ieltsScore ?? "");
     setToeflScore(l.toeflScore ?? "");
+    setOtherExamName(l.otherExamName ?? "");
+    setOtherExamScore(l.otherExamScore ?? "");
+    setOtherExamDetails(l.otherExamDetails ?? "");
   }, [isEdit, props.initialLead]);
 
   function borderFor(key: string) {
@@ -343,6 +360,11 @@ export function ConsultantLeadsClient(props: Props) {
       gender: gender || null,
       dateOfBirth: dateOfBirth || null,
       pincode: pincode.trim() || null,
+      sslcSchool: sslcSchool.trim() || null,
+      sslcBoard: sslcBoard.trim() || null,
+      sslcYear: sslcYear.trim() || null,
+      sslcPercent: sslcPercent.trim() || null,
+      qualificationType: qualificationType || null,
       pucBoard: pucBoard.trim() || null,
       pucYear: pucYear.trim() || null,
       pucPercent: pucPercent.trim() || null,
@@ -351,6 +373,9 @@ export function ConsultantLeadsClient(props: Props) {
       degreeName: degreeName.trim() || null,
       ieltsScore: ieltsScore.trim() || null,
       toeflScore: toeflScore.trim() || null,
+      otherExamName: otherExamName.trim() || null,
+      otherExamScore: otherExamScore.trim() || null,
+      otherExamDetails: otherExamDetails.trim() || null,
       referralFirstName: refFn.trim() || null,
       referralLastName: refLn.trim() || null,
       referralPhone: refPhone.trim() || null,
@@ -723,33 +748,156 @@ export function ConsultantLeadsClient(props: Props) {
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/20 p-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
-              PUC details (optional)
+              10th / SSLC details
             </h3>
-            <div className="mt-3 grid gap-4 sm:grid-cols-3">
-              <div>
-                <label className="text-sm font-medium">PUC board</label>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="sm:col-span-2">
+                <label className="text-sm font-medium">School name</label>
                 <input
-                  value={pucBoard}
-                  onChange={(e) => setPucBoard(e.target.value)}
+                  value={sslcSchool}
+                  onChange={(e) => setSslcSchool(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">PUC year</label>
+                <label className="text-sm font-medium">Board</label>
                 <input
-                  value={pucYear}
-                  onChange={(e) => setPucYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  value={sslcBoard}
+                  onChange={(e) => setSslcBoard(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">PUC %</label>
+                <label className="text-sm font-medium">Year</label>
                 <input
-                  value={pucPercent}
-                  onChange={(e) => setPucPercent(e.target.value)}
+                  value={sslcYear}
+                  onChange={(e) => setSslcYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
                   className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
                 />
               </div>
+              <div>
+                <label className="text-sm font-medium">Percentage</label>
+                <input
+                  value={sslcPercent}
+                  onChange={(e) => setSslcPercent(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/20 p-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
+              Higher secondary / qualification
+            </h3>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="text-sm font-medium">Qualification type</label>
+                <select
+                  value={qualificationType}
+                  onChange={(e) => setQualificationType(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                >
+                  <option value="">Select qualification</option>
+                  {QUALIFICATION_TYPES.map((q) => (
+                    <option key={q.value} value={q.value}>
+                      {q.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {qualificationType === "PUC" ? (
+                <>
+                  <div>
+                    <label className="text-sm font-medium">PUC board</label>
+                    <input
+                      value={pucBoard}
+                      onChange={(e) => setPucBoard(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">PUC year</label>
+                    <input
+                      value={pucYear}
+                      onChange={(e) => setPucYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">PUC %</label>
+                    <input
+                      value={pucPercent}
+                      onChange={(e) => setPucPercent(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                    />
+                  </div>
+                </>
+              ) : null}
+              {qualificationType === "DIPLOMA" ? (
+                <>
+                  <div>
+                    <label className="text-sm font-medium">Diploma name</label>
+                    <input
+                      value={degreeName}
+                      onChange={(e) => setDegreeName(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">College / institute</label>
+                    <input
+                      value={degreeCollege}
+                      onChange={(e) => setDegreeCollege(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Percentage</label>
+                    <input
+                      value={degreePercent}
+                      onChange={(e) => setDegreePercent(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                    />
+                  </div>
+                </>
+              ) : null}
+              {qualificationType === "ITI" ? (
+                <>
+                  <div>
+                    <label className="text-sm font-medium">Trade / course</label>
+                    <input
+                      value={otherExamName}
+                      onChange={(e) => setOtherExamName(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Institute</label>
+                    <input
+                      value={degreeCollege}
+                      onChange={(e) => setDegreeCollege(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Score / grade</label>
+                    <input
+                      value={otherExamScore}
+                      onChange={(e) => setOtherExamScore(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-sm font-medium">Additional details</label>
+                    <input
+                      value={otherExamDetails}
+                      onChange={(e) => setOtherExamDetails(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
+                    />
+                  </div>
+                </>
+              ) : null}
             </div>
           </div>
 
