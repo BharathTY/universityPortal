@@ -37,6 +37,7 @@ export default async function EditUniversityPage(props: PageProps) {
             status: university.status,
             logoUrl: university.logoUrl ?? "",
             applicationFee: university.applicationFee?.toString() ?? "",
+            paymentUpiId: university.paymentUpiId ?? "",
           }}
         />
       </div>

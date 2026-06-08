@@ -2,26 +2,24 @@
 
 import * as React from "react";
 import QRCode from "qrcode";
+import { PaymentSplitNotice } from "@/components/payment-split-notice";
 
 type PaymentCollectorModalProps = {
   open: boolean;
   leadName: string;
+  studentEmail: string;
+  universityName: string;
+  /** University UPI ID — student pays this account, not the consultant. */
+  universityUpiId: string | null;
   amountLabel: string;
   amountRupees?: number;
+  hasStudentPortal: boolean;
+  studentPortalUrl: string;
   busy?: boolean;
   error?: string | null;
   onClose: () => void;
-  onMarkPaid: (payload: {
-    paymentMethod: "UPI" | "CARD";
-    upiId?: string;
-    cardHolderName?: string;
-    cardNumber?: string;
-    cardExpiry?: string;
-    cardCvv?: string;
-  }) => void | Promise<void>;
+  onConfirmStudentPaid: (payload: { paymentMethod: "UPI" | "CASH"; upiId?: string }) => void | Promise<void>;
 };
-
-const DEFAULT_UPI_ID = process.env.NEXT_PUBLIC_COLLECT_UPI_ID?.trim() || "eduversity@upi";
 
 function buildUpiUri(upiId: string, amountRupees: number | undefined, payeeName: string): string {
   const params = new URLSearchParams();
@@ -37,41 +35,31 @@ function buildUpiUri(upiId: string, amountRupees: number | undefined, payeeName:
 export function PaymentCollectorModal({
   open,
   leadName,
+  studentEmail,
+  universityName,
+  universityUpiId,
   amountLabel,
   amountRupees,
+  hasStudentPortal,
+  studentPortalUrl,
   busy,
   error,
   onClose,
-  onMarkPaid,
+  onConfirmStudentPaid,
 }: PaymentCollectorModalProps) {
-  const [method, setMethod] = React.useState<"UPI" | "CARD">("UPI");
-  const [upiId, setUpiId] = React.useState("");
+  const [method, setMethod] = React.useState<"UPI" | "ONLINE">("UPI");
   const [qrDataUrl, setQrDataUrl] = React.useState<string | null>(null);
-  const [scanBusy, setScanBusy] = React.useState(false);
-  const [scanError, setScanError] = React.useState<string | null>(null);
-  const [cardHolderName, setCardHolderName] = React.useState("");
-  const [cardNumber, setCardNumber] = React.useState("");
-  const [cardExpiry, setCardExpiry] = React.useState("");
-  const [cardCvv, setCardCvv] = React.useState("");
 
   React.useEffect(() => {
     if (!open) return;
     setMethod("UPI");
-    setUpiId("");
     setQrDataUrl(null);
-    setScanBusy(false);
-    setScanError(null);
-    setCardHolderName("");
-    setCardNumber("");
-    setCardExpiry("");
-    setCardCvv("");
   }, [open]);
 
   React.useEffect(() => {
-    if (!open || method !== "UPI") return;
+    if (!open || method !== "UPI" || !universityUpiId) return;
     let cancelled = false;
-    const targetUpi = upiId.trim() || DEFAULT_UPI_ID;
-    const uri = buildUpiUri(targetUpi, amountRupees, leadName);
+    const uri = buildUpiUri(universityUpiId, amountRupees, universityName);
     void QRCode.toDataURL(uri, { width: 280, margin: 1 })
       .then((url) => {
         if (!cancelled) setQrDataUrl(url);
@@ -82,64 +70,11 @@ export function PaymentCollectorModal({
     return () => {
       cancelled = true;
     };
-  }, [open, method, upiId, amountRupees, leadName]);
-
-  async function scanQrCode() {
-    setScanError(null);
-    if (typeof window === "undefined") return;
-
-    type BarcodeDetectorCtor = new (opts: { formats: string[] }) => {
-      detect: (source: ImageBitmapSource) => Promise<{ rawValue?: string }[]>;
-    };
-    const Detector = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
-    if (!Detector) {
-      setScanError("QR scanning is not supported in this browser. Enter UPI ID manually.");
-      return;
-    }
-
-    setScanBusy(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      await video.play();
-
-      const detector = new Detector({ formats: ["qr_code"] });
-      const started = Date.now();
-      let found: string | null = null;
-      while (Date.now() - started < 15000) {
-        const codes = await detector.detect(video);
-        const raw = codes[0]?.rawValue;
-        if (raw) {
-          found = raw;
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 250));
-      }
-
-      stream.getTracks().forEach((t) => t.stop());
-
-      if (!found) {
-        setScanError("No QR code detected. Try again or enter UPI ID manually.");
-        return;
-      }
-
-      const match = found.match(/[?&]pa=([^&]+)/i);
-      if (match?.[1]) {
-        setUpiId(decodeURIComponent(match[1]));
-      } else if (found.includes("@")) {
-        setUpiId(found.trim());
-      } else {
-        setScanError("Could not read a UPI ID from the scanned code.");
-      }
-    } catch (e) {
-      setScanError(e instanceof Error ? e.message : "Camera access failed");
-    } finally {
-      setScanBusy(false);
-    }
-  }
+  }, [open, method, universityUpiId, amountRupees, universityName]);
 
   if (!open) return null;
+
+  const loginUrl = `${studentPortalUrl}/login?email=${encodeURIComponent(studentEmail)}`;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="presentation">
@@ -159,8 +94,24 @@ export function PaymentCollectorModal({
           Collect payment
         </h2>
         <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-          {leadName} · {amountLabel}
+          {leadName} · {amountLabel} · {universityName}
         </p>
+        <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+          The <strong>student</strong> pays the university. You only confirm after payment is received — do not pay
+          from your own account.
+        </p>
+
+        {amountRupees != null && amountRupees > 0 ? (
+          <PaymentSplitNotice
+            className="mt-3"
+            amountRupees={amountRupees}
+            note={
+              method === "ONLINE"
+                ? "Online Razorpay can auto-transfer the university share when Route is enabled in .env."
+                : "In-person UPI pays the full amount to the university UPI; platform share is recorded for settlement."
+            }
+          />
+        ) : null}
 
         <div className="mt-4 flex gap-2">
           <button
@@ -172,94 +123,83 @@ export function PaymentCollectorModal({
                 : "border border-[var(--border)] text-[var(--foreground)]"
             }`}
           >
-            UPI
+            UPI (in person)
           </button>
           <button
             type="button"
-            onClick={() => setMethod("CARD")}
+            onClick={() => setMethod("ONLINE")}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              method === "CARD"
+              method === "ONLINE"
                 ? "bg-[var(--accent-blue)] text-white"
                 : "border border-[var(--border)] text-[var(--foreground)]"
             }`}
           >
-            Card
+            Student portal
           </button>
         </div>
 
         {method === "UPI" ? (
           <div className="mt-5 space-y-4">
-            <div className="flex flex-col items-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--muted)]/20 px-4 py-6">
-              {qrDataUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={qrDataUrl} alt="UPI payment QR code" className="h-44 w-44 rounded-lg bg-white p-2" />
-              ) : (
-                <div className="flex h-44 w-44 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-xs text-[var(--foreground-muted)]">
-                  Generating QR…
-                </div>
-              )}
-              <p className="mt-3 text-xs text-[var(--foreground-muted)]">
-                Scan to pay via UPI · {upiId.trim() || DEFAULT_UPI_ID}
+            {!universityUpiId ? (
+              <p className="text-sm text-red-600">
+                This university has no payment UPI ID configured. Ask Master Admin to set it on the university record,
+                or use the Student portal tab.
               </p>
-              <button
-                type="button"
-                disabled={busy || scanBusy}
-                onClick={() => void scanQrCode()}
-                className="mt-2 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
-              >
-                {scanBusy ? "Scanning…" : "Scan payer QR / UPI code"}
-              </button>
-              {scanError ? <p className="mt-2 text-xs text-red-600">{scanError}</p> : null}
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[var(--foreground)]">UPI ID</label>
-              <input
-                value={upiId}
-                onChange={(e) => setUpiId(e.target.value)}
-                placeholder={DEFAULT_UPI_ID}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
-              />
-            </div>
+            ) : (
+              <>
+                <div className="flex flex-col items-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--muted)]/20 px-4 py-6">
+                  {qrDataUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={qrDataUrl}
+                      alt="University UPI payment QR code for student"
+                      className="h-44 w-44 rounded-lg bg-white p-2"
+                    />
+                  ) : (
+                    <div className="flex h-44 w-44 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-xs text-[var(--foreground-muted)]">
+                      Generating QR…
+                    </div>
+                  )}
+                  <p className="mt-3 text-center text-xs text-[var(--foreground-muted)]">
+                    Ask <strong>{leadName}</strong> to scan and pay <strong>{universityName}</strong>
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-[var(--foreground)]">{universityUpiId}</p>
+                </div>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  After the student completes UPI payment on their phone, click Confirm below.
+                </p>
+              </>
+            )}
           </div>
         ) : (
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className="text-sm font-medium text-[var(--foreground)]">Cardholder name</label>
-              <input
-                value={cardHolderName}
-                onChange={(e) => setCardHolderName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="text-sm font-medium text-[var(--foreground)]">Card number</label>
-              <input
-                value={cardNumber}
-                onChange={(e) => setCardNumber(e.target.value)}
-                inputMode="numeric"
-                placeholder="4111 1111 1111 1111"
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[var(--foreground)]">Expiry</label>
-              <input
-                value={cardExpiry}
-                onChange={(e) => setCardExpiry(e.target.value)}
-                placeholder="MM/YY"
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[var(--foreground)]">CVV</label>
-              <input
-                value={cardCvv}
-                onChange={(e) => setCardCvv(e.target.value)}
-                inputMode="numeric"
-                placeholder="123"
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
-              />
-            </div>
+          <div className="mt-5 space-y-4 text-sm text-[var(--foreground-muted)]">
+            <p>
+              The student pays online from their own account after signing in to the student portal.
+            </p>
+            <dl className="rounded-lg border border-[var(--border)] bg-[var(--muted)]/20 p-3 text-xs">
+              <div>
+                <dt className="text-[var(--foreground-muted)]">Student email</dt>
+                <dd className="font-medium text-[var(--foreground)]">{studentEmail}</dd>
+              </div>
+              <div className="mt-2">
+                <dt className="text-[var(--foreground-muted)]">Portal status</dt>
+                <dd className="font-medium text-[var(--foreground)]">
+                  {hasStudentPortal ? "Account ready — student can sign in and pay" : "Creating account… refresh if needed"}
+                </dd>
+              </div>
+            </dl>
+            <a
+              href={loginUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]"
+            >
+              Open student login (share with student)
+            </a>
+            <p className="text-xs">
+              Student path: sign in → My Application → Pay with Razorpay (or simulated pay in dev). Status updates
+              automatically when they pay.
+            </p>
           </div>
         )}
 
@@ -274,23 +214,21 @@ export function PaymentCollectorModal({
           >
             Cancel
           </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              void onMarkPaid({
-                paymentMethod: method,
-                upiId: upiId.trim() || DEFAULT_UPI_ID,
-                cardHolderName: cardHolderName.trim() || undefined,
-                cardNumber: cardNumber.trim() || undefined,
-                cardExpiry: cardExpiry.trim() || undefined,
-                cardCvv: cardCvv.trim() || undefined,
-              })
-            }
-            className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-blue-hover)] disabled:opacity-50"
-          >
-            {busy ? "Processing…" : "Mark Paid"}
-          </button>
+          {method === "UPI" && universityUpiId ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                void onConfirmStudentPaid({
+                  paymentMethod: "UPI",
+                  upiId: universityUpiId,
+                })
+              }
+              className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-blue-hover)] disabled:opacity-50"
+            >
+              {busy ? "Saving…" : "Confirm student paid"}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

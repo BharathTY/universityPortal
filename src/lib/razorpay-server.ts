@@ -1,16 +1,25 @@
 import crypto from "node:crypto";
 
+type RazorpayTransfer = {
+  account: string;
+  amount: number;
+  currency?: string;
+  on_hold?: boolean;
+};
+
 type CreateOrderResult =
   | { ok: true; orderId: string; amount: number; currency: string }
   | { ok: false; error: string };
 
 /**
  * Creates a Razorpay order (amount in paise). Requires RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.
+ * Optional `transfers` — Razorpay Route split to linked accounts (university share).
  */
 export async function razorpayCreateOrder(params: {
   amountPaise: number;
   receipt: string;
   notes?: Record<string, string>;
+  transfers?: RazorpayTransfer[];
 }): Promise<CreateOrderResult> {
   const keyId = process.env.RAZORPAY_KEY_ID?.trim();
   const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
@@ -36,6 +45,16 @@ export async function razorpayCreateOrder(params: {
       currency: "INR",
       receipt: params.receipt.slice(0, 40),
       notes: params.notes ?? {},
+      ...(params.transfers?.length
+        ? {
+            transfers: params.transfers.map((t) => ({
+              account: t.account,
+              amount: Math.round(t.amount),
+              currency: t.currency ?? "INR",
+              on_hold: t.on_hold ?? false,
+            })),
+          }
+        : {}),
     }),
   });
 

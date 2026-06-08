@@ -6,6 +6,7 @@ import {
   leadAgeingDays,
   leadStatusLabel,
 } from "@/lib/lead-status";
+import { resolveLeadRegistrationFeeRupeesFromRow } from "@/lib/lead-registration-fee";
 import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
 
@@ -27,8 +28,10 @@ export type ConsultantLeadRow = {
   mobile: string;
   universityName: string;
   universityId: string;
+  universityPaymentUpiId: string | null;
   streamName: string;
   registrationFee: number | null;
+  hasStudentPortal: boolean;
   ageingDays: string;
   status: string;
   statusRaw: AdmissionLeadStatus;
@@ -58,8 +61,19 @@ export type ConsultantLeadsListResult = {
 };
 
 const leadInclude = {
-  university: { select: { id: true, name: true, registrationFee: true } },
-  stream: { select: { name: true } },
+  university: {
+    select: { id: true, name: true, registrationFee: true, applicationFee: true, paymentUpiId: true },
+  },
+  stream: {
+    select: {
+      name: true,
+      applicationFee: true,
+      streamFee: true,
+      tuitionYear1: true,
+      collegeFee: true,
+    },
+  },
+  application: { select: { id: true } },
 } satisfies Prisma.AdmissionLeadInclude;
 
 function parseDateStart(iso: string | undefined): Date | undefined {
@@ -130,10 +144,23 @@ function mapLeadRow(row: {
   mobile: string;
   admissionStatus: AdmissionLeadStatus;
   createdAt: Date;
-  university: { id: string; name: string; registrationFee: Prisma.Decimal | null };
-  stream: { name: string };
+  university: {
+    id: string;
+    name: string;
+    registrationFee: Prisma.Decimal | null;
+    applicationFee: Prisma.Decimal | null;
+    paymentUpiId: string | null;
+  };
+  stream: {
+    name: string;
+    applicationFee: Prisma.Decimal | null;
+    streamFee: Prisma.Decimal | null;
+    tuitionYear1: Prisma.Decimal | null;
+    collegeFee: Prisma.Decimal | null;
+  };
+  application: { id: string } | null;
 }): ConsultantLeadRow {
-  const fee = row.university.registrationFee != null ? Number(String(row.university.registrationFee)) : null;
+  const fee = resolveLeadRegistrationFeeRupeesFromRow(row);
   return {
     id: row.id,
     firstName: row.firstName,
@@ -142,8 +169,10 @@ function mapLeadRow(row: {
     mobile: row.mobile,
     universityName: row.university.name,
     universityId: row.university.id,
+    universityPaymentUpiId: row.university.paymentUpiId?.trim() || null,
     streamName: row.stream.name,
-    registrationFee: Number.isFinite(fee) ? fee : null,
+    registrationFee: fee > 0 ? fee : null,
+    hasStudentPortal: row.application != null,
     ageingDays: leadAgeingDays(row.createdAt),
     status: leadStatusLabel(row.admissionStatus),
     statusRaw: row.admissionStatus,

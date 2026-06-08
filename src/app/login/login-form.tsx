@@ -50,11 +50,13 @@ function EyeOffIcon({ className }: { className?: string }) {
 type Props = {
   /** When true, use 6-digit email codes (request-otp / verify). When false, email (+ password when set on account). */
   requireOtpLogin: boolean;
+  /** Optional email from ?email= query (demo / bookmark links). */
+  initialEmail?: string;
 };
 
-export function LoginForm({ requireOtpLogin }: Props) {
+export function LoginForm({ requireOtpLogin, initialEmail = "" }: Props) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
@@ -68,11 +70,13 @@ export function LoginForm({ requireOtpLogin }: Props) {
       if (r && saved) {
         setRemember(true);
         setEmail(saved);
+      } else if (initialEmail) {
+        setEmail(initialEmail);
       }
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [initialEmail]);
 
   function persistRememberChoice(normalized: string) {
     try {

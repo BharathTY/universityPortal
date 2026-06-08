@@ -5,6 +5,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isApplicationFullyPaid } from "@/lib/student-portal";
+import { splitAmountFields, formatSplitSummary } from "@/lib/payment-split-db";
 
 export async function recordApplicationPayment(params: {
   applicationId: string;
@@ -19,6 +20,10 @@ export async function recordApplicationPayment(params: {
     params;
   const paidAfter = paidBefore + amountRupees;
   const fullyPaid = isApplicationFullyPaid(applicationFee, paidAfter);
+  const shares = splitAmountFields(amountRupees);
+  const methodWithSplit = formatSplitSummary(amountRupees)
+    ? `${paymentMethod} · ${formatSplitSummary(amountRupees)}`
+    : paymentMethod;
 
   await prisma.$transaction(async (tx) => {
     if (leadId) {
@@ -26,10 +31,12 @@ export async function recordApplicationPayment(params: {
         data: {
           leadId,
           amount: amountRupees,
+          universityShare: shares.universityShare,
+          platformShare: shares.platformShare,
           status: "SUCCESS",
           collectedBy: "STUDENT",
           collectedByUserId: userId,
-          paymentMethod,
+          paymentMethod: methodWithSplit,
         },
       });
 

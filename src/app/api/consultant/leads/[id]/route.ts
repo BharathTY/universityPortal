@@ -21,6 +21,9 @@ import {
   canTransitionLeadStatus,
   LEAD_STATUS_WORKFLOW_MESSAGE,
 } from "@/lib/lead-status-workflow";
+import { ensureStudentApplicationForLead } from "@/lib/ensure-student-for-lead";
+import { resolveLeadRegistrationFeeRupeesFromRow } from "@/lib/lead-registration-fee";
+import { splitAmountFields } from "@/lib/payment-split-db";
 import { prisma } from "@/lib/prisma";
 import { isConsultant, isConsultantSpoc } from "@/lib/roles";
 
@@ -31,14 +34,24 @@ const statusPatchSchema = z.object({
   pipelineStatus: z.nativeEnum(LeadPipelineStatus).optional(),
 });
 
-async function resolvePaymentAmount(universityId: string): Promise<Prisma.Decimal> {
-  const uni = await prisma.university.findUnique({
-    where: { id: universityId },
-    select: { registrationFee: true, applicationFee: true },
+async function resolvePaymentAmountForLead(leadId: string): Promise<Prisma.Decimal> {
+  const lead = await prisma.admissionLead.findUnique({
+    where: { id: leadId },
+    select: {
+      stream: {
+        select: {
+          applicationFee: true,
+          streamFee: true,
+          tuitionYear1: true,
+          collegeFee: true,
+        },
+      },
+      university: { select: { registrationFee: true, applicationFee: true } },
+    },
   });
-  const raw = uni?.registrationFee ?? uni?.applicationFee;
-  const n = raw != null ? Number(String(raw)) : 0;
-  return new Prisma.Decimal(Number.isFinite(n) && n > 0 ? n.toFixed(2) : "0.00");
+  if (!lead) return new Prisma.Decimal("0.00");
+  const n = resolveLeadRegistrationFeeRupeesFromRow(lead);
+  return new Prisma.Decimal(n > 0 ? n.toFixed(2) : "0.00");
 }
 
 async function loadOwnedLead(id: string, userId: string) {
@@ -233,12 +246,16 @@ async function patchLeadStatus(
             where: { leadId: id, status: "PENDING" },
           });
           if (!pending) {
-            const amount = await resolvePaymentAmount(existing.universityId);
+            const amount = await resolvePaymentAmountForLead(id);
+            const amountNum = Number(String(amount));
+            const shares = splitAmountFields(amountNum);
             const collectedBy: PaymentCollectedBy = isConsultantSpoc(roles) ? "SPOC" : "CONSULTANT";
             await tx.leadPayment.create({
               data: {
                 leadId: id,
                 amount,
+                universityShare: shares.universityShare,
+                platformShare: shares.platformShare,
                 status: "PENDING",
                 collectedBy,
                 collectedByUserId: userId,
@@ -258,6 +275,13 @@ async function patchLeadStatus(
         select: consultantLeadDetailSelect,
       });
     });
+
+    if (statusChanging && nextAdmissionStatus === AdmissionLeadStatus.READY_TO_PAY) {
+      const ensured = await ensureStudentApplicationForLead({ leadId: id, consultantUserId: userId });
+      if (!ensured.ok) {
+        console.warn("ensureStudentApplicationForLead", ensured.error);
+      }
+    }
 
     return NextResponse.json({ lead });
   } catch (e) {

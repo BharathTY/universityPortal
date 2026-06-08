@@ -22,6 +22,14 @@ import { prisma } from "@/lib/prisma";
 
 import { isConsultantOnly } from "@/lib/roles";
 
+function studentPortalBaseUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.APP_BASE_URL?.trim() ||
+    "http://localhost:7777"
+  ).replace(/\/$/, "");
+}
+
 
 
 export const dynamic = "force-dynamic";
@@ -125,6 +133,8 @@ export default async function ConsultantLeadsPage({ searchParams }: PageProps) {
       initialQuery={query}
 
       universities={universitiesWithStreams}
+
+      studentPortalUrl={studentPortalBaseUrl()}
 
     />
 

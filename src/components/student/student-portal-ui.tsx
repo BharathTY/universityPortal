@@ -3,6 +3,7 @@
 import * as React from "react";
 import { formatInr } from "@/lib/student-portal";
 import { leadStatusLabel } from "@/lib/lead-status";
+import { PaymentSplitNotice } from "@/components/payment-split-notice";
 import type { AdmissionLeadStatus } from "@prisma/client";
 
 declare global {
@@ -254,6 +255,16 @@ export function StudentPaymentPanel({
               className="mt-1 w-full max-w-xs rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
             />
           </label>
+          {Number(String(payRupees).replace(/,/g, "")) > 0 ? (
+            <PaymentSplitNotice
+              amountRupees={Number(String(payRupees).replace(/,/g, ""))}
+              note={
+                razorpayConfigured
+                  ? "Razorpay Route can transfer the university share automatically when enabled."
+                  : undefined
+              }
+            />
+          ) : null}
           <div className="flex flex-wrap gap-2">
             {razorpayConfigured ? (
               <button

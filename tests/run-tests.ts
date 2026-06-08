@@ -297,6 +297,15 @@ async function main() {
     assert.ok(nav.some((g) => g.title === "Master Admin"));
   });
 
+  section("Payment split");
+  await test("splitPaymentRupees — 70/30 default", () => {
+    const { splitPaymentRupees } = require("../src/lib/payment-split") as typeof import("../src/lib/payment-split");
+    const s = splitPaymentRupees(1000);
+    assert.strictEqual(s.universityShareRupees + s.platformShareRupees, 1000);
+    assert.ok(s.universityShareRupees >= 700);
+    assert.ok(s.platformShareRupees <= 300);
+  });
+
   console.log(`\n——\n${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);
 }

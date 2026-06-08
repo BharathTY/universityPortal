@@ -1,38 +1,23 @@
-import { AdmissionLeadStatus, PaymentCollectedBy, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
+import { completeConsultantLeadPayment } from "@/lib/consultant-lead-payment";
 import { prisma } from "@/lib/prisma";
-import { isConsultant, isConsultantSpoc } from "@/lib/roles";
+import { isConsultant } from "@/lib/roles";
 
 const bodySchema = z.object({
-  paymentMethod: z.enum(["UPI", "CARD"]),
+  paymentMethod: z.enum(["UPI", "CASH"]),
   upiId: z.string().max(120).trim().optional(),
-  cardHolderName: z.string().max(120).trim().optional(),
-  cardNumber: z.string().max(24).trim().optional(),
-  cardExpiry: z.string().max(7).trim().optional(),
-  cardCvv: z.string().max(4).trim().optional(),
 });
 
 type Ctx = { params: Promise<{ id: string }> };
 
 function paymentMethodLabel(data: z.infer<typeof bodySchema>): string {
   if (data.paymentMethod === "UPI") {
-    return data.upiId ? `UPI (${data.upiId})` : "UPI";
+    return data.upiId ? `Student paid university UPI (${data.upiId})` : "Student paid university UPI";
   }
-  const last4 = data.cardNumber?.replace(/\D/g, "").slice(-4);
-  return last4 ? `Card (****${last4})` : "Card";
-}
-
-async function resolvePaymentAmount(universityId: string): Promise<Prisma.Decimal> {
-  const uni = await prisma.university.findUnique({
-    where: { id: universityId },
-    select: { registrationFee: true, applicationFee: true },
-  });
-  const raw = uni?.registrationFee ?? uni?.applicationFee;
-  const n = raw != null ? Number(String(raw)) : 0;
-  return new Prisma.Decimal(Number.isFinite(n) && n > 0 ? n.toFixed(2) : "0.00");
+  return "Student paid (cash)";
 }
 
 export async function POST(req: Request, ctx: Ctx) {
@@ -69,74 +54,26 @@ export async function POST(req: Request, ctx: Ctx) {
       universityId: { in: allowed },
       createdByUserId: session.sub,
     },
-    select: {
-      id: true,
-      admissionStatus: true,
-      universityId: true,
-    },
+    select: { id: true },
   });
 
   if (!lead) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
 
-  if (lead.admissionStatus !== AdmissionLeadStatus.READY_TO_PAY) {
-    return NextResponse.json({ error: "Lead must be in Ready to Pay status" }, { status: 400 });
-  }
-
-  const amount = await resolvePaymentAmount(lead.universityId);
-  const collectedBy: PaymentCollectedBy = isConsultantSpoc(session.roles) ? "SPOC" : "CONSULTANT";
-  const methodLabel = paymentMethodLabel(parsed.data);
-
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      const pending = await tx.leadPayment.findFirst({
-        where: { leadId, status: "PENDING" },
-        orderBy: { createdAt: "desc" },
-      });
-
-      const payment = pending
-        ? await tx.leadPayment.update({
-            where: { id: pending.id },
-            data: {
-              status: "SUCCESS",
-              amount,
-              collectedBy,
-              collectedByUserId: session.sub,
-              paymentMethod: methodLabel,
-            },
-          })
-        : await tx.leadPayment.create({
-            data: {
-              leadId,
-              amount,
-              status: "SUCCESS",
-              collectedBy,
-              collectedByUserId: session.sub,
-              paymentMethod: methodLabel,
-            },
-          });
-
-      if (lead.admissionStatus !== AdmissionLeadStatus.PAYMENT_DONE) {
-        await tx.admissionLeadStatusHistory.create({
-          data: {
-            leadId,
-            fromStatus: lead.admissionStatus,
-            toStatus: AdmissionLeadStatus.PAYMENT_DONE,
-            changedByUserId: session.sub,
-          },
-        });
-      }
-
-      const updatedLead = await tx.admissionLead.update({
-        where: { id: leadId },
-        data: { admissionStatus: AdmissionLeadStatus.PAYMENT_DONE },
-      });
-
-      return { payment, lead: updatedLead };
+    const completed = await completeConsultantLeadPayment({
+      leadId,
+      userId: session.sub,
+      roles: session.roles,
+      paymentMethod: paymentMethodLabel(parsed.data),
     });
 
-    return NextResponse.json(result);
+    if (!completed.ok) {
+      return NextResponse.json({ error: completed.error }, { status: completed.status });
+    }
+
+    return NextResponse.json(completed.result);
   } catch (e) {
     console.error("collect-payment", e);
     return NextResponse.json({ error: "Could not record payment" }, { status: 500 });

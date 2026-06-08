@@ -25,6 +25,7 @@ type Props = {
     status: "ACTIVE" | "INACTIVE";
     logoUrl: string;
     applicationFee: string;
+    paymentUpiId: string;
   };
 };
 
@@ -38,6 +39,7 @@ export function EditUniversityForm({ universityId, initial }: Props) {
   const [status, setStatus] = React.useState<"ACTIVE" | "INACTIVE">(initial.status);
   const [logoUrl, setLogoUrl] = React.useState(initial.logoUrl);
   const [applicationFee, setApplicationFee] = React.useState(initial.applicationFee);
+  const [paymentUpiId, setPaymentUpiId] = React.useState(initial.paymentUpiId);
 
   const previewSrc = logoUrl.trim() || null;
 
@@ -55,6 +57,7 @@ export function EditUniversityForm({ universityId, initial }: Props) {
       if (logoUrl !== initial.logoUrl) payload.logoUrl = logoUrl.trim();
       const feeTrim = applicationFee.trim();
       if (feeTrim) payload.applicationFee = Number(feeTrim);
+      payload.paymentUpiId = paymentUpiId.trim();
 
       const res = await fetch(`/api/master/universities/${universityId}`, {
         method: "PATCH",
@@ -133,6 +136,21 @@ export function EditUniversityForm({ universityId, initial }: Props) {
           value={applicationFee}
           onChange={(e) => setApplicationFee(e.target.value)}
           placeholder="Leave blank to keep current"
+          className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-[var(--foreground)]">
+          Payment UPI ID
+        </label>
+        <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+          University account students pay when scanning the QR in Collect Payment (e.g. university@upi).
+        </p>
+        <input
+          type="text"
+          value={paymentUpiId}
+          onChange={(e) => setPaymentUpiId(e.target.value)}
+          placeholder="university@upi"
           className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
         />
       </div>

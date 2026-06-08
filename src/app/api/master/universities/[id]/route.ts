@@ -27,6 +27,10 @@ const patchSchema = z.object({
     emptyToUndefined,
     z.coerce.number().nonnegative().max(999_999_999).optional(),
   ),
+  paymentUpiId: z.preprocess(
+    emptyToUndefined,
+    z.string().trim().max(120).optional().nullable(),
+  ),
 });
 
 function isValidLogoRef(s: string | null | undefined): boolean {
@@ -100,6 +104,9 @@ export async function PATCH(req: Request, ctx: RouteContext) {
           : {}),
         ...(parsed.data.applicationFee !== undefined
           ? { applicationFee: new Prisma.Decimal(parsed.data.applicationFee.toFixed(2)) }
+          : {}),
+        ...(parsed.data.paymentUpiId !== undefined
+          ? { paymentUpiId: parsed.data.paymentUpiId?.trim() || null }
           : {}),
       },
     });

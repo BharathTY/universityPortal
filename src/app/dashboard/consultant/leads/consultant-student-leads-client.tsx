@@ -83,6 +83,8 @@ type Props = {
 
   universities: UniversityWithStreams[];
 
+  studentPortalUrl: string;
+
 };
 
 
@@ -594,38 +596,15 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
 
 
-  async function onMarkPaid(payload: {
-
-    paymentMethod: "UPI" | "CARD";
-
-    upiId?: string;
-
-    cardHolderName?: string;
-
-    cardNumber?: string;
-
-    cardExpiry?: string;
-
-    cardCvv?: string;
-
-  }) {
-
+  async function onConfirmStudentPaid(payload: { paymentMethod: "UPI" | "CASH"; upiId?: string }) {
     if (!paymentLead) return;
-
     setPaymentError(null);
-
     setPaymentBusy(true);
-
     try {
-
       const res = await fetch(`/api/consultant/leads/${paymentLead.id}/collect-payment`, {
-
         method: "POST",
-
         headers: { "Content-Type": "application/json" },
-
         body: JSON.stringify(payload),
-
       });
 
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -1425,28 +1404,23 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
 
       <PaymentCollectorModal
-
         open={paymentLead != null}
-
         leadName={
-
           paymentLead ? `${paymentLead.firstName} ${paymentLead.lastName}`.trim() || paymentLead.email : ""
-
         }
-
+        studentEmail={paymentLead?.email ?? ""}
+        universityName={paymentLead?.universityName ?? ""}
+        universityUpiId={paymentLead?.universityPaymentUpiId ?? null}
         amountLabel={formatInr(paymentLead?.registrationFee ?? null)}
         amountRupees={
           paymentLead?.registrationFee != null ? Number(String(paymentLead.registrationFee)) : undefined
         }
-
+        hasStudentPortal={paymentLead?.hasStudentPortal ?? false}
+        studentPortalUrl={props.studentPortalUrl}
         busy={paymentBusy}
-
         error={paymentError}
-
         onClose={() => (paymentBusy ? undefined : setPaymentLead(null))}
-
-        onMarkPaid={onMarkPaid}
-
+        onConfirmStudentPaid={onConfirmStudentPaid}
       />
 
     </div>
