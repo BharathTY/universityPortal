@@ -41,12 +41,9 @@ async function resolvePaymentAmountForLead(leadId: string): Promise<Prisma.Decim
       stream: {
         select: {
           applicationFee: true,
-          streamFee: true,
-          tuitionYear1: true,
-          collegeFee: true,
         },
       },
-      university: { select: { registrationFee: true, applicationFee: true } },
+      university: { select: { applicationFee: true } },
     },
   });
   if (!lead) return new Prisma.Decimal("0.00");
@@ -259,7 +256,7 @@ async function patchLeadStatus(
                 status: "PENDING",
                 collectedBy,
                 collectedByUserId: userId,
-                paymentMethod: "Registration fee",
+                paymentMethod: "Application fee",
               },
             });
           }

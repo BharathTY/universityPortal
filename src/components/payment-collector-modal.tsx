@@ -97,9 +97,16 @@ export function PaymentCollectorModal({
           {leadName} · {amountLabel} · {universityName}
         </p>
         <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
-          The <strong>student</strong> pays the university. You only confirm after payment is received — do not pay
-          from your own account.
+          Collecting <strong>application fee</strong> only — not tuition or registration. The <strong>student</strong>{" "}
+          pays the university. You only confirm after payment is received.
         </p>
+
+        {amountRupees == null || amountRupees <= 0 ? (
+          <p className="mt-3 text-sm text-red-600">
+            No application fee is configured for this stream. Ask Master Admin to set the Application fee on the
+            university / programme in Master Admin → Universities.
+          </p>
+        ) : null}
 
         {amountRupees != null && amountRupees > 0 ? (
           <PaymentSplitNotice
@@ -140,10 +147,11 @@ export function PaymentCollectorModal({
 
         {method === "UPI" ? (
           <div className="mt-5 space-y-4">
-            {!universityUpiId ? (
+            {amountRupees == null || amountRupees <= 0 ? null : !universityUpiId ? (
               <p className="text-sm text-red-600">
-                This university has no payment UPI ID configured. Ask Master Admin to set it on the university record,
-                or use the Student portal tab.
+                This university has no payment UPI ID configured. Set it in Master Admin → Universities → Edit, or
+                set <code className="text-xs">NEXT_PUBLIC_COLLECT_UPI_ID</code> in .env as a fallback (no leading
+                spaces on the line).
               </p>
             ) : (
               <>
@@ -200,6 +208,10 @@ export function PaymentCollectorModal({
               Student path: sign in → My Application → Pay with Razorpay (or simulated pay in dev). Status updates
               automatically when they pay.
             </p>
+            <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-900 dark:text-emerald-100">
+              This page refreshes every few seconds while this dialog is open. When the student pays, the modal closes
+              and the lead status updates to Paid.
+            </p>
           </div>
         )}
 
@@ -214,7 +226,7 @@ export function PaymentCollectorModal({
           >
             Cancel
           </button>
-          {method === "UPI" && universityUpiId ? (
+          {method === "UPI" && universityUpiId && amountRupees != null && amountRupees > 0 ? (
             <button
               type="button"
               disabled={busy}

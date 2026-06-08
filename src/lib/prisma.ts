@@ -8,24 +8,9 @@ function createClient(): PrismaClient {
   });
 }
 
-function getOrCreate(): PrismaClient {
-  const existing = globalForPrisma.prisma;
-  const hasBatch =
-    existing &&
-    typeof (existing as unknown as { batch?: { findMany?: unknown } }).batch?.findMany === "function";
+/** Single shared client — avoids "too many clients" during Next.js dev hot reload. */
+export const prisma = globalForPrisma.prisma ?? createClient();
 
-  if (existing && hasBatch) {
-    return existing;
-  }
-
-  if (existing) {
-    void existing.$disconnect().catch(() => {});
-    globalForPrisma.prisma = undefined;
-  }
-
-  const client = createClient();
-  globalForPrisma.prisma = client;
-  return client;
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
 }
-
-export const prisma: PrismaClient = getOrCreate();

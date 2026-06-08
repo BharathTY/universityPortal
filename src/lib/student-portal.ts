@@ -16,15 +16,11 @@ export function formatInr(amount: number | null | undefined): string {
 
 type FeeSource = {
   applicationFee?: DecimalLike;
-  registrationFee?: DecimalLike;
 };
 
-type StreamFeeSource = FeeSource & {
-  streamFee?: DecimalLike;
-  tuitionYear1?: DecimalLike;
-  collegeFee?: DecimalLike;
-};
+type StreamFeeSource = FeeSource;
 
+/** Amount due at Ready to Pay — application fee only (never tuition, registration, or college fee). */
 export function resolveApplicationFeeRupees(
   stream: StreamFeeSource | null | undefined,
   university: FeeSource | null | undefined,
@@ -32,7 +28,6 @@ export function resolveApplicationFeeRupees(
   return (
     decimalToNumber(stream?.applicationFee) ??
     decimalToNumber(university?.applicationFee) ??
-    decimalToNumber(university?.registrationFee) ??
     0
   );
 }

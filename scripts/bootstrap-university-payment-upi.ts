@@ -1,7 +1,8 @@
+import { defaultCollectPaymentUpiIdFromEnv } from "@/lib/university-payment-upi";
 import { PrismaClient } from "@prisma/client";
 
 async function main() {
-  const upi = process.env.NEXT_PUBLIC_COLLECT_UPI_ID?.replace(/^"|"$/g, "").trim();
+  const upi = defaultCollectPaymentUpiIdFromEnv();
   if (!upi) {
     console.log("Set NEXT_PUBLIC_COLLECT_UPI_ID to bootstrap university payment UPI IDs.");
     return;

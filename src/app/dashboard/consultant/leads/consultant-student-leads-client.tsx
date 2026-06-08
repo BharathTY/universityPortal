@@ -14,7 +14,7 @@ import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
 
 import { PaymentCollectorModal } from "@/components/payment-collector-modal";
 
-import { LEAD_STATUS_OPTIONS, isReadyToPayStatus } from "@/lib/lead-status";
+import { LEAD_STATUS_OPTIONS, isPaidLeadStatus, isReadyToPayStatus } from "@/lib/lead-status";
 import {
   canTransitionLeadStatus,
   LEAD_STATUS_WORKFLOW_MESSAGE,
@@ -100,6 +100,8 @@ type ApiResponse = {
   pageSize?: number;
 
   totalPages?: number;
+
+  summary?: ConsultantLeadsSummary;
 
   error?: string;
 
@@ -281,7 +283,7 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
 
 
-  const summary = props.initialSummary;
+  const [summary, setSummary] = React.useState<ConsultantLeadsSummary>(props.initialSummary);
 
   const [leads, setLeads] = React.useState<LeadRowSerialized[]>(props.initialLeads);
 
@@ -389,6 +391,8 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
       setTotalPages(data.totalPages ?? 1);
 
+      if (data.summary) setSummary(data.summary);
+
     } finally {
 
       setLoading(false);
@@ -396,6 +400,80 @@ export function ConsultantStudentLeadsClient(props: Props) {
     }
 
   }, []);
+
+
+
+  const refreshLeadsData = React.useCallback(async () => {
+
+    const fromUrl = queryFromParams(urlSearchParams);
+
+    await fetchLeads(fromUrl);
+
+    router.refresh();
+
+  }, [urlSearchParams, fetchLeads, router]);
+
+
+
+  React.useEffect(() => {
+
+    if (!paymentLead || paymentBusy) return;
+
+
+
+    let cancelled = false;
+
+
+
+    async function pollLeadPayment() {
+
+      try {
+
+        const res = await fetch(`/api/consultant/leads/${paymentLead!.id}`);
+
+        const data = (await res.json().catch(() => ({}))) as {
+
+          lead?: { admissionStatus?: AdmissionLeadStatus };
+
+          error?: string;
+
+        };
+
+        if (cancelled || !res.ok || !data.lead?.admissionStatus) return;
+
+
+
+        if (isPaidLeadStatus(data.lead.admissionStatus)) {
+
+          setPaymentLead(null);
+
+          await refreshLeadsData();
+
+        }
+
+      } catch {
+
+        /* ignore transient poll errors */
+
+      }
+
+    }
+
+
+
+    void pollLeadPayment();
+
+    const timer = window.setInterval(() => void pollLeadPayment(), 4000);
+
+    return () => {
+
+      cancelled = true;
+
+      window.clearInterval(timer);
+
+    };
+
+  }, [paymentLead, paymentBusy, refreshLeadsData]);
 
 
 
@@ -542,11 +620,7 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
       }
 
-      const fromUrl = queryFromParams(urlSearchParams);
-
-      await fetchLeads(fromUrl);
-
-      router.refresh();
+      await refreshLeadsData();
 
     } finally {
 
@@ -580,11 +654,7 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
       }
 
-      const fromUrl = queryFromParams(urlSearchParams);
-
-      await fetchLeads(fromUrl);
-
-      router.refresh();
+      await refreshLeadsData();
 
     } finally {
 
@@ -619,11 +689,7 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
       setPaymentLead(null);
 
-      const fromUrl = queryFromParams(urlSearchParams);
-
-      await fetchLeads(fromUrl);
-
-      router.refresh();
+      await refreshLeadsData();
 
     } finally {
 
@@ -1384,13 +1450,7 @@ export function ConsultantStudentLeadsClient(props: Props) {
               streams={bulkUniversity.streams}
 
               onSuccess={async () => {
-
-                const fromUrl = queryFromParams(urlSearchParams);
-
-                await fetchLeads(fromUrl);
-
-                router.refresh();
-
+                await refreshLeadsData();
               }}
 
             />
@@ -1411,9 +1471,13 @@ export function ConsultantStudentLeadsClient(props: Props) {
         studentEmail={paymentLead?.email ?? ""}
         universityName={paymentLead?.universityName ?? ""}
         universityUpiId={paymentLead?.universityPaymentUpiId ?? null}
-        amountLabel={formatInr(paymentLead?.registrationFee ?? null)}
+        amountLabel={
+          paymentLead?.applicationFee != null
+            ? `Application fee ${formatInr(paymentLead.applicationFee)}`
+            : "Application fee not set"
+        }
         amountRupees={
-          paymentLead?.registrationFee != null ? Number(String(paymentLead.registrationFee)) : undefined
+          paymentLead?.applicationFee != null ? Number(String(paymentLead.applicationFee)) : undefined
         }
         hasStudentPortal={paymentLead?.hasStudentPortal ?? false}
         studentPortalUrl={props.studentPortalUrl}

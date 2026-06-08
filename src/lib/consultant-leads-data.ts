@@ -7,6 +7,7 @@ import {
   leadStatusLabel,
 } from "@/lib/lead-status";
 import { resolveLeadRegistrationFeeRupeesFromRow } from "@/lib/lead-registration-fee";
+import { resolveUniversityPaymentUpiId } from "@/lib/university-payment-upi";
 import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
 import { prisma } from "@/lib/prisma";
 
@@ -30,7 +31,8 @@ export type ConsultantLeadRow = {
   universityId: string;
   universityPaymentUpiId: string | null;
   streamName: string;
-  registrationFee: number | null;
+  /** Application fee (₹) for this lead's stream — not tuition or registration. */
+  applicationFee: number | null;
   hasStudentPortal: boolean;
   ageingDays: string;
   status: string;
@@ -62,15 +64,12 @@ export type ConsultantLeadsListResult = {
 
 const leadInclude = {
   university: {
-    select: { id: true, name: true, registrationFee: true, applicationFee: true, paymentUpiId: true },
+    select: { id: true, name: true, applicationFee: true, paymentUpiId: true },
   },
   stream: {
     select: {
       name: true,
       applicationFee: true,
-      streamFee: true,
-      tuitionYear1: true,
-      collegeFee: true,
     },
   },
   application: { select: { id: true } },
@@ -147,16 +146,12 @@ function mapLeadRow(row: {
   university: {
     id: string;
     name: string;
-    registrationFee: Prisma.Decimal | null;
     applicationFee: Prisma.Decimal | null;
     paymentUpiId: string | null;
   };
   stream: {
     name: string;
     applicationFee: Prisma.Decimal | null;
-    streamFee: Prisma.Decimal | null;
-    tuitionYear1: Prisma.Decimal | null;
-    collegeFee: Prisma.Decimal | null;
   };
   application: { id: string } | null;
 }): ConsultantLeadRow {
@@ -169,9 +164,9 @@ function mapLeadRow(row: {
     mobile: row.mobile,
     universityName: row.university.name,
     universityId: row.university.id,
-    universityPaymentUpiId: row.university.paymentUpiId?.trim() || null,
+    universityPaymentUpiId: resolveUniversityPaymentUpiId(row.university.paymentUpiId),
     streamName: row.stream.name,
-    registrationFee: fee > 0 ? fee : null,
+    applicationFee: fee > 0 ? fee : null,
     hasStudentPortal: row.application != null,
     ageingDays: leadAgeingDays(row.createdAt),
     status: leadStatusLabel(row.admissionStatus),

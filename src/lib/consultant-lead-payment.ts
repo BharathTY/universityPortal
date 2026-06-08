@@ -17,12 +17,9 @@ export async function resolveLeadRegistrationFeeRupees(leadId: string): Promise<
       stream: {
         select: {
           applicationFee: true,
-          streamFee: true,
-          tuitionYear1: true,
-          collegeFee: true,
         },
       },
-      university: { select: { registrationFee: true, applicationFee: true } },
+      university: { select: { applicationFee: true } },
     },
   });
   if (!lead) return new Prisma.Decimal("0.00");
@@ -59,6 +56,13 @@ export async function completeConsultantLeadPayment(input: CompleteLeadPaymentIn
 
   const amount = input.amount ?? (await resolveLeadRegistrationFeeRupees(input.leadId));
   const amountNum = Number(String(amount));
+  if (!Number.isFinite(amountNum) || amountNum <= 0) {
+    return {
+      ok: false as const,
+      status: 400,
+      error: "Application fee is not configured for this lead's programme",
+    };
+  }
   const shares = splitAmountFields(amountNum);
   const methodWithSplit = `${input.paymentMethod} · ${formatSplitSummary(amountNum)}`;
   const collectedBy: PaymentCollectedBy = isConsultantSpoc(input.roles) ? "SPOC" : "CONSULTANT";

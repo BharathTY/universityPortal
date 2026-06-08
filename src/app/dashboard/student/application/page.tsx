@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   StudentPaymentPanel,
   StepIndicator,
@@ -116,6 +117,7 @@ function isoToDateInput(iso: string | null | undefined): string {
 }
 
 export default function StudentApplicationPage() {
+  const router = useRouter();
   const [step, setStep] = React.useState(1);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -592,6 +594,7 @@ export default function StudentApplicationPage() {
             transactions={app.transactions}
             onPaid={async () => {
               await loadApp(app.id, { silent: true });
+              router.refresh();
             }}
           />
           <button type="button" onClick={() => setStep(2)} className="text-sm text-[var(--primary)] underline">
