@@ -61,9 +61,70 @@ export async function ensureStudentApplicationForLead(params: {
     if (linked) {
       return { ok: true, created: false, applicationId: linked.id, userId: existingUser.id };
     }
+
+    const orphanApp = await prisma.application.findFirst({
+      where: {
+        userId: existingUser.id,
+        universityId: lead.universityId,
+        leadId: null,
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+
+    if (orphanApp) {
+      await prisma.application.update({
+        where: { id: orphanApp.id },
+        data: {
+          leadId: lead.id,
+          status: ApplicationStatus.REGISTRATION_FEE_PENDING,
+          paymentStatus: ApplicationPaymentStatus.REGISTRATION_PENDING,
+        },
+      });
+      return {
+        ok: true,
+        created: false,
+        applicationId: orphanApp.id,
+        userId: existingUser.id,
+      };
+    }
+
+    const batch =
+      lead.batchId != null
+        ? await prisma.batch.findFirst({
+            where: { id: lead.batchId, ownerId: params.consultantUserId },
+            select: { id: true },
+          })
+        : await prisma.batch.findFirst({
+            where: { ownerId: params.consultantUserId },
+            orderBy: { createdAt: "desc" },
+            select: { id: true },
+          });
+
+    const referenceCode = await nextApplicationReferenceCode(
+      prisma,
+      lead.universityId,
+      lead.university.code,
+    );
+
+    const application = await prisma.application.create({
+      data: {
+        userId: existingUser.id,
+        universityId: lead.universityId,
+        batchId: batch?.id ?? null,
+        leadId: lead.id,
+        referenceCode,
+        status: ApplicationStatus.REGISTRATION_FEE_PENDING,
+        paymentStatus: ApplicationPaymentStatus.REGISTRATION_PENDING,
+        admissionReview: AdmissionReviewStatus.PENDING,
+      },
+    });
+
     return {
-      ok: false,
-      error: "A user with this email already exists but is not linked to this lead.",
+      ok: true,
+      created: true,
+      applicationId: application.id,
+      userId: existingUser.id,
     };
   }
 

@@ -333,6 +333,10 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
   const [paymentError, setPaymentError] = React.useState<string | null>(null);
 
+  const [studentPaymentPageUrl, setStudentPaymentPageUrl] = React.useState<string | null>(null);
+
+  const [paymentCompleteUrl, setPaymentCompleteUrl] = React.useState<string | null>(null);
+
 
 
   const bulkUniversity = props.universities.find((u) => u.id === bulkUniversityId) ?? props.universities[0];
@@ -417,6 +421,98 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
   React.useEffect(() => {
 
+    if (!paymentLead) {
+
+      setStudentPaymentPageUrl(null);
+
+      setPaymentCompleteUrl(null);
+
+      return;
+
+    }
+
+
+
+    let cancelled = false;
+
+    void fetch(`/api/consultant/leads/${paymentLead.id}/payment-share-token`)
+
+      .then(async (res) => {
+
+        const data = (await res.json().catch(() => ({}))) as {
+
+          paymentPageUrl?: string;
+
+          paymentCompleteUrl?: string;
+
+        };
+
+        if (cancelled || !res.ok) return;
+
+        setStudentPaymentPageUrl(data.paymentPageUrl ?? null);
+
+        setPaymentCompleteUrl(data.paymentCompleteUrl ?? null);
+
+      })
+
+      .catch(() => {
+
+        if (!cancelled) {
+
+          setStudentPaymentPageUrl(null);
+
+          setPaymentCompleteUrl(null);
+
+        }
+
+      });
+
+
+
+    return () => {
+
+      cancelled = true;
+
+    };
+
+  }, [paymentLead?.id]);
+
+
+
+  React.useEffect(() => {
+
+    function onPaymentMessage(event: MessageEvent) {
+
+      if (event.origin !== window.location.origin) return;
+
+      const data = event.data as { type?: string; leadId?: string } | null;
+
+      if (data?.type !== "lead-payment-done" || !data.leadId) return;
+
+      setPaymentLead((current) => {
+
+        if (current?.id !== data.leadId) return current;
+
+        void refreshLeadsData();
+
+        return null;
+
+      });
+
+    }
+
+
+
+    window.addEventListener("message", onPaymentMessage);
+
+    return () => window.removeEventListener("message", onPaymentMessage);
+
+  }, [refreshLeadsData]);
+
+
+
+  React.useEffect(() => {
+
     if (!paymentLead || paymentBusy) return;
 
 
@@ -463,7 +559,7 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
     void pollLeadPayment();
 
-    const timer = window.setInterval(() => void pollLeadPayment(), 4000);
+    const timer = window.setInterval(() => void pollLeadPayment(), 2000);
 
     return () => {
 
@@ -1481,6 +1577,8 @@ export function ConsultantStudentLeadsClient(props: Props) {
         }
         hasStudentPortal={paymentLead?.hasStudentPortal ?? false}
         studentPortalUrl={props.studentPortalUrl}
+        paymentCompleteUrl={paymentCompleteUrl}
+        studentPaymentPageUrl={studentPaymentPageUrl}
         busy={paymentBusy}
         error={paymentError}
         onClose={() => (paymentBusy ? undefined : setPaymentLead(null))}

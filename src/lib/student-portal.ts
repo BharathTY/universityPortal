@@ -1,4 +1,4 @@
-import type { AdmissionLeadStatus, LeadPayment, Prisma } from "@prisma/client";
+import type { AdmissionLeadStatus, ApplicationPaymentStatus, ApplicationStatus, LeadPayment, Prisma } from "@prisma/client";
 import { isPaidLeadStatus } from "@/lib/lead-status";
 
 type DecimalLike = Prisma.Decimal | number | string | null | undefined;
@@ -61,17 +61,34 @@ export function isApplicationFullyPaid(applicationFee: number, paid: number): bo
 
 export type StudentPaymentPanelState = "awaiting_approval" | "ready_to_pay" | "payment_done";
 
-export function studentPaymentPanelState(
-  leadStatus: AdmissionLeadStatus | null | undefined,
-  applicationFee: number,
-  paidRupees: number,
-): StudentPaymentPanelState {
+export type StudentPaymentPanelContext = {
+  leadStatus: AdmissionLeadStatus | null | undefined;
+  applicationFee: number;
+  paidRupees: number;
+  applicationStatus?: ApplicationStatus | null;
+  paymentStatus?: ApplicationPaymentStatus | null;
+};
+
+export function studentPaymentPanelState(ctx: StudentPaymentPanelContext): StudentPaymentPanelState {
+  const { leadStatus, applicationFee, paidRupees, applicationStatus, paymentStatus } = ctx;
+
   if (isApplicationFullyPaid(applicationFee, paidRupees) || isPaidLeadStatus(leadStatus ?? "NEW_LEAD")) {
     return "payment_done";
   }
-  if (leadStatus === "READY_TO_PAY") {
+
+  if (applicationFee <= 0) {
+    return "awaiting_approval";
+  }
+
+  const readyByLead = leadStatus === "READY_TO_PAY";
+  const readyByApplication =
+    applicationStatus === "REGISTRATION_FEE_PENDING" &&
+    paymentStatus !== "REGISTRATION_PAID";
+
+  if (readyByLead || readyByApplication) {
     return "ready_to_pay";
   }
+
   return "awaiting_approval";
 }
 

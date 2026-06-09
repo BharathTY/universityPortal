@@ -3,6 +3,7 @@
 import * as React from "react";
 import QRCode from "qrcode";
 import { PaymentSplitNotice } from "@/components/payment-split-notice";
+import { buildUpiPayUri } from "@/lib/upi-pay-uri";
 
 type PaymentCollectorModalProps = {
   open: boolean;
@@ -15,21 +16,23 @@ type PaymentCollectorModalProps = {
   amountRupees?: number;
   hasStudentPortal: boolean;
   studentPortalUrl: string;
+  /** Return URL embedded in UPI QR — opens after student pays on phone. */
+  paymentCompleteUrl?: string | null;
+  /** Shareable student payment page (opens in new tab on student phone). */
+  studentPaymentPageUrl?: string | null;
   busy?: boolean;
   error?: string | null;
   onClose: () => void;
   onConfirmStudentPaid: (payload: { paymentMethod: "UPI" | "CASH"; upiId?: string }) => void | Promise<void>;
 };
 
-function buildUpiUri(upiId: string, amountRupees: number | undefined, payeeName: string): string {
-  const params = new URLSearchParams();
-  params.set("pa", upiId);
-  params.set("pn", payeeName.slice(0, 50));
-  if (amountRupees != null && Number.isFinite(amountRupees) && amountRupees > 0) {
-    params.set("am", amountRupees.toFixed(2));
-  }
-  params.set("cu", "INR");
-  return `upi://pay?${params.toString()}`;
+function buildUpiUri(
+  upiId: string,
+  amountRupees: number | undefined,
+  payeeName: string,
+  returnUrl?: string | null,
+): string {
+  return buildUpiPayUri({ upiId, amountRupees, payeeName, returnUrl: returnUrl ?? undefined });
 }
 
 export function PaymentCollectorModal({
@@ -42,6 +45,8 @@ export function PaymentCollectorModal({
   amountRupees,
   hasStudentPortal,
   studentPortalUrl,
+  paymentCompleteUrl,
+  studentPaymentPageUrl,
   busy,
   error,
   onClose,
@@ -59,7 +64,7 @@ export function PaymentCollectorModal({
   React.useEffect(() => {
     if (!open || method !== "UPI" || !universityUpiId) return;
     let cancelled = false;
-    const uri = buildUpiUri(universityUpiId, amountRupees, universityName);
+    const uri = buildUpiUri(universityUpiId, amountRupees, universityName, paymentCompleteUrl);
     void QRCode.toDataURL(uri, { width: 280, margin: 1 })
       .then((url) => {
         if (!cancelled) setQrDataUrl(url);
@@ -70,7 +75,7 @@ export function PaymentCollectorModal({
     return () => {
       cancelled = true;
     };
-  }, [open, method, universityUpiId, amountRupees, universityName]);
+  }, [open, method, universityUpiId, amountRupees, universityName, paymentCompleteUrl]);
 
   if (!open) return null;
 
@@ -174,8 +179,19 @@ export function PaymentCollectorModal({
                   <p className="mt-1 font-mono text-xs text-[var(--foreground)]">{universityUpiId}</p>
                 </div>
                 <p className="text-xs text-[var(--foreground-muted)]">
-                  After the student completes UPI payment on their phone, click Confirm below.
+                  After the student pays on their phone, this dialog closes automatically and the lead status updates
+                  to Paid.
                 </p>
+                {studentPaymentPageUrl ? (
+                  <a
+                    href={studentPaymentPageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex w-full justify-center rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  >
+                    Open payment page on student phone
+                  </a>
+                ) : null}
               </>
             )}
           </div>

@@ -200,7 +200,13 @@ function serializeApplication(row: ApplicationRow) {
       applicationFee,
       paidRupees,
       remainingDue,
-      panelState: studentPaymentPanelState(leadStatus, applicationFee, paidRupees),
+      panelState: studentPaymentPanelState({
+        leadStatus,
+        applicationFee,
+        paidRupees,
+        applicationStatus: row.status,
+        paymentStatus: row.paymentStatus,
+      }),
     },
     transactions: payments.map((p) => ({
       id: p.id,

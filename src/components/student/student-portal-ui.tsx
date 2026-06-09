@@ -221,16 +221,20 @@ export function StudentPaymentPanel({
 
       {panelState === "awaiting_approval" ? (
         <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-6 text-center">
-          <p className="font-semibold text-[var(--foreground)]">Awaiting consultant approval</p>
+          <p className="font-semibold text-[var(--foreground)]">
+            {applicationFee <= 0 ? "Application fee not configured" : "Awaiting consultant approval"}
+          </p>
           <p className="mt-2 text-sm text-[var(--foreground-muted)]">
-            Your consultant will mark your lead as Ready to Pay before you can complete the application fee online.
+            {applicationFee <= 0
+              ? "Your university has not set an application fee yet. Ask your consultant or Master Admin."
+              : "Your consultant must mark your lead as Ready to Pay before you can pay online. You can still use the payment link from your consultant."}
           </p>
           <button
             type="button"
             disabled
             className="mt-4 rounded-lg bg-[var(--muted)] px-4 py-2 text-sm font-semibold text-[var(--foreground-muted)]"
           >
-            Pay {formatInr(applicationFee)}
+            Pay now {applicationFee > 0 ? formatInr(applicationFee) : ""}
           </button>
         </div>
       ) : null}
@@ -273,7 +277,7 @@ export function StudentPaymentPanel({
                 onClick={() => void startRazorpay()}
                 className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
-                Pay with Razorpay
+                Pay now — Razorpay
               </button>
             ) : (
               <button
@@ -282,7 +286,7 @@ export function StudentPaymentPanel({
                 onClick={() => void payMock()}
                 className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
-                Simulated pay (dev)
+                Pay now (simulated)
               </button>
             )}
           </div>

@@ -218,6 +218,9 @@ export default function StudentApplicationPage() {
       if (nextApp) {
         setSelectedId(nextApp.id);
         hydrateForm(nextApp);
+        if (nextApp.paymentSummary.panelState === "ready_to_pay") {
+          setStep(3);
+        }
       }
     } finally {
       if (!options?.silent) setLoading(false);

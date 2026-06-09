@@ -61,11 +61,13 @@ export async function POST(req: Request) {
   }
 
   const { paymentSummary, lead } = appData;
-  const panelState = studentPaymentPanelState(
-    lead?.admissionStatus ?? null,
-    paymentSummary.applicationFee,
-    paymentSummary.paidRupees,
-  );
+  const panelState = studentPaymentPanelState({
+    leadStatus: lead?.admissionStatus ?? null,
+    applicationFee: paymentSummary.applicationFee,
+    paidRupees: paymentSummary.paidRupees,
+    applicationStatus: appData.status,
+    paymentStatus: appData.paymentStatus,
+  });
 
   if (panelState !== "ready_to_pay") {
     return NextResponse.json(

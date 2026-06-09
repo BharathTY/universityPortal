@@ -39,11 +39,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 });
   }
 
-  const panelState = studentPaymentPanelState(
-    appData.lead?.admissionStatus ?? null,
-    appData.paymentSummary.applicationFee,
-    appData.paymentSummary.paidRupees,
-  );
+  const panelState = studentPaymentPanelState({
+    leadStatus: appData.lead?.admissionStatus ?? null,
+    applicationFee: appData.paymentSummary.applicationFee,
+    paidRupees: appData.paymentSummary.paidRupees,
+    applicationStatus: appData.status,
+    paymentStatus: appData.paymentStatus,
+  });
   if (panelState !== "ready_to_pay") {
     return NextResponse.json(
       { error: "Payment is not available until your consultant marks the lead as Ready to Pay." },

@@ -57,11 +57,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Order mismatch — create a new payment from this page." }, { status: 400 });
   }
 
-  const panelState = studentPaymentPanelState(
-    appData.lead?.admissionStatus ?? null,
-    appData.paymentSummary.applicationFee,
-    appData.paymentSummary.paidRupees,
-  );
+  const panelState = studentPaymentPanelState({
+    leadStatus: appData.lead?.admissionStatus ?? null,
+    applicationFee: appData.paymentSummary.applicationFee,
+    paidRupees: appData.paymentSummary.paidRupees,
+    applicationStatus: appData.status,
+    paymentStatus: appData.paymentStatus,
+  });
   if (panelState !== "ready_to_pay") {
     return NextResponse.json({ error: "Payment is not available for this application" }, { status: 409 });
   }
@@ -123,11 +125,13 @@ export async function POST(req: Request) {
     ok: true,
     paymentSummary: refreshed?.paymentSummary ?? null,
     panelState: refreshed
-      ? studentPaymentPanelState(
-          refreshed.lead?.admissionStatus ?? null,
-          refreshed.paymentSummary.applicationFee,
-          refreshed.paymentSummary.paidRupees,
-        )
+      ? studentPaymentPanelState({
+          leadStatus: refreshed.lead?.admissionStatus ?? null,
+          applicationFee: refreshed.paymentSummary.applicationFee,
+          paidRupees: refreshed.paymentSummary.paidRupees,
+          applicationStatus: refreshed.status,
+          paymentStatus: refreshed.paymentStatus,
+        })
       : null,
   });
 }

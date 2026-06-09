@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { UniversitySelector } from "@/components/student/student-portal-ui";
 import { formatDateTime, formatInr } from "@/lib/student-portal";
 
@@ -19,6 +20,9 @@ type FeesData = {
     academicYear: string;
   };
   breakdown: { label: string; amount: number | null; highlight?: boolean }[];
+  paymentSummary?: {
+    panelState: "awaiting_approval" | "ready_to_pay" | "payment_done";
+  };
   transactions: {
     transactionRef: string;
     amount: number;
@@ -100,6 +104,18 @@ export default function StudentFeesPage() {
       </div>
 
       {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+
+      {fees.paymentSummary?.panelState === "ready_to_pay" ? (
+        <div className="mt-6 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm">
+          <p className="font-medium text-[var(--foreground)]">Application fee payment is open.</p>
+          <Link
+            href="/dashboard/student/application"
+            className="mt-2 inline-flex rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white"
+          >
+            Pay now
+          </Link>
+        </div>
+      ) : null}
 
       <div className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6">
         <h2 className="text-lg font-semibold text-[var(--foreground)]">Programme info</h2>

@@ -33,6 +33,7 @@ type CompleteLeadPaymentInput = {
   roles: string[];
   paymentMethod: string;
   amount?: Prisma.Decimal;
+  collectedBy?: PaymentCollectedBy;
 };
 
 export async function completeConsultantLeadPayment(input: CompleteLeadPaymentInput) {
@@ -65,7 +66,9 @@ export async function completeConsultantLeadPayment(input: CompleteLeadPaymentIn
   }
   const shares = splitAmountFields(amountNum);
   const methodWithSplit = `${input.paymentMethod} · ${formatSplitSummary(amountNum)}`;
-  const collectedBy: PaymentCollectedBy = isConsultantSpoc(input.roles) ? "SPOC" : "CONSULTANT";
+  const collectedBy: PaymentCollectedBy =
+    input.collectedBy ??
+    (isConsultantSpoc(input.roles) ? PaymentCollectedBy.SPOC : PaymentCollectedBy.CONSULTANT);
 
   const result = await prisma.$transaction(async (tx) => {
     const pending = await tx.leadPayment.findFirst({
