@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Nunito_Sans, Poppins } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { PORTAL_BRAND_NAME } from "@/components/portal-logo";
 
 const nunitoSans = Nunito_Sans({
   variable: "--font-sans",
@@ -17,7 +18,7 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Eduversity",
+  title: PORTAL_BRAND_NAME,
   description: "Secure student portal — sign in with email and password.",
 };
 

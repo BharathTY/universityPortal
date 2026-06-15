@@ -52,7 +52,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "Please accept your student invitation from email before signing in. Check your inbox for the acceptance link.",
+            "Please activate your account using the link sent to your email before signing in.",
         },
         { status: 403 },
       );

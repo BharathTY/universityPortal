@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   createEmptyUniversitySpocDraft,
   isUniversitySpocRowComplete,
+  stripUniversityPhoneInput,
   universitySpocFieldKey,
   type UniversitySpocDraft,
 } from "@/lib/university-spoc";
@@ -44,7 +45,7 @@ export function UniversitySpocEditor({
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-[var(--foreground)]">University SPOC</h2>
+        <h2 className="text-lg font-semibold text-[var(--foreground)]">University SPOC details</h2>
         <p className="text-xs text-[var(--foreground-muted)]">All fields are required for each SPOC.</p>
       </div>
 
@@ -118,7 +119,7 @@ export function UniversitySpocEditor({
                   disabled={disabled}
                   value={row.mobile}
                   onChange={(e) => {
-                    updateRow(row.id, { mobile: e.target.value.replace(/\D/g, "").slice(0, 10) });
+                    updateRow(row.id, { mobile: stripUniversityPhoneInput(e.target.value) });
                     onClearFieldError(universitySpocFieldKey(index, "mobile", rows.length));
                   }}
                   className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor(fieldErrors, universitySpocFieldKey(index, "mobile", rows.length))}`}
@@ -127,16 +128,19 @@ export function UniversitySpocEditor({
                   <p className="mt-1 text-xs text-red-600">
                     {fieldErrors[universitySpocFieldKey(index, "mobile", rows.length)]}
                   </p>
-                ) : null}
+                ) : (
+                  <p className="mt-1 text-xs text-[var(--foreground-muted)]">Must be 10 digits.</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-[var(--foreground)]">
-                  Email address <span className="text-red-600">*</span>
+                  Email ID <span className="text-red-600">*</span>
                 </label>
                 <input
                   type="email"
                   disabled={disabled}
                   value={row.email}
+                  placeholder="name@university.edu"
                   onChange={(e) => {
                     updateRow(row.id, { email: e.target.value });
                     onClearFieldError(universitySpocFieldKey(index, "email", rows.length));
@@ -147,7 +151,9 @@ export function UniversitySpocEditor({
                   <p className="mt-1 text-xs text-red-600">
                     {fieldErrors[universitySpocFieldKey(index, "email", rows.length)]}
                   </p>
-                ) : null}
+                ) : (
+                  <p className="mt-1 text-xs text-[var(--foreground-muted)]">Enter a valid email ID.</p>
+                )}
               </div>
             </div>
           </div>
@@ -159,17 +165,13 @@ export function UniversitySpocEditor({
           onClick={addRow}
           className="rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
         >
-          + Add another SPOC
+          + Add SPOC
         </button>
       </div>
 
-      <div className="mt-6">
-        <h3 className="text-sm font-semibold text-[var(--foreground)]">SPOC details</h3>
-        {tableRows.length === 0 ? (
-          <p className="mt-2 text-sm text-[var(--foreground-muted)]">
-            Complete all required fields above to see SPOC records here.
-          </p>
-        ) : (
+      {tableRows.length > 0 ? (
+        <div className="mt-6">
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">Added SPOCs</h3>
           <div className="mt-3 overflow-x-auto rounded-lg border border-[var(--border)]">
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40">
@@ -177,8 +179,8 @@ export function UniversitySpocEditor({
                   <th className="px-3 py-2.5 font-semibold text-[var(--foreground)]">#</th>
                   <th className="px-3 py-2.5 font-semibold text-[var(--foreground)]">SPOC name</th>
                   <th className="px-3 py-2.5 font-semibold text-[var(--foreground)]">Designation</th>
-                  <th className="px-3 py-2.5 font-semibold text-[var(--foreground)]">Mobile</th>
-                  <th className="px-3 py-2.5 font-semibold text-[var(--foreground)]">Email</th>
+                  <th className="px-3 py-2.5 font-semibold text-[var(--foreground)]">Mobile number</th>
+                  <th className="px-3 py-2.5 font-semibold text-[var(--foreground)]">Email ID</th>
                   <th className="px-3 py-2.5 font-semibold text-[var(--foreground)]">Actions</th>
                 </tr>
               </thead>
@@ -207,8 +209,8 @@ export function UniversitySpocEditor({
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      ) : null}
     </section>
   );
 }

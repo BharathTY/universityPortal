@@ -43,7 +43,7 @@ export default async function ConsultantEditLeadPage({ params }: PageProps) {
       code: true,
       streams: {
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-        select: { id: true, name: true },
+        select: { id: true, name: true, programLevel: true, degreeType: true },
       },
       academicYears: {
         orderBy: [{ sortOrder: "asc" }, { label: "asc" }],

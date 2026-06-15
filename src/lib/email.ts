@@ -131,45 +131,46 @@ Admin Team`;
   await transporter.sendMail({ from, to: params.to, subject, text, html });
 }
 
-/** Master admin creates an admission partner (consultant) account — credentials email. */
+/** Master admin creates an admission partner (consultant) account — activation email. */
 export async function sendConsultantAccountCreatedEmail(params: {
   to: string;
   name: string;
   email: string;
-  password: string;
+  activationUrl: string;
 }): Promise<void> {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   const from = resolveEmailFrom();
-  const portalLink = `${getPublicAppOrigin()}/login`;
   const consultantName = params.name.trim() || params.email;
 
-  const subject = "Welcome to Eduversity — your consultant account";
+  const subject = "Welcome to QSpiders Eduversity — activate your consultant account";
   const text = `Hello ${consultantName},
 
-Welcome to Eduversity, we're glad to have you on board.
+Welcome to QSpiders Eduversity, we're glad to have you on board.
 
-Your consultant account has been successfully created. Please find your login details below:
+Your consultant account has been created. Activate your account and set your password using the link below:
 
-Portal Link: ${portalLink}
-Email: ${params.email}
-Password: ${params.password}
+${params.activationUrl}
 
-Please log in and let us know if you encounter any issues, we'll be happy to help.
+Registered email: ${params.email}
+
+After setting your password, sign in at ${getPublicAppOrigin()}/login with your email and the password you choose.
+
+If you did not expect this email, please contact support.
 
 Warm regards,
-Team Eduversity`;
+Team QSpiders Eduversity`;
 
   const html = `<p>Hello <strong>${escapeHtml(consultantName)}</strong>,</p>
-<p>Welcome to Eduversity, we're glad to have you on board.</p>
-<p>Your consultant account has been successfully created. Please find your login details below:</p>
-<p><strong>Portal Link:</strong> <a href="${escapeHtml(portalLink)}">${escapeHtml(portalLink)}</a><br/>
-<strong>Email:</strong> ${escapeHtml(params.email)}<br/>
-<strong>Password:</strong> <code>${escapeHtml(params.password)}</code></p>
-<p>Please log in and let us know if you encounter any issues, we'll be happy to help.</p>
-<p>Warm regards,<br/>Team Eduversity</p>`;
+<p>Welcome to <strong>QSpiders Eduversity</strong>, we're glad to have you on board.</p>
+<p>Your consultant account has been created. Activate your account and set your password using the link below:</p>
+<p><a href="${escapeHtml(params.activationUrl)}">Activate your QSpiders Eduversity account</a></p>
+<p><strong>Registered email:</strong> ${escapeHtml(params.email)}</p>
+<p>After setting your password, sign in at <a href="${escapeHtml(`${getPublicAppOrigin()}/login`)}">${escapeHtml(`${getPublicAppOrigin()}/login`)}</a> with your email and the password you choose.</p>
+<p>If you did not expect this email, please contact support.</p>
+<p>Warm regards,<br/>Team QSpiders Eduversity</p>`;
 
   if (!host || !user || !pass) {
     if (process.env.NODE_ENV === "development") {
@@ -375,8 +376,7 @@ export async function sendCounsellorPortalInviteEmail(params: {
   to: string;
   name: string;
   email: string;
-  password: string;
-  loginUrl: string;
+  activationUrl: string;
   inviterName: string;
 }): Promise<void> {
   const host = process.env.SMTP_HOST;
@@ -385,32 +385,33 @@ export async function sendCounsellorPortalInviteEmail(params: {
   const pass = process.env.SMTP_PASS;
   const from = resolveEmailFrom();
   const counsellorName = params.name.trim() || params.email;
-  const portalLink = params.loginUrl;
 
-  const subject = "Welcome to Eduversity — your Consultant SPOC account";
+  const subject = "Welcome to QSpiders Eduversity — activate your Consultant SPOC account";
   const text = `Hello ${counsellorName},
 
-Welcome to Eduversity, we're glad to have you on board.
+Welcome to QSpiders Eduversity, we're glad to have you on board.
 
-${params.inviterName} has invited you to join as a Consultant SPOC for Qspiders Eduversity's University Portal.
+${params.inviterName} has invited you to join as a Consultant SPOC on QSpiders Eduversity.
 
-Portal Link: ${portalLink}
-Email: ${params.email}
-Password: ${params.password}
+Activate your account and set your password using the link below:
 
-Please log in and let us know if you encounter any issues, we'll be happy to help.
+${params.activationUrl}
+
+Registered email: ${params.email}
+
+After setting your password, sign in at ${getPublicAppOrigin()}/login with your email and the password you choose.
 
 Warm regards,
-Team Eduversity`;
+Team QSpiders Eduversity`;
 
   const html = `<p>Hello <strong>${escapeHtml(counsellorName)}</strong>,</p>
-<p>Welcome to Eduversity, we're glad to have you on board.</p>
-<p><strong>${escapeHtml(params.inviterName)}</strong> has invited you to join as a <strong>Consultant SPOC</strong> for <strong>Qspiders Eduversity's University Portal</strong>.</p>
-<p><strong>Portal Link:</strong> <a href="${escapeHtml(portalLink)}">${escapeHtml(portalLink)}</a><br/>
-<strong>Email:</strong> ${escapeHtml(params.email)}<br/>
-<strong>Password:</strong> <code>${escapeHtml(params.password)}</code></p>
-<p>Please log in and let us know if you encounter any issues, we'll be happy to help.</p>
-<p>Warm regards,<br/>Team Eduversity</p>`;
+<p>Welcome to <strong>QSpiders Eduversity</strong>, we're glad to have you on board.</p>
+<p><strong>${escapeHtml(params.inviterName)}</strong> has invited you to join as a <strong>Consultant SPOC</strong> on QSpiders Eduversity.</p>
+<p>Activate your account and set your password using the link below:</p>
+<p><a href="${escapeHtml(params.activationUrl)}">Activate your QSpiders Eduversity account</a></p>
+<p><strong>Registered email:</strong> ${escapeHtml(params.email)}</p>
+<p>After setting your password, sign in at <a href="${escapeHtml(`${getPublicAppOrigin()}/login`)}">${escapeHtml(`${getPublicAppOrigin()}/login`)}</a> with your email and the password you choose.</p>
+<p>Warm regards,<br/>Team QSpiders Eduversity</p>`;
 
   if (!host || !user || !pass) {
     if (process.env.NODE_ENV === "development") {
@@ -427,6 +428,92 @@ Team Eduversity`;
   });
 
   await transporter.sendMail({ from, to: params.to, subject, text, html });
+}
+
+export type MouSpocNotifyRow = {
+  name: string;
+  designation: string;
+  mobile: string;
+  email: string;
+};
+
+/** Notify Sheshu sir team of consultant MOU SPOC contacts for a newly created university. */
+export async function sendMouSpocDetailsToSheshuTeam(params: {
+  universityName: string;
+  universityCode: string;
+  mouYear: string | null;
+  mouTenure: string | null;
+  spocs: MouSpocNotifyRow[];
+}): Promise<void> {
+  const recipients = (process.env.SHESHU_TEAM_EMAIL ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (recipients.length === 0) {
+    if (process.env.NODE_ENV === "development") {
+      console.log("[MOU SPOC notify dev] SHESHU_TEAM_EMAIL unset — would notify:", params);
+    }
+    return;
+  }
+
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = resolveEmailFrom();
+
+  const spocLines = params.spocs
+    .map(
+      (s, i) =>
+        `${i + 1}. ${s.name} — ${s.designation}\n   Mobile: ${s.mobile}\n   Email: ${s.email}`,
+    )
+    .join("\n\n");
+
+  const subject = `MOU SPOC details — ${params.universityName}`;
+  const text = `New university MOU SPOC details
+
+University: ${params.universityName} (${params.universityCode})
+MOU year: ${params.mouYear ?? "—"}
+MOU tenure: ${params.mouTenure ?? "—"}
+
+Consultant SPOC contacts:
+${spocLines}
+`;
+
+  const spocHtml = params.spocs
+    .map(
+      (s, i) =>
+        `<tr><td style="padding:6px 8px;border:1px solid #ddd">${i + 1}</td><td style="padding:6px 8px;border:1px solid #ddd">${escapeHtml(s.name)}</td><td style="padding:6px 8px;border:1px solid #ddd">${escapeHtml(s.designation)}</td><td style="padding:6px 8px;border:1px solid #ddd">${escapeHtml(s.mobile)}</td><td style="padding:6px 8px;border:1px solid #ddd">${escapeHtml(s.email)}</td></tr>`,
+    )
+    .join("");
+
+  const html = `<p>New university <strong>${escapeHtml(params.universityName)}</strong> (${escapeHtml(params.universityCode)}) MOU SPOC details:</p>
+<p><strong>MOU year:</strong> ${escapeHtml(params.mouYear ?? "—")}<br/>
+<strong>MOU tenure:</strong> ${escapeHtml(params.mouTenure ?? "—")}</p>
+<table style="border-collapse:collapse;font-size:14px"><thead><tr><th style="padding:6px 8px;border:1px solid #ddd">#</th><th style="padding:6px 8px;border:1px solid #ddd">Name</th><th style="padding:6px 8px;border:1px solid #ddd">Designation</th><th style="padding:6px 8px;border:1px solid #ddd">Mobile</th><th style="padding:6px 8px;border:1px solid #ddd">Email</th></tr></thead><tbody>${spocHtml}</tbody></table>`;
+
+  if (!host || !user || !pass) {
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[MOU SPOC notify dev] To: ${recipients.join(", ")}\n${text}`);
+    }
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  await transporter.sendMail({
+    from,
+    to: recipients.join(", "),
+    subject,
+    text,
+    html,
+  });
 }
 
 function escapeHtml(s: string): string {

@@ -1,10 +1,21 @@
 import { ScholarshipType } from "@prisma/client";
 
+export const SCHOLARSHIP_TYPE_OPTIONS: { value: ScholarshipType; label: string }[] = [
+  { value: ScholarshipType.MERIT_BASED, label: "Merit based" },
+  { value: ScholarshipType.MARKS_BASED, label: "Marks based" },
+  { value: ScholarshipType.CASTE_BASED, label: "Caste based" },
+  { value: ScholarshipType.SPORTS_QUOTA, label: "Sports quota" },
+  { value: ScholarshipType.OTHER, label: "Other" },
+];
+
+export const SCHOLARSHIP_TYPE_LABELS: Record<ScholarshipType, string> = Object.fromEntries(
+  SCHOLARSHIP_TYPE_OPTIONS.map((option) => [option.value, option.label]),
+) as Record<ScholarshipType, string>;
+
 export type ScholarshipEntry = {
   id: string;
-  type: ScholarshipType;
+  type: ScholarshipType | "";
   value: string;
-  criteria: string[];
 };
 
 export function createEmptyScholarshipEntry(): ScholarshipEntry {
@@ -13,42 +24,45 @@ export function createEmptyScholarshipEntry(): ScholarshipEntry {
       typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
         : `sch-${Date.now()}-${Math.random()}`,
-    type: ScholarshipType.PERCENTAGE,
+    type: "",
     value: "",
-    criteria: [""],
   };
+}
+
+function isScholarshipStarted(entry: ScholarshipEntry): boolean {
+  return entry.type !== "" || entry.value.trim().length > 0;
 }
 
 export function validateScholarshipEntries(entries: ScholarshipEntry[]): Record<string, string> {
   const errors: Record<string, string> = {};
-  const filled = entries.filter(
-    (e) => e.value.trim().length > 0 || e.criteria.some((c) => c.trim().length > 0),
-  );
 
-  for (const entry of filled) {
+  for (const entry of entries.filter(isScholarshipStarted)) {
+    if (!entry.type) {
+      errors[`scholarship-${entry.id}-type`] = "Select a scholarship type";
+    }
+
     const val = Number(entry.value.trim());
-    if (!Number.isFinite(val) || val <= 0) {
+    if (!entry.value.trim()) {
+      errors[`scholarship-${entry.id}-value`] = "Scholarship value is required";
+    } else if (!Number.isFinite(val) || val <= 0) {
       errors[`scholarship-${entry.id}-value`] = "Enter a valid scholarship value";
-      continue;
-    }
-    if (entry.type === ScholarshipType.PERCENTAGE && val > 100) {
-      errors[`scholarship-${entry.id}-value`] = "Percentage cannot exceed 100";
-    }
-    const criteria = entry.criteria.map((c) => c.trim()).filter(Boolean);
-    if (criteria.length === 0) {
-      errors[`scholarship-${entry.id}-criteria`] = "Add at least one eligibility criterion";
     }
   }
+
   return errors;
 }
 
 export function scholarshipsToPayload(entries: ScholarshipEntry[]) {
   return entries
-    .filter((e) => e.value.trim().length > 0)
+    .filter((e) => e.type !== "" && e.value.trim().length > 0)
     .map((e, sortOrder) => ({
-      type: e.type,
+      type: e.type as ScholarshipType,
       value: Number(e.value.trim()),
-      criteria: e.criteria.map((c) => c.trim()).filter(Boolean),
+      criteria: [] as string[],
       sortOrder,
     }));
+}
+
+export function formatScholarshipSummary(type: ScholarshipType, value: string): string {
+  return `${SCHOLARSHIP_TYPE_LABELS[type]} — ${value}`;
 }

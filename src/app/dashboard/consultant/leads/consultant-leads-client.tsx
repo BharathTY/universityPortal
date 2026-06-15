@@ -3,13 +3,25 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
+import { ConsultantAdmissionDetailsSection } from "@/app/dashboard/consultant/leads/consultant-admission-details-section";
+import {
+  ConsultantEntranceExamsSection,
+  ConsultantOtherEducationSection,
+  createEmptyEntranceExamRow,
+  createEmptyPriorDegreeValues,
+  type EntranceExamFormRow,
+  type PriorDegreeFormValues,
+} from "@/app/dashboard/consultant/leads/consultant-optional-education-sections";
+import {
+  ConsultantStudentFormFields,
+  createEmptyStudentFormValues,
+  type ConsultantStudentFormValues,
+} from "@/app/dashboard/consultant/leads/consultant-student-form-fields";
 import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
 import { ListQueryToolbar, SORT_LEADS } from "@/components/list-controls";
-import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
-import { QUALIFICATION_TYPES } from "@/lib/qualification-types";
 import type { SerializedConsultantLeadDetail } from "@/lib/consultant-lead-payload";
 
-type Stream = { id: string; name: string };
+type Stream = { id: string; name: string; programLevel?: "UG" | "PG" | null; degreeType?: string | null };
 type AcademicYearOption = { id: string; label: string };
 
 type UniversityOption = {
@@ -73,52 +85,120 @@ function mapApiFieldErrors(raw: unknown): Record<string, string> {
 }
 
 function validateLeadForm(input: {
-  firstName: string;
-  lastName: string;
-  email: string;
-  mobile: string;
+  form: ConsultantStudentFormValues;
+  priorDegree: PriorDegreeFormValues;
+  hasEntranceExams: boolean;
+  entranceExams: EntranceExamFormRow[];
   streamId: string;
   academicYearId: string;
-  admissionState: string;
-  nationality: string;
-  address: string;
-  hasPhoto: boolean;
+  programType: string;
+  admissionDegreeType: string;
   refEmail: string;
   refPhone: string;
   academicYearsCount: number;
   streamsCount: number;
-  extendedFields: boolean;
 }): Record<string, string> {
   const e: Record<string, string> = {};
-  if (!input.firstName.trim()) e.firstName = "First name is required";
-  if (!input.lastName.trim()) e.lastName = "Last name is required";
-  const em = input.email.trim();
+  const f = input.form;
+  if (!f.firstName.trim()) e.firstName = "First name is required";
+  if (!f.lastName.trim()) e.lastName = "Last name is required";
+  const em = f.email.trim();
   if (!em) e.email = "Email is required";
   else if (!looksLikeEmail(em)) e.email = "Enter a valid email address";
-  const mob = input.mobile.trim();
-  const digits = mob.replace(/\D/g, "");
+  const mob = f.mobile.trim();
+  const mobDigits = mob.replace(/\D/g, "");
   if (!mob) e.mobile = "Mobile is required";
-  else if (digits.length < 10 || digits.length > 15) e.mobile = "Enter a valid mobile number (10–15 digits)";
-  if (input.streamsCount === 0 || !input.streamId) e.streamId = "Select a degree type";
+  else if (mobDigits.length < 10 || mobDigits.length > 15) e.mobile = "Enter a valid mobile number (10–15 digits)";
+  if (!f.gender) e.gender = "Gender is required";
+  if (!f.dateOfBirth) e.dateOfBirth = "Date of birth is required";
+  if (!f.nationality.trim()) e.nationality = "Nationality is required";
+  if (!f.guardianName.trim()) e.guardianName = "Parent / guardian name is required";
+  const gMob = f.guardianMobile.replace(/\D/g, "");
+  if (!f.guardianMobile.trim()) e.guardianMobile = "Parent / guardian mobile is required";
+  else if (gMob.length < 10) e.guardianMobile = "Enter a valid mobile number";
+  if (!f.admissionState) e.admissionState = "Select state";
+  if (f.uidaiNumber.trim() && f.uidaiNumber.replace(/\D/g, "").length !== 12) {
+    e.uidaiNumber = "UIDAI number must be 12 digits";
+  }
+  if (!f.addressLine1.trim()) e.addressLine1 = "Address line 1 is required";
+  if (!f.city.trim()) e.city = "City is required";
+  if (!f.district.trim()) e.district = "District is required";
+  if (!f.state) e.state = "Select state";
+  if (!f.country.trim()) e.country = "Country is required";
+  if (!f.pincode.trim() || f.pincode.replace(/\D/g, "").length !== 6) e.pincode = "PIN code must be 6 digits";
+  if (!f.correspondenceAddress.trim()) e.correspondenceAddress = "Correspondence address is required";
+  if (!f.sslcSchool.trim()) e.sslcSchool = "School name is required";
+  if (!f.sslcBoard) e.sslcBoard = "Select board";
+  if (!f.sslcYear.trim()) e.sslcYear = "Year of passing is required";
+  if (!f.sslcResultType) e.sslcResultType = "Select result type";
+  if (!f.sslcPercent.trim()) e.sslcPercent = "Score is required";
+  else if (f.sslcResultType === "PERCENTAGE") {
+    const n = Number(f.sslcPercent);
+    if (!Number.isFinite(n) || n < 0 || n > 100) e.sslcPercent = "Percentage must be between 0 and 100";
+  } else if (f.sslcResultType === "CGPA") {
+    const n = Number(f.sslcPercent);
+    if (!Number.isFinite(n) || n < 0 || n > 10) e.sslcPercent = "CGPA must be between 0 and 10";
+  }
+  if (!f.qualificationType) e.qualificationType = "Select qualification";
+  if (!f.qualInstitution.trim()) e.qualInstitution = "Institution name is required";
+  if (!f.qualBoardUniversity.trim()) e.qualBoardUniversity = "Board / university name is required";
+  if (!f.qualYear.trim()) e.qualYear = "Year of passing is required";
+  if (!f.qualResultType) e.qualResultType = "Select result type";
+  if (!f.qualScore.trim()) e.qualScore = "Score is required";
+  else if (f.qualResultType === "PERCENTAGE") {
+    const n = Number(f.qualScore);
+    if (!Number.isFinite(n) || n < 0 || n > 100) e.qualScore = "Percentage must be between 0 and 100";
+  } else if (f.qualResultType === "CGPA") {
+    const n = Number(f.qualScore);
+    if (!Number.isFinite(n) || n < 0 || n > 10) e.qualScore = "CGPA must be between 0 and 10";
+  }
+  if (!input.programType) e.programType = "Select program type";
+  if (!input.admissionDegreeType) e.admissionDegreeType = "Select degree type";
+  if (input.streamsCount === 0 || !input.streamId) e.streamId = "Select a program name";
+  const pd = input.priorDegree;
+  if (pd.priorDegreeYear.trim()) {
+    const y = Number(pd.priorDegreeYear);
+    const maxYear = new Date().getFullYear();
+    if (!Number.isFinite(y) || y < 1980 || y > maxYear) {
+      e.priorDegreeYear = "Enter a valid year of passing";
+    }
+  }
+  if (pd.priorDegreeScore.trim() && pd.priorDegreeResultType === "PERCENTAGE") {
+    const n = Number(pd.priorDegreeScore);
+    if (!Number.isFinite(n) || n < 0 || n > 100) e.priorDegreeScore = "Percentage must be between 0 and 100";
+  } else if (pd.priorDegreeScore.trim() && pd.priorDegreeResultType === "CGPA") {
+    const n = Number(pd.priorDegreeScore);
+    if (!Number.isFinite(n) || n < 0 || n > 10) e.priorDegreeScore = "CGPA must be between 0 and 10";
+  }
+  if (input.hasEntranceExams) {
+    if (input.entranceExams.length === 0) {
+      e.entranceExams = "Add at least one entrance examination record";
+    } else {
+      input.entranceExams.forEach((exam, index) => {
+        if (!exam.examName.trim()) e[`entranceExams.${index}.examName`] = "Examination name is required";
+        if (!exam.centreName.trim()) e[`entranceExams.${index}.centreName`] = "Examination centre name is required";
+        if (!exam.scoreRank.trim()) e[`entranceExams.${index}.scoreRank`] = "Score / rank is required";
+        if (!exam.examYear.trim()) {
+          e[`entranceExams.${index}.examYear`] = "Year of examination is required";
+        } else {
+          const y = Number(exam.examYear);
+          const maxYear = new Date().getFullYear();
+          if (!Number.isFinite(y) || y < 1980 || y > maxYear) {
+            e[`entranceExams.${index}.examYear`] = "Enter a valid year of examination";
+          }
+        }
+      });
+    }
+  }
   if (input.academicYearsCount === 0) {
     e.academicYearId = "No academic year is configured for this university";
   } else if (!input.academicYearId) {
     e.academicYearId = "Select an academic year";
   }
-  if (!input.admissionState) e.admissionState = "Select state";
-  const nat = input.nationality.trim();
-  if (!nat) e.nationality = "Nationality is required";
-
-  if (input.extendedFields) {
-    if (!input.address.trim()) e.address = "Address is required";
-    if (!input.hasPhoto) e.photoFile = "Photo is required (JPG, JPEG, or PNG, max 2 MB)";
-  }
-
   const rE = input.refEmail.trim();
   if (rE && !looksLikeEmail(rE)) e.referralEmail = "Enter a valid email address";
   const rP = input.refPhone.trim();
   if (rP && rP.replace(/\D/g, "").length < 10) e.referralPhone = "Enter at least 10 digits for contact";
-
   return e;
 }
 
@@ -129,7 +209,7 @@ export function ConsultantLeadsClient(props: Props) {
   const isEdit = props.layoutMode === "edit";
   const isAddOnly = props.layoutMode === "addOnly";
   const useExtendedFields = isAddOnly || isEdit;
-  const hasUniversityPicker = (isAddOnly || isEdit) && universityOptions.length > 0;
+  const hasUniversityPicker = (isAddOnly || isEdit) && universityOptions.length > 1;
 
   const [selectedUniversityId, setSelectedUniversityId] = React.useState(
     props.initialUniversityId ?? props.universityId,
@@ -175,44 +255,55 @@ export function ConsultantLeadsClient(props: Props) {
   const [totalPages, setTotalPages] = React.useState(1);
   const [error, setError] = React.useState<string | null>(null);
 
-  const [fn, setFn] = React.useState("");
-  const [ln, setLn] = React.useState("");
-  const [email, setEmail] = React.useState("");
-  const [mobile, setMobile] = React.useState("");
-  const [nat, setNat] = React.useState("India");
-  const [streamId, setStreamId] = React.useState(props.streams[0]?.id ?? "");
-  const [academicYearId, setAcademicYearId] = React.useState(props.academicYears?.[0]?.id ?? "");
-  const [admissionState, setAdmissionState] = React.useState("");
+  const [studentForm, setStudentForm] = React.useState<ConsultantStudentFormValues>(createEmptyStudentFormValues);
+  const [priorDegree, setPriorDegree] = React.useState<PriorDegreeFormValues>(createEmptyPriorDegreeValues);
+  const [hasEntranceExams, setHasEntranceExams] = React.useState(false);
+  const [entranceExams, setEntranceExams] = React.useState<EntranceExamFormRow[]>([]);
+  const [streamId, setStreamId] = React.useState(props.initialLead?.streamId ?? "");
+  const [academicYearId, setAcademicYearId] = React.useState(
+    props.initialLead?.academicYearId ?? props.academicYears?.[0]?.id ?? "",
+  );
+  const [programType, setProgramType] = React.useState(props.initialLead?.programType ?? "");
+  const [admissionDegreeType, setAdmissionDegreeType] = React.useState(
+    props.initialLead?.admissionDegreeType ?? "",
+  );
   const [refFn, setRefFn] = React.useState("");
   const [refLn, setRefLn] = React.useState("");
   const [refPhone, setRefPhone] = React.useState("");
   const [refEmail, setRefEmail] = React.useState("");
-  const [address, setAddress] = React.useState("");
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
+  const [sslcMarksCardFile, setSslcMarksCardFile] = React.useState<File | null>(null);
+  const [qualMarksCardFile, setQualMarksCardFile] = React.useState<File | null>(null);
   const [existingPhotoUrl, setExistingPhotoUrl] = React.useState<string | null>(
     props.initialLead?.photoUrl ?? null,
   );
+  const [existingSslcMarksCardUrl, setExistingSslcMarksCardUrl] = React.useState<string | null>(
+    props.initialLead?.sslcMarksCardUrl ?? null,
+  );
+  const [existingQualMarksCardUrl, setExistingQualMarksCardUrl] = React.useState<string | null>(
+    props.initialLead?.qualMarksCardUrl ?? null,
+  );
   const [photoPreview, setPhotoPreview] = React.useState<string | null>(props.initialLead?.photoUrl ?? null);
-  const [sslcSchool, setSslcSchool] = React.useState("");
-  const [sslcBoard, setSslcBoard] = React.useState("");
-  const [sslcYear, setSslcYear] = React.useState("");
-  const [sslcPercent, setSslcPercent] = React.useState("");
-  const [qualificationType, setQualificationType] = React.useState("");
-  const [pucBoard, setPucBoard] = React.useState("");
-  const [pucYear, setPucYear] = React.useState("");
-  const [pucPercent, setPucPercent] = React.useState("");
-  const [gender, setGender] = React.useState("");
-  const [dateOfBirth, setDateOfBirth] = React.useState("");
-  const [pincode, setPincode] = React.useState("");
-  const [degreePercent, setDegreePercent] = React.useState("");
-  const [degreeCollege, setDegreeCollege] = React.useState("");
-  const [degreeName, setDegreeName] = React.useState("");
-  const [ieltsScore, setIeltsScore] = React.useState("");
-  const [toeflScore, setToeflScore] = React.useState("");
-  const [otherExamName, setOtherExamName] = React.useState("");
-  const [otherExamScore, setOtherExamScore] = React.useState("");
-  const [otherExamDetails, setOtherExamDetails] = React.useState("");
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
+
+  function updatePriorDegree<K extends keyof PriorDegreeFormValues>(key: K, value: PriorDegreeFormValues[K]) {
+    setPriorDegree((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updateStudentForm<K extends keyof ConsultantStudentFormValues>(
+    key: K,
+    value: ConsultantStudentFormValues[K],
+  ) {
+    setStudentForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function clearStudentFieldError(key: string) {
+    setFieldErrors((f) => {
+      const n = { ...f };
+      delete n[key];
+      return n;
+    });
+  }
 
   React.useEffect(() => {
     if (photoFile) {
@@ -227,39 +318,77 @@ export function ConsultantLeadsClient(props: Props) {
     if (!isEdit || !props.initialLead) return;
     const l = props.initialLead;
     setSelectedUniversityId(l.universityId);
-    setFn(l.firstName);
-    setLn(l.lastName);
-    setEmail(l.email);
-    setMobile(l.mobile);
-    setNat(l.nationality ?? "India");
     setStreamId(l.streamId);
     setAcademicYearId(l.academicYearId);
-    setAdmissionState(l.admissionState);
     setRefFn(l.referralFirstName ?? "");
     setRefLn(l.referralLastName ?? "");
     setRefPhone(l.referralPhone ?? "");
     setRefEmail(l.referralEmail ?? "");
-    setAddress(l.address);
     setExistingPhotoUrl(l.photoUrl);
-    setSslcSchool(l.sslcSchool ?? "");
-    setSslcBoard(l.sslcBoard ?? "");
-    setSslcYear(l.sslcYear != null ? String(l.sslcYear) : "");
-    setSslcPercent(l.sslcPercent);
-    setQualificationType(l.qualificationType ?? "");
-    setPucBoard(l.pucBoard ?? "");
-    setPucYear(l.pucYear != null ? String(l.pucYear) : "");
-    setPucPercent(l.pucPercent);
-    setGender(l.gender ?? "");
-    setDateOfBirth(l.dateOfBirth);
-    setPincode(l.pincode ?? "");
-    setDegreePercent(l.degreePercent);
-    setDegreeCollege(l.degreeCollege ?? "");
-    setDegreeName(l.degreeName ?? "");
-    setIeltsScore(l.ieltsScore ?? "");
-    setToeflScore(l.toeflScore ?? "");
-    setOtherExamName(l.otherExamName ?? "");
-    setOtherExamScore(l.otherExamScore ?? "");
-    setOtherExamDetails(l.otherExamDetails ?? "");
+    setExistingSslcMarksCardUrl(l.sslcMarksCardUrl);
+    setExistingQualMarksCardUrl(l.qualMarksCardUrl);
+    setProgramType(l.programType ?? "");
+    setAdmissionDegreeType(l.admissionDegreeType ?? "");
+    setPriorDegree({
+      priorDegreeType: l.priorDegreeType ?? "",
+      priorDegreeName: l.priorDegreeName ?? "",
+      priorDegreeStream: l.priorDegreeStream ?? "",
+      priorDegreeCollege: l.priorDegreeCollege ?? "",
+      priorDegreeUniversity: l.priorDegreeUniversity ?? "",
+      priorDegreeYear: l.priorDegreeYear != null ? String(l.priorDegreeYear) : "",
+      priorDegreeResultType: l.priorDegreeResultType ?? "",
+      priorDegreeScore: l.priorDegreeScore,
+    });
+    setHasEntranceExams(l.hasEntranceExams);
+    setEntranceExams(
+      l.entranceExams.length > 0
+        ? l.entranceExams.map((exam) => ({
+            clientId: exam.id ?? crypto.randomUUID(),
+            examName: exam.examName,
+            centreName: exam.centreName,
+            registrationNumber: exam.registrationNumber ?? "",
+            scoreRank: exam.scoreRank,
+            examYear: String(exam.examYear),
+          }))
+        : [],
+    );
+    setStudentForm({
+      studentTitle: l.studentTitle ?? "",
+      firstName: l.firstName,
+      lastName: l.lastName,
+      email: l.email,
+      mobile: l.mobile,
+      gender: l.gender ?? "",
+      dateOfBirth: l.dateOfBirth,
+      category: l.category ?? "",
+      caste: l.caste ?? "",
+      religion: l.religion ?? "",
+      nationality: l.nationality ?? "India",
+      guardianName: l.guardianName ?? "",
+      guardianMobile: l.guardianMobile ?? "",
+      uidaiNumber: l.uidaiNumber ?? "",
+      abcApaarId: l.abcApaarId ?? "",
+      admissionState: l.admissionState,
+      addressLine1: l.addressLine1,
+      addressLine2: l.addressLine2 ?? "",
+      city: l.city ?? "",
+      district: l.district ?? "",
+      state: l.state ?? "",
+      country: l.country ?? "India",
+      pincode: l.pincode ?? "",
+      correspondenceAddress: l.correspondenceAddress ?? "",
+      sslcSchool: l.sslcSchool ?? "",
+      sslcBoard: l.sslcBoard ?? "",
+      sslcYear: l.sslcYear != null ? String(l.sslcYear) : "",
+      sslcResultType: l.sslcResultType ?? "",
+      sslcPercent: l.sslcPercent,
+      qualificationType: l.qualificationType ?? "",
+      qualInstitution: l.qualInstitution ?? "",
+      qualBoardUniversity: l.qualBoardUniversity ?? "",
+      qualYear: l.qualYear != null ? String(l.qualYear) : "",
+      qualResultType: l.qualResultType ?? "",
+      qualScore: l.qualScore,
+    });
   }, [isEdit, props.initialLead]);
 
   function borderFor(key: string) {
@@ -302,8 +431,12 @@ export function ConsultantLeadsClient(props: Props) {
   }, [props.layoutMode, load]);
 
   React.useEffect(() => {
-    const first = activeStreams[0]?.id ?? "";
-    setStreamId((prev) => (activeStreams.some((s) => s.id === prev) ? prev : first));
+    setStreamId((prev) => (activeStreams.some((s) => s.id === prev) ? prev : ""));
+    setAdmissionDegreeType((prev) => {
+      if (!prev) return prev;
+      const stillValid = activeStreams.some((s) => s.degreeType?.trim() === prev);
+      return stillValid ? prev : "";
+    });
   }, [activeStreams]);
 
   React.useEffect(() => {
@@ -324,21 +457,18 @@ export function ConsultantLeadsClient(props: Props) {
     e.preventDefault();
     setError(null);
     const clientErr = validateLeadForm({
-      firstName: fn,
-      lastName: ln,
-      email,
-      mobile,
+      form: studentForm,
+      priorDegree,
+      hasEntranceExams,
+      entranceExams,
       streamId,
       academicYearId,
-      admissionState,
-      nationality: nat,
-      address,
-      hasPhoto: Boolean(photoFile) || Boolean(existingPhotoUrl),
+      programType,
+      admissionDegreeType,
       refEmail,
       refPhone,
       academicYearsCount: academicYears.length,
       streamsCount: activeStreams.length,
-      extendedFields: useExtendedFields,
     });
     if (Object.keys(clientErr).length > 0) {
       setFieldErrors(clientErr);
@@ -346,36 +476,66 @@ export function ConsultantLeadsClient(props: Props) {
     }
     setFieldErrors({});
 
+    const f = studentForm;
     const payload = {
       universityId: activeUniversityId,
       academicYearId: academicYearId || undefined,
-      firstName: fn.trim(),
-      lastName: ln.trim(),
-      email: email.trim(),
-      mobile: mobile.trim(),
-      nationality: nat.trim() || null,
       streamId,
-      admissionState,
-      address: address.trim(),
-      gender: gender || null,
-      dateOfBirth: dateOfBirth || null,
-      pincode: pincode.trim() || null,
-      sslcSchool: sslcSchool.trim() || null,
-      sslcBoard: sslcBoard.trim() || null,
-      sslcYear: sslcYear.trim() || null,
-      sslcPercent: sslcPercent.trim() || null,
-      qualificationType: qualificationType || null,
-      pucBoard: pucBoard.trim() || null,
-      pucYear: pucYear.trim() || null,
-      pucPercent: pucPercent.trim() || null,
-      degreePercent: degreePercent.trim() || null,
-      degreeCollege: degreeCollege.trim() || null,
-      degreeName: degreeName.trim() || null,
-      ieltsScore: ieltsScore.trim() || null,
-      toeflScore: toeflScore.trim() || null,
-      otherExamName: otherExamName.trim() || null,
-      otherExamScore: otherExamScore.trim() || null,
-      otherExamDetails: otherExamDetails.trim() || null,
+      programType,
+      admissionDegreeType,
+      studentTitle: f.studentTitle || null,
+      firstName: f.firstName.trim(),
+      lastName: f.lastName.trim(),
+      email: f.email.trim(),
+      mobile: f.mobile.trim(),
+      gender: f.gender,
+      dateOfBirth: f.dateOfBirth,
+      category: f.category || null,
+      caste: f.caste.trim() || null,
+      religion: f.religion.trim() || null,
+      nationality: f.nationality.trim(),
+      guardianName: f.guardianName.trim(),
+      guardianMobile: f.guardianMobile.trim(),
+      uidaiNumber: f.uidaiNumber.trim() || null,
+      abcApaarId: f.abcApaarId.trim() || null,
+      admissionState: f.admissionState,
+      addressLine1: f.addressLine1.trim(),
+      addressLine2: f.addressLine2.trim() || null,
+      city: f.city.trim(),
+      district: f.district.trim(),
+      state: f.state,
+      country: f.country.trim(),
+      pincode: f.pincode.trim(),
+      correspondenceAddress: f.correspondenceAddress.trim(),
+      sslcSchool: f.sslcSchool.trim(),
+      sslcBoard: f.sslcBoard,
+      sslcYear: f.sslcYear.trim(),
+      sslcResultType: f.sslcResultType,
+      sslcPercent: f.sslcPercent.trim(),
+      qualificationType: f.qualificationType,
+      qualInstitution: f.qualInstitution.trim(),
+      qualBoardUniversity: f.qualBoardUniversity.trim(),
+      qualYear: f.qualYear.trim(),
+      qualResultType: f.qualResultType,
+      qualScore: f.qualScore.trim(),
+      priorDegreeType: priorDegree.priorDegreeType.trim() || null,
+      priorDegreeName: priorDegree.priorDegreeName.trim() || null,
+      priorDegreeStream: priorDegree.priorDegreeStream.trim() || null,
+      priorDegreeCollege: priorDegree.priorDegreeCollege.trim() || null,
+      priorDegreeUniversity: priorDegree.priorDegreeUniversity.trim() || null,
+      priorDegreeYear: priorDegree.priorDegreeYear.trim() || null,
+      priorDegreeResultType: priorDegree.priorDegreeResultType || null,
+      priorDegreeScore: priorDegree.priorDegreeScore.trim() || null,
+      hasEntranceExams,
+      entranceExams: hasEntranceExams
+        ? entranceExams.map((exam) => ({
+            examName: exam.examName.trim(),
+            centreName: exam.centreName.trim(),
+            registrationNumber: exam.registrationNumber.trim() || null,
+            scoreRank: exam.scoreRank.trim(),
+            examYear: exam.examYear.trim(),
+          }))
+        : [],
       referralFirstName: refFn.trim() || null,
       referralLastName: refLn.trim() || null,
       referralPhone: refPhone.trim() || null,
@@ -383,11 +543,15 @@ export function ConsultantLeadsClient(props: Props) {
     };
 
     let body: BodyInit;
-    const useMultipart = useExtendedFields && Boolean(photoFile);
-    if (useMultipart && photoFile) {
+    const useMultipart =
+      useExtendedFields &&
+      (Boolean(photoFile) || Boolean(sslcMarksCardFile) || Boolean(qualMarksCardFile));
+    if (useMultipart) {
       const form = new FormData();
       form.set("payload", JSON.stringify(payload));
-      form.set("photoFile", photoFile);
+      if (photoFile) form.set("photoFile", photoFile);
+      if (sslcMarksCardFile) form.set("sslcMarksCardFile", sslcMarksCardFile);
+      if (qualMarksCardFile) form.set("qualMarksCardFile", qualMarksCardFile);
       body = form;
     } else {
       body = JSON.stringify(payload);
@@ -408,37 +572,30 @@ export function ConsultantLeadsClient(props: Props) {
     if (!res.ok) {
       const apiFe = mapApiFieldErrors(data.fieldErrors);
       if (Object.keys(apiFe).length > 0) setFieldErrors(apiFe);
-      setError(data.error ?? (isEdit ? "Could not update lead" : "Could not create lead"));
+      setError(data.error ?? (isEdit ? "Could not update student" : "Could not create student"));
       return;
     }
     if (isEdit) {
       router.push("/dashboard/consultant/leads");
       return;
     }
-    setFn("");
-    setLn("");
-    setEmail("");
-    setMobile("");
-    setNat("India");
-    setAdmissionState("");
+    setStudentForm(createEmptyStudentFormValues());
+    setPriorDegree(createEmptyPriorDegreeValues());
+    setHasEntranceExams(false);
+    setEntranceExams([]);
     setRefFn("");
     setRefLn("");
     setRefPhone("");
     setRefEmail("");
-    setAddress("");
     setPhotoFile(null);
+    setSslcMarksCardFile(null);
+    setQualMarksCardFile(null);
     setExistingPhotoUrl(null);
-    setPucBoard("");
-    setPucYear("");
-    setPucPercent("");
-    setGender("");
-    setDateOfBirth("");
-    setPincode("");
-    setDegreePercent("");
-    setDegreeCollege("");
-    setDegreeName("");
-    setIeltsScore("");
-    setToeflScore("");
+    setExistingSslcMarksCardUrl(null);
+    setExistingQualMarksCardUrl(null);
+    setProgramType("");
+    setAdmissionDegreeType("");
+    setStreamId("");
     setFieldErrors({});
     setAcademicYearId(academicYears[0]?.id ?? "");
     if (isAddOnly) {
@@ -478,507 +635,85 @@ export function ConsultantLeadsClient(props: Props) {
 
   const isHub = props.layoutMode === "hub";
 
+  const admissionUniversities = hasUniversityPicker
+    ? universityOptions.map(({ id, name, code }) => ({ id, name, code }))
+    : [{ id: activeUniversity.id, name: activeUniversity.name, code: activeUniversity.code }];
+
   const canSubmitLead =
     activeStreams.length > 0 &&
     Boolean(streamId) &&
+    Boolean(programType) &&
+    Boolean(admissionDegreeType) &&
     academicYears.length > 0 &&
-    Boolean(academicYearId) &&
-    (!useExtendedFields || (address.trim().length > 0 && (Boolean(photoFile) || Boolean(existingPhotoUrl))));
+    Boolean(academicYearId);
 
   const addLeadForm = (
     <form onSubmit={onCreate} className="mt-4 space-y-6" noValidate>
-      {hasUniversityPicker ? (
-        <div>
-          <label className="text-sm font-medium">University</label>
-          <select
-            value={selectedUniversityId}
-            onChange={(e) => {
-              setSelectedUniversityId(e.target.value);
-              setFieldErrors((f) => {
-                const n = { ...f };
-                delete n.universityId;
-                return n;
-              });
-            }}
-            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("universityId")}`}
-          >
-            {universityOptions.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} ({u.code})
-              </option>
-            ))}
-          </select>
-          {fieldErrors.universityId ? (
-            <p className="mt-1 text-xs text-red-600">{fieldErrors.universityId}</p>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="text-sm font-medium">First name</label>
-          <input
-            value={fn}
-            onChange={(e) => {
-              setFn(e.target.value);
-              setFieldErrors((f) => {
-                const n = { ...f };
-                delete n.firstName;
-                return n;
-              });
-            }}
-            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("firstName")}`}
-            aria-invalid={Boolean(fieldErrors.firstName)}
-          />
-          {fieldErrors.firstName ? <p className="mt-1 text-xs text-red-600">{fieldErrors.firstName}</p> : null}
-        </div>
-        <div>
-          <label className="text-sm font-medium">Last name</label>
-          <input
-            value={ln}
-            onChange={(e) => {
-              setLn(e.target.value);
-              setFieldErrors((f) => {
-                const n = { ...f };
-                delete n.lastName;
-                return n;
-              });
-            }}
-            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("lastName")}`}
-            aria-invalid={Boolean(fieldErrors.lastName)}
-          />
-          {fieldErrors.lastName ? <p className="mt-1 text-xs text-red-600">{fieldErrors.lastName}</p> : null}
-        </div>
-        <div>
-          <label className="text-sm font-medium">Email</label>
-          <input
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              setFieldErrors((f) => {
-                const n = { ...f };
-                delete n.email;
-                return n;
-              });
-            }}
-            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("email")}`}
-            aria-invalid={Boolean(fieldErrors.email)}
-          />
-          {fieldErrors.email ? <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p> : null}
-        </div>
-        <div>
-          <label className="text-sm font-medium">Mobile</label>
-          <input
-            type="tel"
-            autoComplete="tel"
-            inputMode="tel"
-            value={mobile}
-            onChange={(e) => {
-              setMobile(e.target.value);
-              setFieldErrors((f) => {
-                const n = { ...f };
-                delete n.mobile;
-                return n;
-              });
-            }}
-            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("mobile")}`}
-            aria-invalid={Boolean(fieldErrors.mobile)}
-          />
-          {fieldErrors.mobile ? <p className="mt-1 text-xs text-red-600">{fieldErrors.mobile}</p> : null}
-        </div>
-        <div>
-          <label className="text-sm font-medium">Degree Type</label>
-          <select
-            value={streamId}
-            onChange={(e) => {
-              setStreamId(e.target.value);
-              setFieldErrors((f) => {
-                const n = { ...f };
-                delete n.streamId;
-                return n;
-              });
-            }}
-            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("streamId")}`}
-            aria-invalid={Boolean(fieldErrors.streamId)}
-          >
-            {activeStreams.length === 0 ? <option value="">No programs configured</option> : null}
-            {activeStreams.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          {fieldErrors.streamId ? <p className="mt-1 text-xs text-red-600">{fieldErrors.streamId}</p> : null}
-        </div>
-        <div>
-          <label className="text-sm font-medium">Academic year</label>
-          <select
-            value={academicYearId}
-            onChange={(e) => {
-              setAcademicYearId(e.target.value);
-              setFieldErrors((f) => {
-                const n = { ...f };
-                delete n.academicYearId;
-                return n;
-              });
-            }}
-            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("academicYearId")}`}
-            aria-invalid={Boolean(fieldErrors.academicYearId)}
-          >
-            {academicYears.length === 0 ? <option value="">No years configured</option> : null}
-            {academicYears.map((y) => (
-              <option key={y.id} value={y.id}>
-                {y.label}
-              </option>
-            ))}
-          </select>
-          {fieldErrors.academicYearId ? <p className="mt-1 text-xs text-red-600">{fieldErrors.academicYearId}</p> : null}
-        </div>
-        <div>
-          <label className="text-sm font-medium">State</label>
-          <select
-            value={admissionState}
-            onChange={(e) => {
-              setAdmissionState(e.target.value);
-              setFieldErrors((f) => {
-                const n = { ...f };
-                delete n.admissionState;
-                return n;
-              });
-            }}
-            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("admissionState")}`}
-            aria-invalid={Boolean(fieldErrors.admissionState)}
-          >
-            <option value="" disabled>
-              Select state
-            </option>
-            {INDIAN_STATES_AND_UT.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-          {fieldErrors.admissionState ? <p className="mt-1 text-xs text-red-600">{fieldErrors.admissionState}</p> : null}
-        </div>
-        <div className="sm:col-span-2">
-          <label className="text-sm font-medium">Nationality</label>
-          <input
-            value={nat}
-            onChange={(e) => {
-              setNat(e.target.value);
-              setFieldErrors((f) => {
-                const n = { ...f };
-                delete n.nationality;
-                return n;
-              });
-            }}
-            placeholder="India"
-            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("nationality")}`}
-            aria-invalid={Boolean(fieldErrors.nationality)}
-          />
-          {fieldErrors.nationality ? <p className="mt-1 text-xs text-red-600">{fieldErrors.nationality}</p> : null}
-          <p className="mt-1 text-xs text-[var(--foreground-muted)]">Defaults to India; change if needed.</p>
-        </div>
-      </div>
-
       {useExtendedFields ? (
         <>
-          <div>
-            <label className="text-sm font-medium">Address *</label>
-            <textarea
-              value={address}
-              rows={3}
-              onChange={(e) => {
-                setAddress(e.target.value);
-                setFieldErrors((f) => {
-                  const n = { ...f };
-                  delete n.address;
-                  return n;
-                });
-              }}
-              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("address")}`}
-            />
-            {fieldErrors.address ? <p className="mt-1 text-xs text-red-600">{fieldErrors.address}</p> : null}
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">
-              {isEdit ? "Photo (upload to replace)" : "Photo upload *"} (JPG/JPEG/PNG, max 2 MB)
-            </label>
-            {isEdit && existingPhotoUrl && !photoFile ? (
-              <p className="mt-1 text-xs text-[var(--foreground-muted)]">Current photo is on file. Upload only if you want to replace it.</p>
-            ) : null}
-            <div className="mt-2 flex flex-wrap items-start gap-4">
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]">
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
-                </svg>
-                Choose photo
-                <input
-                  type="file"
-                  accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                  className="sr-only"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] ?? null;
-                    setPhotoFile(file);
-                    setFieldErrors((f) => {
-                      const n = { ...f };
-                      delete n.photoFile;
-                      return n;
-                    });
-                  }}
-                />
-              </label>
-              {photoPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={photoPreview}
-                  alt="Preview"
-                  className="h-24 w-24 rounded-lg border border-[var(--border)] object-cover"
-                />
-              ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-lg border border-dashed border-[var(--border)] bg-[var(--muted)]/30 text-xs text-[var(--foreground-muted)]">
-                  Preview
-                </div>
-              )}
-            </div>
-            {fieldErrors.photoFile ? <p className="mt-1 text-xs text-red-600">{fieldErrors.photoFile}</p> : null}
-          </div>
-
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/20 p-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
-              10th / SSLC details
-            </h3>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="sm:col-span-2">
-                <label className="text-sm font-medium">School name</label>
-                <input
-                  value={sslcSchool}
-                  onChange={(e) => setSslcSchool(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Board</label>
-                <input
-                  value={sslcBoard}
-                  onChange={(e) => setSslcBoard(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Year</label>
-                <input
-                  value={sslcYear}
-                  onChange={(e) => setSslcYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Percentage</label>
-                <input
-                  value={sslcPercent}
-                  onChange={(e) => setSslcPercent(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/20 p-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
-              Higher secondary / qualification
-            </h3>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className="text-sm font-medium">Qualification type</label>
-                <select
-                  value={qualificationType}
-                  onChange={(e) => setQualificationType(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                >
-                  <option value="">Select qualification</option>
-                  {QUALIFICATION_TYPES.map((q) => (
-                    <option key={q.value} value={q.value}>
-                      {q.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {qualificationType === "PUC" ? (
-                <>
-                  <div>
-                    <label className="text-sm font-medium">PUC board</label>
-                    <input
-                      value={pucBoard}
-                      onChange={(e) => setPucBoard(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">PUC year</label>
-                    <input
-                      value={pucYear}
-                      onChange={(e) => setPucYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">PUC %</label>
-                    <input
-                      value={pucPercent}
-                      onChange={(e) => setPucPercent(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                    />
-                  </div>
-                </>
-              ) : null}
-              {qualificationType === "DIPLOMA" ? (
-                <>
-                  <div>
-                    <label className="text-sm font-medium">Diploma name</label>
-                    <input
-                      value={degreeName}
-                      onChange={(e) => setDegreeName(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">College / institute</label>
-                    <input
-                      value={degreeCollege}
-                      onChange={(e) => setDegreeCollege(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Percentage</label>
-                    <input
-                      value={degreePercent}
-                      onChange={(e) => setDegreePercent(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                    />
-                  </div>
-                </>
-              ) : null}
-              {qualificationType === "ITI" ? (
-                <>
-                  <div>
-                    <label className="text-sm font-medium">Trade / course</label>
-                    <input
-                      value={otherExamName}
-                      onChange={(e) => setOtherExamName(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Institute</label>
-                    <input
-                      value={degreeCollege}
-                      onChange={(e) => setDegreeCollege(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Score / grade</label>
-                    <input
-                      value={otherExamScore}
-                      onChange={(e) => setOtherExamScore(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="text-sm font-medium">Additional details</label>
-                    <input
-                      value={otherExamDetails}
-                      onChange={(e) => setOtherExamDetails(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                    />
-                  </div>
-                </>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/20 p-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
-              Other (optional)
-            </h3>
-            <div className="mt-3 grid gap-4 sm:grid-cols-3">
-              <div>
-                <label className="text-sm font-medium">Gender</label>
-                <select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                >
-                  <option value="">Select</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium">DOB</label>
-                <input
-                  type="date"
-                  value={dateOfBirth}
-                  onChange={(e) => setDateOfBirth(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Pincode</label>
-                <input
-                  value={pincode}
-                  onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Percentage</label>
-                <input
-                  value={degreePercent}
-                  onChange={(e) => setDegreePercent(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">College name</label>
-                <input
-                  value={degreeCollege}
-                  onChange={(e) => setDegreeCollege(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Degree completed</label>
-                <input
-                  value={degreeName}
-                  onChange={(e) => setDegreeName(e.target.value)}
-                  placeholder="e.g. 12th"
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">IELTS</label>
-                <input
-                  value={ieltsScore}
-                  onChange={(e) => setIeltsScore(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">TOEFL</label>
-                <input
-                  value={toeflScore}
-                  onChange={(e) => setToeflScore(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-                />
-              </div>
-            </div>
-          </div>
+          <ConsultantAdmissionDetailsSection
+            universities={admissionUniversities}
+            selectedUniversityId={activeUniversityId}
+            onUniversityChange={(id) => {
+              setSelectedUniversityId(id);
+              setProgramType("");
+              setAdmissionDegreeType("");
+              setStreamId("");
+            }}
+            showUniversityPicker={hasUniversityPicker}
+            academicYears={academicYears}
+            academicYearId={academicYearId}
+            onAcademicYearChange={setAcademicYearId}
+            streams={activeStreams.map((s) => ({
+              id: s.id,
+              name: s.name,
+              programLevel: s.programLevel ?? null,
+              degreeType: s.degreeType ?? null,
+            }))}
+            programType={programType}
+            onProgramTypeChange={setProgramType}
+            admissionDegreeType={admissionDegreeType}
+            onAdmissionDegreeTypeChange={setAdmissionDegreeType}
+            streamId={streamId}
+            onStreamIdChange={setStreamId}
+            fieldErrors={fieldErrors}
+            borderFor={borderFor}
+            clearError={clearStudentFieldError}
+          />
+          <ConsultantStudentFormFields
+            values={studentForm}
+            onChange={updateStudentForm}
+            fieldErrors={fieldErrors}
+            borderFor={borderFor}
+            clearError={clearStudentFieldError}
+            isEdit={isEdit}
+            photoPreview={photoPreview}
+            existingPhotoUrl={existingPhotoUrl}
+            photoFile={photoFile}
+            onPhotoChange={setPhotoFile}
+            sslcMarksCardFile={sslcMarksCardFile}
+            existingSslcMarksCardUrl={existingSslcMarksCardUrl}
+            onSslcMarksCardChange={setSslcMarksCardFile}
+            qualMarksCardFile={qualMarksCardFile}
+            existingQualMarksCardUrl={existingQualMarksCardUrl}
+            onQualMarksCardChange={setQualMarksCardFile}
+          />
+          <ConsultantOtherEducationSection
+            values={priorDegree}
+            onChange={updatePriorDegree}
+            fieldErrors={fieldErrors}
+            borderFor={borderFor}
+            clearError={clearStudentFieldError}
+          />
+          <ConsultantEntranceExamsSection
+            hasEntranceExams={hasEntranceExams}
+            onHasEntranceExamsChange={setHasEntranceExams}
+            exams={entranceExams}
+            onExamsChange={setEntranceExams}
+            fieldErrors={fieldErrors}
+            borderFor={borderFor}
+            clearError={clearStudentFieldError}
+          />
         </>
       ) : null}
 
@@ -1049,7 +784,7 @@ export function ConsultantLeadsClient(props: Props) {
           disabled={!canSubmitLead || deleting}
           className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {isEdit ? "Save changes" : "Add lead"}
+          {isEdit ? "Save changes" : "Add student"}
         </button>
         {isEdit ? (
           <button
@@ -1078,14 +813,14 @@ export function ConsultantLeadsClient(props: Props) {
               Student leads
             </Link>
             <span className="mx-1.5">/</span>
-            <span className="font-medium text-[var(--foreground)]">{isEdit ? "Edit lead" : "Add lead"}</span>
+            <span className="font-medium text-[var(--foreground)]">{isEdit ? "Edit student" : "Add student"}</span>
           </nav>
-          <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">{isEdit ? "Edit lead" : "Add lead"}</h1>
+          <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">{isEdit ? "Edit student" : "Add student"}</h1>
           <p className="mt-1 text-sm text-[var(--foreground-muted)]">
             {hasUniversityPicker
               ? isEdit
-                ? "Update prospect details below."
-                : "Select a university and enter the prospect details below."
+                ? "Update student details below."
+                : "Select a university and enter student details below."
               : `${activeUniversity.name} (${activeUniversity.code})`}
           </p>
         </>

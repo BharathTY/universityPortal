@@ -76,6 +76,13 @@ export async function POST(req: Request) {
     );
   }
 
+  if (!appData.profileComplete) {
+    return NextResponse.json(
+      { error: "Complete and submit your student profile before making payment." },
+      { status: 409 },
+    );
+  }
+
   const remainingPaise = Math.round(paymentSummary.remainingDue * 100);
   if (remainingPaise <= 0) {
     return NextResponse.json({ error: "Application fee is already fully paid" }, { status: 409 });

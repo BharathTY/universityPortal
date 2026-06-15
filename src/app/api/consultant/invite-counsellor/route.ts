@@ -5,15 +5,13 @@ import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities
 import { resolveConsultantSpocRole } from "@/lib/consultant-spoc";
 import { sendCounsellorPortalInviteEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
-import { getPublicAppOrigin } from "@/lib/public-app-origin";
+import { buildAccountActivationUrl, generateInviteToken } from "@/lib/student-invite";
 import { isConsultantOnly, isCounsellorOnly } from "@/lib/roles";
-import { hashPassword } from "@/lib/password";
 
 const bodySchema = z.object({
   email: z.string().email().max(254),
   name: z.string().min(1).max(120).trim(),
   phone: z.string().min(5).max(32).trim(),
-  password: z.string().min(8).max(128),
   universityIds: z.array(z.string().min(1)).min(1).max(50),
 });
 
@@ -68,7 +66,7 @@ export async function POST(req: Request) {
     "Admission partner";
 
   const primaryUniversityId = parsed.data.universityIds[0]!;
-  const passwordHash = await hashPassword(parsed.data.password);
+  const inviteToken = generateInviteToken();
 
   await prisma.user.create({
     data: {
@@ -77,7 +75,7 @@ export async function POST(req: Request) {
       phone: parsed.data.phone,
       universityId: primaryUniversityId,
       reportsToConsultantId: session.sub,
-      passwordHash,
+      inviteToken,
       accountStatus: "ACTIVE",
       roles: {
         create: { roleId: spocRole.id },
@@ -88,14 +86,12 @@ export async function POST(req: Request) {
     },
   });
 
-  const loginUrl = `${getPublicAppOrigin()}/login`;
   try {
     await sendCounsellorPortalInviteEmail({
       to: email,
       name: parsed.data.name,
       email,
-      password: parsed.data.password,
-      loginUrl,
+      activationUrl: buildAccountActivationUrl(inviteToken),
       inviterName,
     });
   } catch (e) {

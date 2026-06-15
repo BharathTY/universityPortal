@@ -5,10 +5,9 @@ import { sendConsultantAccountCreatedEmail, sendCounsellorPortalInviteEmail } fr
 import { storeUpload } from "@/lib/file-storage";
 import { requireMasterApi } from "@/lib/master-session";
 import { validateGstNumber, validatePanNumber, normalizeGstNumber, normalizePanNumber } from "@/lib/indian-tax-ids";
-import { generateRandomPassword, hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { replaceConsultantUniversityAssignments } from "@/lib/consultant-universities";
-import { getPublicAppOrigin } from "@/lib/public-app-origin";
+import { buildAccountActivationUrl, generateInviteToken } from "@/lib/student-invite";
 import { ROLES } from "@/lib/roles";
 
 const consultantNameSchema = z
@@ -75,7 +74,6 @@ const spocItemSchema = z.object({
   name: consultantNameSchema,
   email: consultantEmailSchema,
   phone: consultantPhoneSchema,
-  password: z.union([z.string().min(8).max(128), z.literal("")]).optional(),
   whatsapp: optionalPhone10,
   designation: optionalText(120),
 });
@@ -84,7 +82,6 @@ const createSchema = z.object({
   name: consultantNameSchema,
   email: consultantEmailSchema,
   phone: consultantPhoneSchema,
-  password: z.union([z.string().min(8).max(128), z.literal("")]).optional(),
   universityIds: z.preprocess(
     (v) => (Array.isArray(v) ? v : []),
     z.array(z.string().min(1)).min(1, { message: "Please select at least one university" }),
@@ -229,9 +226,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const plainPassword =
-    parsed.data.password && parsed.data.password.length > 0 ? parsed.data.password : generateRandomPassword();
-  const passwordHash = await hashPassword(plainPassword);
+  const inviteToken = generateInviteToken();
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
@@ -277,7 +272,7 @@ export async function POST(req: Request) {
       email,
       name: parsed.data.name,
       phone: parsed.data.phone,
-      passwordHash,
+      inviteToken,
       accountStatus: "ACTIVE",
       universityId: universityIds[0] ?? null,
       branchName,
@@ -320,12 +315,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Consultant SPOC role is not configured. Run the database seed." }, { status: 500 });
   }
 
-  const spocCredentialMails: { to: string; name: string; email: string; password: string }[] = [];
+  const spocActivationMails: { to: string; name: string; email: string; activationUrl: string }[] = [];
   const spocUserIds: string[] = [];
 
   for (const spocInput of spocInputs) {
-    const spocPlainPassword =
-      spocInput.password && spocInput.password.length > 0 ? spocInput.password : generateRandomPassword();
+    const spocInviteToken = generateInviteToken();
     const spocUser = await prisma.user.create({
       data: {
         email: spocInput.email.toLowerCase(),
@@ -333,7 +327,7 @@ export async function POST(req: Request) {
         phone: spocInput.phone,
         whatsappNumber: spocInput.whatsapp?.trim() || null,
         designation: spocInput.designation ?? null,
-        passwordHash: await hashPassword(spocPlainPassword),
+        inviteToken: spocInviteToken,
         accountStatus: "ACTIVE",
         universityId: universityIds[0] ?? null,
         reportsToConsultantId: user.id,
@@ -346,11 +340,11 @@ export async function POST(req: Request) {
     if (universityIds.length > 0) {
       await replaceConsultantUniversityAssignments(spocUser.id, universityIds);
     }
-    spocCredentialMails.push({
+    spocActivationMails.push({
       to: spocInput.email.toLowerCase(),
       name: spocInput.name,
       email: spocInput.email.toLowerCase(),
-      password: spocPlainPassword,
+      activationUrl: buildAccountActivationUrl(spocInviteToken),
     });
   }
 
@@ -359,20 +353,19 @@ export async function POST(req: Request) {
       to: email,
       name: parsed.data.name,
       email,
-      password: plainPassword,
+      activationUrl: buildAccountActivationUrl(inviteToken),
     });
   } catch (e) {
     console.error("sendConsultantAccountCreatedEmail", e);
   }
 
-  for (const mail of spocCredentialMails) {
+  for (const mail of spocActivationMails) {
     try {
       await sendCounsellorPortalInviteEmail({
         to: mail.to,
         name: mail.name,
         email: mail.email,
-        password: mail.password,
-        loginUrl: `${getPublicAppOrigin()}/login`,
+        activationUrl: mail.activationUrl,
         inviterName: parsed.data.name,
       });
     } catch (e) {

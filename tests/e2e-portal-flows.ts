@@ -76,7 +76,7 @@ export async function runPortalFlowE2e(baseUrl: string): Promise<{ passed: numbe
     });
     assert.strictEqual(res.status, 200);
     const html = await res.text();
-    assertIncludes(html, "Add lead", "add lead form");
+    assertIncludes(html, "Add student", "add student form");
     assertIncludes(html, "Academic year", "academic year field");
   });
 

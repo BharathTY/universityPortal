@@ -1,3 +1,5 @@
+import { stripUniversityPhoneInput, validateUniversityPhone } from "@/lib/university-phone";
+
 export type UniversitySpocDraft = {
   id: string;
   name: string;
@@ -9,6 +11,17 @@ export type UniversitySpocDraft = {
 function looksLikeEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 }
+
+export const UNIVERSITY_SPOC_MESSAGES = {
+  required: "Add at least one SPOC",
+  nameRequired: "SPOC name is required",
+  designationRequired: "Designation is required",
+  mobileRequired: "Mobile number is required",
+  mobileLength: "Mobile number must be 10 digits",
+  emailRequired: "Email ID is required",
+  emailInvalid: "Enter a valid email ID",
+  emailDuplicate: "Each SPOC must have a unique email ID",
+} as const;
 
 export function createEmptyUniversitySpocDraft(): UniversitySpocDraft {
   return {
@@ -40,18 +53,29 @@ export function filledUniversitySpocRows(rows: UniversitySpocDraft[]): Universit
   return rows.filter(isUniversitySpocRowFilled);
 }
 
+export function completeUniversitySpocRows(rows: UniversitySpocDraft[]): UniversitySpocDraft[] {
+  return rows.filter(isUniversitySpocRowComplete);
+}
+
 export function universitySpocFieldKey(index: number, field: string, rowCount: number): string {
   if (rowCount === 1) return `spoc${field.charAt(0).toUpperCase()}${field.slice(1)}`;
   return `spocs.${index}${field.charAt(0).toUpperCase()}${field.slice(1)}`;
 }
 
+function spocMobileError(mobile: string): string | null {
+  const err = validateUniversityPhone(mobile);
+  if (!err) return null;
+  if (err.includes("10 digits")) return UNIVERSITY_SPOC_MESSAGES.mobileLength;
+  if (err.includes("required")) return UNIVERSITY_SPOC_MESSAGES.mobileRequired;
+  return err;
+}
+
 export function validateUniversitySpocRows(rows: UniversitySpocDraft[]): Record<string, string> {
   const e: Record<string, string> = {};
-  const rowsToValidate =
-    rows.length === 1 ? rows : rows.filter(isUniversitySpocRowFilled);
+  const rowsToValidate = rows.length === 1 ? rows : rows.filter(isUniversitySpocRowFilled);
 
   if (rowsToValidate.length === 0) {
-    e[universitySpocFieldKey(0, "name", rows.length)] = "Add at least one SPOC";
+    e[universitySpocFieldKey(0, "name", rows.length)] = UNIVERSITY_SPOC_MESSAGES.required;
     return e;
   }
 
@@ -62,22 +86,19 @@ export function validateUniversitySpocRows(rows: UniversitySpocDraft[]): Record<
     const rowIndex = rows.indexOf(row);
     const prefix = (field: string) => universitySpocFieldKey(rowIndex, field, rows.length);
 
-    const name = row.name.trim();
-    if (name.length === 0) e[prefix("name")] = "SPOC name is required";
+    if (row.name.trim().length === 0) e[prefix("name")] = UNIVERSITY_SPOC_MESSAGES.nameRequired;
+    if (row.designation.trim().length === 0) {
+      e[prefix("designation")] = UNIVERSITY_SPOC_MESSAGES.designationRequired;
+    }
 
-    const designation = row.designation.trim();
-    if (designation.length === 0) e[prefix("designation")] = "Designation is required";
-
-    const mobile = row.mobile.trim();
-    if (mobile.length === 0) e[prefix("mobile")] = "Mobile number is required";
-    else if (!/^\d+$/.test(mobile)) e[prefix("mobile")] = "Only numeric values are allowed";
-    else if (mobile.length !== 10) e[prefix("mobile")] = "Phone number must be 10 digits";
+    const mobileError = spocMobileError(row.mobile.trim());
+    if (mobileError) e[prefix("mobile")] = mobileError;
 
     const email = row.email.trim();
-    if (email.length === 0) e[prefix("email")] = "Email address is required";
-    else if (!looksLikeEmail(email)) e[prefix("email")] = "Enter a valid email address";
+    if (email.length === 0) e[prefix("email")] = UNIVERSITY_SPOC_MESSAGES.emailRequired;
+    else if (!looksLikeEmail(email)) e[prefix("email")] = UNIVERSITY_SPOC_MESSAGES.emailInvalid;
     else if (seenEmails.has(email.toLowerCase())) {
-      e[prefix("email")] = "Each SPOC must have a unique email";
+      e[prefix("email")] = UNIVERSITY_SPOC_MESSAGES.emailDuplicate;
     } else {
       seenEmails.add(email.toLowerCase());
     }
@@ -85,3 +106,5 @@ export function validateUniversitySpocRows(rows: UniversitySpocDraft[]): Record<
 
   return e;
 }
+
+export { stripUniversityPhoneInput };

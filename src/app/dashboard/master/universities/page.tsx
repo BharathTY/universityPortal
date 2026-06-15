@@ -1,8 +1,12 @@
-import Link from "next/link";
 import { AddUniversityButton } from "@/app/dashboard/master/universities/add-university-button";
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { ListQueryToolbar, SORT_UNIVERSITIES } from "@/components/list-controls";
+import {
+  UniversityEmailIconLink,
+  UniversityRowActionsMenu,
+} from "@/components/university-row-actions-menu";
+import { UniversityNameOpenSlider } from "@/components/university-view-slider";
 import { requireAuth } from "@/lib/auth";
 import {
   paginationMeta,
@@ -13,48 +17,19 @@ import {
   universityOrderBy,
   universityTextSearchWhere,
 } from "@/lib/list-query";
+import {
+  formatCreatedOn,
+  formatProgramStreamsSummary,
+  formatTargetCount,
+} from "@/lib/university-list-format";
 import { prisma } from "@/lib/prisma";
 import { isMaster } from "@/lib/roles";
-import { UniversityListViewModals } from "@/components/university-list-view-modals";
-import { UniversityRowActions } from "@/app/dashboard/master/universities/university-row-actions";
-import { universityHasDetailsSaved } from "@/lib/university-details-saved";
 
 export const dynamic = "force-dynamic";
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
-
-function formatDateTime(d: Date) {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
-}
-
-function formatUniversityType(raw: string | null | undefined): string {
-  if (!raw) return "—";
-  switch (raw) {
-    case "PRIVATE":
-      return "Private";
-    case "DEEMED":
-      return "Deemed";
-    case "STATE_GOVT":
-      return "State / Central Govt";
-    default:
-      return raw.replace(/_/g, " ");
-  }
-}
-
-function formatFee(value: { toString(): string } | null): string {
-  if (value === null) return "—";
-  const n = Number(value.toString());
-  if (Number.isNaN(n)) return value.toString();
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 export default async function MasterUniversitiesListPage(props: PageProps) {
   const session = await requireAuth();
@@ -80,7 +55,7 @@ export default async function MasterUniversitiesListPage(props: PageProps) {
   const where: Prisma.UniversityWhereInput =
     textWhere && filterWhere ? { AND: [textWhere, filterWhere] } : textWhere ?? filterWhere ?? {};
 
-  const [total, rows] = await Promise.all([
+  const [total, universities] = await Promise.all([
     prisma.university.count({ where }),
     prisma.university.findMany({
       where,
@@ -93,57 +68,24 @@ export default async function MasterUniversitiesListPage(props: PageProps) {
         code: true,
         email: true,
         phone: true,
-        state: true,
-        universityType: true,
-        logoUrl: true,
         status: true,
         createdAt: true,
+        targetStudents: true,
+        streams: {
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          select: {
+            name: true,
+            degreeType: true,
+            programLevel: true,
+            totalSeats: true,
+          },
+        },
         _count: { select: { applications: true } },
       },
     }),
   ]);
 
   const { page: safePage, totalPages } = paginationMeta(total, page, pageSize);
-
-  const ids = rows.map((r) => r.id);
-  const locationById: Record<string, string | null> = {};
-  const hostelFeesByUni: Record<string, { amount: unknown }[]> = {};
-  const streamsByUni: Record<string, { degreeType: string | null; streamFee: unknown }[]> = {};
-
-  if (ids.length > 0) {
-    const locRows = await prisma.$queryRaw<Array<{ id: string; location: string | null }>>(
-      Prisma.sql`SELECT id, location FROM "University" WHERE id IN (${Prisma.join(ids)})`
-    );
-    for (const row of locRows) {
-      locationById[row.id] = row.location;
-    }
-
-    const streamRows = await prisma.$queryRaw<
-      Array<{ universityId: string; degreeType: string | null; streamFee: unknown }>
-    >(
-      Prisma.sql`SELECT "universityId", "degreeType", "streamFee" FROM "Stream" WHERE "universityId" IN (${Prisma.join(ids)})`
-    );
-    for (const s of streamRows) {
-      if (!streamsByUni[s.universityId]) streamsByUni[s.universityId] = [];
-      streamsByUni[s.universityId].push({ degreeType: s.degreeType, streamFee: s.streamFee });
-    }
-
-    const hostelRows = await prisma.universityHostelFee.findMany({
-      where: { universityId: { in: ids } },
-      select: { universityId: true, amount: true },
-    });
-    for (const h of hostelRows) {
-      if (!hostelFeesByUni[h.universityId]) hostelFeesByUni[h.universityId] = [];
-      hostelFeesByUni[h.universityId].push({ amount: h.amount });
-    }
-  }
-
-  const universities = rows.map((u) => ({
-    ...u,
-    location: locationById[u.id] ?? null,
-    hostelFees: hostelFeesByUni[u.id] ?? [],
-    streams: streamsByUni[u.id] ?? [],
-  }));
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
@@ -153,12 +95,8 @@ export default async function MasterUniversitiesListPage(props: PageProps) {
           <AddUniversityButton />
         </div>
         <p className="mt-2 text-[var(--foreground-muted)]">
-          Create and manage university organisations. Configure academic years (YOP) from each row; programs and admissions live under{" "}
-          <strong className="text-[var(--foreground)]">Admissions</strong>.
-          <span className="block pt-1">
-            <strong className="text-[var(--foreground)]">Deactivate</strong> marks a university inactive (data is kept); use{" "}
-            <strong className="text-[var(--foreground)]">Activate</strong> on inactive rows to restore it.
-          </span>
+          Manage university organisations. Use the actions menu on each row to view SPOC details, edit the university,
+          change status, or open admissions.
         </p>
       </div>
 
@@ -179,26 +117,53 @@ export default async function MasterUniversitiesListPage(props: PageProps) {
         {q ? <input type="hidden" name="q" value={q} /> : null}
         {sort !== "latest" ? <input type="hidden" name="sort" value={sort} /> : null}
         <div>
-          <label htmlFor="filter-status" className="text-xs font-medium text-[var(--foreground-muted)]">Status</label>
-          <select id="filter-status" name="status" defaultValue={statusFilter ?? ""} className="mt-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm">
+          <label htmlFor="filter-status" className="text-xs font-medium text-[var(--foreground-muted)]">
+            Status
+          </label>
+          <select
+            id="filter-status"
+            name="status"
+            defaultValue={statusFilter ?? ""}
+            className="mt-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm"
+          >
             <option value="">All</option>
             <option value="ACTIVE">Active</option>
             <option value="INACTIVE">Inactive</option>
           </select>
         </div>
         <div>
-          <label htmlFor="filter-program" className="text-xs font-medium text-[var(--foreground-muted)]">Program type</label>
-          <select id="filter-program" name="program" defaultValue={programFilter ?? ""} className="mt-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm">
+          <label htmlFor="filter-program" className="text-xs font-medium text-[var(--foreground-muted)]">
+            Program type
+          </label>
+          <select
+            id="filter-program"
+            name="program"
+            defaultValue={programFilter ?? ""}
+            className="mt-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm"
+          >
             <option value="">All</option>
             <option value="UG">UG</option>
             <option value="PG">PG</option>
           </select>
         </div>
         <div>
-          <label htmlFor="filter-state" className="text-xs font-medium text-[var(--foreground-muted)]">State</label>
-          <input id="filter-state" name="state" defaultValue={stateFilter ?? ""} placeholder="State name" className="mt-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm" />
+          <label htmlFor="filter-state" className="text-xs font-medium text-[var(--foreground-muted)]">
+            State
+          </label>
+          <input
+            id="filter-state"
+            name="state"
+            defaultValue={stateFilter ?? ""}
+            placeholder="State name"
+            className="mt-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm"
+          />
         </div>
-        <button type="submit" className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-hover)]">Apply filters</button>
+        <button
+          type="submit"
+          className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-hover)]"
+        >
+          Apply filters
+        </button>
       </form>
 
       {universities.length === 0 ? (
@@ -207,99 +172,69 @@ export default async function MasterUniversitiesListPage(props: PageProps) {
         </p>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
-          <table className="w-full min-w-[1200px] text-left text-sm">
+          <table className="w-full min-w-[1100px] text-left text-sm">
             <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40">
               <tr>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">University name</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">State</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">University type</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Contact number</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Email</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Contact</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Logo</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Created on</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Status</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Program type and stream(s)</th>
+                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Target count</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Admissions</th>
                 <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {universities.map((u) => {
-                const detailsSaved = universityHasDetailsSaved(u);
-                return (
+              {universities.map((university) => (
                 <tr
-                  key={u.id}
+                  key={university.id}
                   className={`border-b border-[var(--border)] last:border-0 ${
-                    u.status === "INACTIVE" ? "bg-[var(--muted)]/30" : ""
+                    university.status === "INACTIVE" ? "bg-[var(--muted)]/30" : ""
                   }`}
                 >
                   <td className="px-3 py-3">
-                    <div className="font-medium text-[var(--foreground)]">{u.name}</div>
-                    <div className="font-mono text-xs text-[var(--foreground-muted)]">{u.code}</div>
+                    <UniversityNameOpenSlider
+                      universityId={university.id}
+                      name={university.name}
+                      code={university.code}
+                    />
                   </td>
-                  <td className="px-3 py-3">{u.state ?? "—"}</td>
-                  <td className="px-3 py-3">{formatUniversityType(u.universityType)}</td>
-                  <td className="max-w-[10rem] truncate px-3 py-3" title={u.email ?? ""}>
-                    {u.email ?? "—"}
-                  </td>
-                  <td className="px-3 py-3 tabular-nums">{u.phone ?? "—"}</td>
+                  <td className="px-3 py-3 tabular-nums">{university.phone ?? "—"}</td>
                   <td className="px-3 py-3">
-                    {u.logoUrl ? (
-                      /* eslint-disable-next-line @next/next/no-img-element -- arbitrary logo URLs */
-                      <img
-                        src={u.logoUrl}
-                        alt=""
-                        className="h-10 w-10 rounded-md border border-[var(--border)] object-contain"
-                      />
-                    ) : (
-                      <span className="text-[var(--foreground-muted)]">—</span>
-                    )}
+                    <UniversityEmailIconLink email={university.email} />
                   </td>
-                  <td className="px-3 py-3 tabular-nums text-[var(--foreground-muted)]">{formatDateTime(u.createdAt)}</td>
+                  <td className="px-3 py-3 tabular-nums text-[var(--foreground-muted)]">
+                    {formatCreatedOn(university.createdAt)}
+                  </td>
                   <td className="px-3 py-3">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        u.status === "ACTIVE"
+                        university.status === "ACTIVE"
                           ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
                           : "bg-[var(--muted)] text-[var(--foreground-muted)]"
                       }`}
                     >
-                      {u.status === "ACTIVE" ? "Active" : "Inactive"}
+                      {university.status === "ACTIVE" ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td className="px-3 py-3 tabular-nums">{u._count.applications}</td>
-                  <td className="px-3 py-3 align-top">
-                    <div className="flex max-w-[14rem] flex-col gap-1.5">
-                      <UniversityListViewModals universityId={u.id} universityName={u.name} />
-                      <Link
-                        href={`/dashboard/university/${u.id}/admissions/academic-years`}
-                        className="text-[var(--primary)] underline-offset-2 hover:underline"
-                      >
-                        Add YOP
-                      </Link>
-                      <Link
-                        href={`/dashboard/master/universities/${u.id}/details`}
-                        className="inline-flex w-fit items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--muted)]/40 px-2.5 py-1 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]"
-                      >
-                        {detailsSaved ? "View/Edit university details" : "Add university details"}
-                      </Link>
-                      <Link
-                        href={`/dashboard/master/universities/${u.id}/edit`}
-                        className="text-[var(--primary)] underline-offset-2 hover:underline"
-                      >
-                        Edit
-                      </Link>
-                      <UniversityRowActions universityId={u.id} name={u.name} status={u.status} />
-                      <Link
-                        href={`/dashboard/university/${u.id}/admissions`}
-                        className="text-[var(--primary)] underline-offset-2 hover:underline"
-                      >
-                        Admissions
-                      </Link>
-                    </div>
+                  <td className="max-w-[18rem] px-3 py-3 text-[var(--foreground-muted)]">
+                    {formatProgramStreamsSummary(university.streams)}
+                  </td>
+                  <td className="px-3 py-3 tabular-nums">
+                    {formatTargetCount(university.targetStudents, university.streams)}
+                  </td>
+                  <td className="px-3 py-3 tabular-nums">{university._count.applications}</td>
+                  <td className="px-3 py-3">
+                    <UniversityRowActionsMenu
+                      universityId={university.id}
+                      name={university.name}
+                      status={university.status}
+                    />
                   </td>
                 </tr>
-                );
-              })}
+              ))}
             </tbody>
           </table>
         </div>

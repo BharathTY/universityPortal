@@ -11,7 +11,6 @@ export type ConsultantSpocDraft = {
   phone: string;
   whatsapp: string;
   designation: string;
-  password: string;
 };
 
 export type ConsultantSpocSummary = {
@@ -30,7 +29,6 @@ export function createEmptyConsultantSpocDraft(): ConsultantSpocDraft {
     phone: "",
     whatsapp: "",
     designation: "",
-    password: "",
   };
 }
 

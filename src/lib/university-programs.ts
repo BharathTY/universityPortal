@@ -4,8 +4,8 @@ export const UNIVERSITY_PROGRAM_LEVEL_OPTIONS: {
   value: UniversityProgramLevel;
   label: string;
 }[] = [
-  { value: "UG", label: "UG (Undergraduate)" },
-  { value: "PG", label: "PG (Postgraduate)" },
+  { value: "UG", label: "UG (Degree)" },
+  { value: "PG", label: "PG (Masters)" },
 ];
 
 export const UNIVERSITY_PROGRAMS_BY_LEVEL: Record<UniversityProgramLevel, readonly string[]> = {

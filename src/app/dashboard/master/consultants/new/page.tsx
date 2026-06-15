@@ -14,7 +14,7 @@ export default async function NewConsultantPage() {
   const universities = await prisma.university.findMany({
     where: { status: "ACTIVE" },
     orderBy: { name: "asc" },
-    select: { id: true, name: true, code: true },
+    select: { id: true, name: true, code: true, state: true },
   });
 
   return (
@@ -27,8 +27,8 @@ export default async function NewConsultantPage() {
       </Link>
       <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Add consultant</h1>
       <p className="mt-2 text-sm text-[var(--foreground-muted)]">
-        Creates an admission partner account and emails account details (password auto or manual). Sign-in uses OTP; SMTP
-        optional (dev logs to console).
+        Creates an admission partner account and emails an activation link to the consultant and any SPOCs. Recipients
+        set their password via the link, then sign in with email and password. SMTP optional (dev logs to console).
       </p>
       <div className="mt-8">
         <NewConsultantForm universities={universities} />

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { AuthMarketingPanel } from "./AuthMarketingPanel";
-
+import { PORTAL_BRAND_NAME, PortalBrandLogo } from "@/components/portal-logo";
 type AuthPageShellProps = {
   children: ReactNode;
   /** Main heading under the brand (e.g. sign-in or verify step). */
@@ -29,9 +29,8 @@ export function AuthPageShell({
         className={`order-1 flex min-h-0 flex-col px-6 pb-10 pt-8 sm:px-10 sm:pt-10 lg:min-h-screen lg:px-14 lg:pb-12 ${formColumnClassName}`.trim()}
       >
         <div>
-          <p className="font-heading text-2xl font-bold tracking-tight text-[var(--primary)]">Eduversity</p>
+          <PortalBrandLogo variant="compact" />
         </div>
-
         <div className="flex flex-1 flex-col justify-center py-10 lg:py-12">
           <div className="mx-auto w-full max-w-md">
             {navSlot ? <div className="mb-4">{navSlot}</div> : null}
@@ -46,7 +45,7 @@ export function AuthPageShell({
         </div>
 
         <p className="mt-auto text-center text-xs text-slate-400 sm:text-left">
-          © {new Date().getFullYear()} Eduversity
+          © {new Date().getFullYear()} {PORTAL_BRAND_NAME}
         </p>
       </div>
 

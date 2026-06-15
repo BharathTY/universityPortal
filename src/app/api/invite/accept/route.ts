@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
+import { userNeedsPasswordOnActivation } from "@/lib/roles";
 
 const bodySchema = z.object({
   token: z.string().min(10),
@@ -26,10 +27,21 @@ export async function POST(req: Request) {
 
   const user = await prisma.user.findUnique({
     where: { inviteToken: token },
+    include: { roles: { include: { role: true } } },
   });
 
   if (!user) {
     return NextResponse.json({ error: "Invalid or expired invitation" }, { status: 400 });
+  }
+
+  const roleSlugs = user.roles.map((ur) => ur.role.slug);
+  const needsPassword = userNeedsPasswordOnActivation(roleSlugs);
+
+  if (needsPassword && (!password || password.length < 8)) {
+    return NextResponse.json(
+      { error: "Please choose a password (minimum 8 characters)." },
+      { status: 400 },
+    );
   }
 
   let passwordHash: string | undefined;

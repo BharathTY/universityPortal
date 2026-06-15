@@ -1,5 +1,6 @@
 import { AuthPageShell } from "@/components/auth/AuthPageShell";
 import { LoginForm } from "./login-form";
+import { PORTAL_BRAND_NAME } from "@/components/portal-logo";
 
 type Props = {
   searchParams: Promise<{ email?: string }>;
@@ -12,7 +13,7 @@ export default async function LoginPage({ searchParams }: Props) {
 
   return (
     <AuthPageShell
-      title="Sign in to Eduversity"
+      title={`Sign in to ${PORTAL_BRAND_NAME}`}
       subtitle={
         requireOtpLogin
           ? "Enter your work email. We'll send you a secure one-time code to continue."

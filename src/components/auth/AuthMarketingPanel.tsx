@@ -1,4 +1,6 @@
-/** Right-hand marketing panel — ZupFly-style navy hero with crimson/gold accents. */
+import { PortalBrandLogo } from "@/components/portal-logo";
+
+/** Right-hand marketing panel — navy hero with QSpiders Eduversity branding. */
 export function AuthMarketingPanel() {
   return (
     <div className="relative flex min-h-[min(100vh,22rem)] flex-col justify-center overflow-hidden bg-[#0f172a] px-8 py-14 font-sans sm:px-10 lg:min-h-screen lg:px-14 lg:py-16">
@@ -20,9 +22,7 @@ export function AuthMarketingPanel() {
       />
 
       <div className="relative z-10 mx-auto w-full max-w-lg">
-        <p className="text-sm font-semibold uppercase tracking-wider text-[#f5a623]">Backed by QSpiders</p>
-        <p className="mt-3 text-lg font-medium text-white/95">Welcome to</p>
-        <h2 className="mt-1 font-heading text-3xl font-bold leading-tight text-white sm:text-4xl">Eduversity</h2>
+        <PortalBrandLogo variant="hero" />
         <p className="mt-5 text-base leading-relaxed text-slate-300">
           Your master&apos;s degree abroad begins here — manage admissions, leads, and payments in one trusted platform.
         </p>

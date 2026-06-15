@@ -53,6 +53,13 @@ export async function POST(req: Request) {
     );
   }
 
+  if (!appData.profileComplete) {
+    return NextResponse.json(
+      { error: "Complete and submit your student profile before making payment." },
+      { status: 409 },
+    );
+  }
+
   if (parsed.data.amountRupees > appData.paymentSummary.remainingDue) {
     return NextResponse.json({ error: "Amount exceeds remaining application fee due" }, { status: 400 });
   }

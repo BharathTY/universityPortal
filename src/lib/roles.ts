@@ -134,3 +134,15 @@ export function formatRoleLabel(slug: string): string {
 export function formatTeamMemberRole(slug: string): string {
   return formatRoleLabel(slug);
 }
+
+/** Partner accounts must set a password when accepting an invite email link. */
+export function userNeedsPasswordOnActivation(roleSlugs: string[]): boolean {
+  return roleSlugs.some(
+    (slug) =>
+      slug === ROLES.consultant ||
+      slug === ROLES.consultantSpoc ||
+      slug === ROLES.counsellor ||
+      slug === ROLES.qspidersBranch ||
+      slug === ROLES.consultantMaster,
+  );
+}

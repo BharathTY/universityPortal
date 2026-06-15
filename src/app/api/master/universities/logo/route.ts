@@ -3,20 +3,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
 import { requireMasterApi } from "@/lib/master-session";
-
-/** Maximum 2 MB (matches product error copy). */
-const MAX_BYTES = 2 * 1024 * 1024;
-
-const ALLOWED = new Map<string, string>([
-  ["image/png", "png"],
-  ["image/jpeg", "jpg"],
-  ["image/jpg", "jpg"],
-  ["image/webp", "webp"],
-  ["image/svg+xml", "svg"],
-]);
-
-const TYPE_ERROR = "Only PNG, JPG, JPEG, SVG, or WEBP files are allowed";
-const SIZE_ERROR = "File size should not exceed 2 MB";
+import {
+  UNIVERSITY_LOGO_MIME_TO_EXT,
+  UNIVERSITY_LOGO_TYPE_ERROR,
+  validateUniversityLogoFile,
+} from "@/lib/university-logo";
 
 export async function POST(req: Request) {
   const gate = await requireMasterApi();
@@ -39,14 +30,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing file field" }, { status: 400 });
   }
 
-  if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: SIZE_ERROR }, { status: 400 });
+  const validationError = validateUniversityLogoFile(file);
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 });
   }
 
   const mime = file.type || "application/octet-stream";
-  const ext = ALLOWED.get(mime);
+  const ext = UNIVERSITY_LOGO_MIME_TO_EXT.get(mime);
   if (!ext) {
-    return NextResponse.json({ error: TYPE_ERROR }, { status: 400 });
+    return NextResponse.json({ error: UNIVERSITY_LOGO_TYPE_ERROR }, { status: 400 });
   }
 
   const buf = Buffer.from(await file.arrayBuffer());

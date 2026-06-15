@@ -66,7 +66,7 @@ export default async function ConsultantAddLeadPage({ searchParams }: PageProps)
 
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
 
-        select: { id: true, name: true },
+        select: { id: true, name: true, programLevel: true, degreeType: true },
 
       },
 

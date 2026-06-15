@@ -14,6 +14,7 @@ import {
   consultantLeadBodySchema,
   consultantLeadDetailSelect,
   parseConsultantLeadRequest,
+  replaceLeadEntranceExams,
 } from "@/lib/consultant-lead-payload";
 import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities";
 import { storeUpload } from "@/lib/file-storage";
@@ -95,10 +96,14 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   let json: unknown;
   let photoFile: File | null = null;
+  let sslcMarksCardFile: File | null = null;
+  let qualMarksCardFile: File | null = null;
   try {
     const parsedReq = await parseConsultantLeadRequest(req);
     json = parsedReq.data;
     photoFile = parsedReq.photoFile;
+    sslcMarksCardFile = parsedReq.sslcMarksCardFile;
+    qualMarksCardFile = parsedReq.qualMarksCardFile;
   } catch {
     return NextResponse.json({ error: "Invalid JSON or form data" }, { status: 400 });
   }
@@ -177,24 +182,54 @@ export async function PATCH(req: Request, ctx: Ctx) {
       const msg = e instanceof Error ? e.message : "Photo upload failed";
       return NextResponse.json({ error: msg, fieldErrors: { photoFile: [msg] } }, { status: 400 });
     }
-  } else if (!photoUrl) {
-    return NextResponse.json(
-      { error: "Photo is required", fieldErrors: { photoFile: ["Upload a JPG, JPEG, or PNG photo (max 2 MB)"] } },
-      { status: 400 },
-    );
+  }
+
+  let sslcMarksCardUrl = existing.sslcMarksCardUrl;
+  if (sslcMarksCardFile) {
+    try {
+      const stored = await storeUpload(sslcMarksCardFile, "leads/marks-cards", "mou", {
+        maxBytes: 5 * 1024 * 1024,
+      });
+      sslcMarksCardUrl = stored.fileUrl;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "10th marks card upload failed";
+      return NextResponse.json({ error: msg, fieldErrors: { sslcMarksCardFile: [msg] } }, { status: 400 });
+    }
+  }
+
+  let qualMarksCardUrl = existing.qualMarksCardUrl;
+  if (qualMarksCardFile) {
+    try {
+      const stored = await storeUpload(qualMarksCardFile, "leads/marks-cards", "mou", {
+        maxBytes: 5 * 1024 * 1024,
+      });
+      qualMarksCardUrl = stored.fileUrl;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Qualification marks card upload failed";
+      return NextResponse.json({ error: msg, fieldErrors: { qualMarksCardFile: [msg] } }, { status: 400 });
+    }
   }
 
   try {
-    const lead = await prisma.admissionLead.update({
-      where: { id },
-      data: {
-        universityId: targetUniversityId,
-        academicYearId: yearId,
-        streamId: parsed.data.streamId,
-        ...extended,
-        photoUrl,
-      },
-      select: consultantLeadDetailSelect,
+    const lead = await prisma.$transaction(async (tx) => {
+      await tx.admissionLead.update({
+        where: { id },
+        data: {
+          universityId: targetUniversityId,
+          academicYearId: yearId,
+          streamId: parsed.data.streamId,
+          ...extended,
+          photoUrl,
+          sslcMarksCardUrl,
+          qualMarksCardUrl,
+        },
+        select: consultantLeadDetailSelect,
+      });
+      await replaceLeadEntranceExams(tx, id, parsed.data.hasEntranceExams, parsed.data.entranceExams);
+      return tx.admissionLead.findUniqueOrThrow({
+        where: { id },
+        select: consultantLeadDetailSelect,
+      });
     });
     return NextResponse.json({ lead });
   } catch (e) {

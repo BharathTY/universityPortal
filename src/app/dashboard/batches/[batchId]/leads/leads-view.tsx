@@ -7,6 +7,7 @@ import QRCode from "qrcode";
 import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
 import { ListQueryToolbar, SORT_LEADS } from "@/components/list-controls";
 import type { BatchLeadListRow, BatchLeadsBulkConsultant } from "@/lib/batch-leads-view-model";
+import { PORTAL_BRAND_NAME } from "@/components/portal-logo";
 
 
 export type { BatchLeadListRow, BatchLeadsBulkConsultant };
@@ -105,7 +106,7 @@ export function LeadsView({
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="border-b border-[var(--border)] pb-4">
         <nav className="text-sm text-[var(--foreground-muted)]" aria-label="Breadcrumb">
-          <span className="text-[var(--foreground)]">University Portal</span>
+          <span className="text-[var(--foreground)]">{PORTAL_BRAND_NAME}</span>
           <span className="mx-1.5">/</span>
           <Link href="/dashboard/batches" className="hover:text-[var(--foreground)] hover:underline">
             Batches

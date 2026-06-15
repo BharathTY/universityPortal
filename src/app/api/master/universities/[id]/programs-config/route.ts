@@ -13,7 +13,7 @@ const scholarshipItemSchema = z.object({
   id: z.string().optional(),
   type: z.nativeEnum(ScholarshipType),
   value: z.coerce.number().positive().max(999_999_999),
-  criteria: z.array(z.string().trim().min(1).max(500)).min(1).max(20),
+  criteria: z.array(z.string().trim().min(1).max(500)).max(20).optional().default([]),
   sortOrder: z.coerce.number().int().nonnegative().optional(),
 });
 

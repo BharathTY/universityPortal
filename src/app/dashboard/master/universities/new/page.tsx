@@ -29,7 +29,7 @@ export default async function NewUniversityPage(props: PageProps) {
       <h1 className="mt-4 text-2xl font-bold text-[var(--foreground)]">Add university</h1>
       <p className="mt-2 text-sm text-[var(--foreground-muted)]">
         Step 1: select from the master catalog — name, address, and location auto-fill and are locked.
-        Step 2: SPOC, programmes, fees, hostel matrix, CET seats, and documents.
+        Step 2: SPOC, programmes, fees, hostel details, CET seats, and documents.
       </p>
       <div className="mt-8">
         <NewUniversityWizard initialMasterId={initialMasterId} />

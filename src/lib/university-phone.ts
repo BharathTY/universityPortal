@@ -1,7 +1,7 @@
 export const UNIVERSITY_PHONE_MESSAGES = {
   required: "University contact number is required",
   numeric: "Only numeric values are allowed",
-  length: "Phone number must be 10 digits",
+  length: "Contact number must be 10 digits",
 } as const;
 
 /** Returns an error message, or null when valid. */

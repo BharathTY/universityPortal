@@ -42,8 +42,11 @@ enum HostelSharing {
 }
 
 enum ScholarshipType {
-  PERCENTAGE
-  FIXED_AMOUNT
+  MERIT_BASED
+  MARKS_BASED
+  CASTE_BASED
+  SPORTS_QUOTA
+  OTHER
 }
 
 enum CetAllocationMode {
@@ -111,6 +114,12 @@ enum DocumentKind {
   STUDENT_PHOTO
 }
 
+enum MouTenure {
+  ONE_YEAR
+  TWO_YEARS
+  OTHER
+}
+
 /// Master list of 1,386+ Indian universities for onboarding search (§8).
 model MasterUniversity {
   id             String               @id @default(cuid())
@@ -122,7 +131,11 @@ model MasterUniversity {
   district       String
   address        String?
   city           String?
+  area           String?
   pincode        String?
+  phone          String?
+  email          String?
+  logoUrl        String?
   website        String?
   universityType MasterUniversityType @default(PRIVATE)
   priority       Boolean              @default(false)
@@ -131,6 +144,66 @@ model MasterUniversity {
   @@index([name])
   @@index([state])
   @@index([district])
+}
+
+/// Qualification types synced from QSpiders (webhook).
+model CatalogQualificationType {
+  id         String   @id @default(cuid())
+  externalId String   @unique
+  code       String   @unique
+  label      String
+  active     Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([active, sortOrder])
+}
+
+/// Degree types synced from QSpiders (webhook).
+model CatalogDegreeType {
+  id           String        @id @default(cuid())
+  externalId   String        @unique
+  code         String        @unique
+  label        String
+  programLevel ProgramLevel?
+  active       Boolean       @default(true)
+  sortOrder    Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([active, sortOrder])
+}
+
+/// Streams / specialisations synced from QSpiders (webhook).
+model CatalogStreamSpecialization {
+  id                   String   @id @default(cuid())
+  externalId           String   @unique
+  code                 String?
+  name                 String
+  degreeTypeExternalId String?
+  universityExternalId String?
+  active               Boolean  @default(true)
+  sortOrder            Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([active, sortOrder])
+  @@index([degreeTypeExternalId])
+  @@index([universityExternalId])
+}
+
+/// Idempotent log of inbound QSpiders webhook deliveries.
+model QSpidersWebhookEvent {
+  id          String    @id @default(cuid())
+  deliveryId  String    @unique
+  eventType   String
+  status      String
+  error       String?
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([eventType, receivedAt])
 }
 
 model University {
@@ -144,6 +217,7 @@ model University {
   state     String?
   district  String?
   city      String?
+  area      String?
   pincode   String?
   website   String?
   logoUrl   String?
@@ -157,6 +231,7 @@ model University {
   spocMobile         String?
   spocEmail          String?
   spocs              UniversitySpoc[]
+  mouSpocs           UniversityMouSpoc[]
   /// Programs offered flags.
   offersUg           Boolean              @default(false)
   offersPg           Boolean              @default(false)
@@ -173,6 +248,8 @@ model University {
   examFee            Decimal?             @db.Decimal(12, 2)
   otherAdminCharges  String?
   otherAdminAmount   Decimal?             @db.Decimal(12, 2)
+  mouYear            String?
+  mouTenure          MouTenure?
   mouFileUrl         String?
   eventPhotoUrls     String[]             @default([])
   status    UniversityStatus @default(ACTIVE)
@@ -192,6 +269,21 @@ model University {
 }
 
 model UniversitySpoc {
+  id           String     @id @default(cuid())
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  name         String
+  designation  String
+  mobile       String
+  email        String
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([universityId])
+}
+
+model UniversityMouSpoc {
   id           String     @id @default(cuid())
   universityId String
   university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
@@ -295,6 +387,8 @@ model Stream {
   university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
   name         String
   degreeType   String?
+  /// QSpiders catalog id when stream was synced via webhook.
+  externalId   String?  @unique
   programLevel ProgramLevel?
   durationYears Int?
   intakeMonth  String?
@@ -338,6 +432,26 @@ model AdmissionLead {
   pipelineStatus   LeadPipelineStatus  @default(NEW)
   nationality      String?
   specialization   String?
+  studentTitle     String?
+  category         String?
+  caste            String?
+  religion         String?
+  uidaiNumber      String?
+  abcApaarId       String?
+  addressLine1     String?
+  addressLine2     String?
+  city             String?
+  country          String?
+  correspondenceAddress String?
+  sslcResultType   String?
+  sslcMarksCardUrl String?
+  qualInstitution     String?
+  qualBoardUniversity String?
+  qualYear            Int?
+  qualResultType      String?
+  qualScore           Decimal?            @db.Decimal(5, 2)
+  qualMarksCardUrl    String?
+  admissionDegreeType String?
   referralFirstName String?
   referralLastName  String?
   referralPhone     String?
@@ -375,11 +489,16 @@ model AdmissionLead {
   degreeCollege     String?
   degreeUniversity  String?
   degreePercent     Decimal?            @db.Decimal(5, 2)
+  priorDegreeType       String?
+  priorDegreeYear       Int?
+  priorDegreeResultType String?
+  hasEntranceExams      Boolean           @default(false)
   ieltsScore        String?
   toeflScore        String?
   otherExamName     String?
   otherExamScore    String?
   otherExamDetails  String?
+  lastRazorpayOrderId String?
   createdByUserId  String?
   createdBy        User?               @relation("LeadCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   batchId          String?
@@ -391,6 +510,7 @@ model AdmissionLead {
   application Application?
   statusHistory AdmissionLeadStatusHistory[]
   payments      LeadPayment[]
+  entranceExams LeadEntranceExam[]
 
   @@index([universityId])
   @@index([academicYearId])
@@ -403,6 +523,21 @@ model AdmissionLead {
   @@index([mobile])
   @@index([admissionStatus])
   @@index([createdAt])
+}
+
+model LeadEntranceExam {
+  id                 String        @id @default(cuid())
+  leadId             String
+  lead               AdmissionLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  examName           String
+  centreName         String
+  registrationNumber String?
+  scoreRank          String
+  examYear           Int
+  sortOrder          Int           @default(0)
+  createdAt          DateTime      @default(now())
+
+  @@index([leadId])
 }
 
 model LeadPayment {

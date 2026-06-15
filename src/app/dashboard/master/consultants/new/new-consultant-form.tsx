@@ -12,7 +12,7 @@ import {
 import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
 import { normalizeGstNumber, normalizePanNumber, validateGstNumber, validatePanNumber } from "@/lib/indian-tax-ids";
 
-type Uni = { id: string; name: string; code: string };
+type Uni = { id: string; name: string; code: string; state: string | null };
 
 type Props = { universities: Uni[] };
 
@@ -41,7 +41,6 @@ function validateConsultantForm(input: {
   name: string;
   email: string;
   phone: string;
-  password: string;
   selectedCount: number;
   universitiesAvailable: number;
   academicYear: string;
@@ -65,10 +64,6 @@ function validateConsultantForm(input: {
   if (p.length === 0) e.phone = "Phone number is required";
   else if (!/^\d+$/.test(p)) e.phone = "Only numbers are allowed";
   else if (p.length !== 10) e.phone = "Phone number must be 10 digits";
-
-  if (input.password.trim().length > 0 && input.password.trim().length < 8) {
-    e.password = "Password must be at least 8 characters";
-  }
 
   if (input.universitiesAvailable > 0 && input.selectedCount < 1) {
     e.universityIds = "Please select at least one university";
@@ -129,10 +124,6 @@ function validateConsultantForm(input: {
         if (!/^\d+$/.test(sw)) e[prefix("whatsapp")] = "Only numbers are allowed";
         else if (sw.length !== 10) e[prefix("whatsapp")] = "WhatsApp number must be 10 digits";
       }
-
-      if (row.password.trim().length > 0 && row.password.trim().length < 8) {
-        e[prefix("password")] = "Password must be at least 8 characters";
-      }
     }
   }
 
@@ -147,7 +138,6 @@ export function NewConsultantForm({ universities }: Props) {
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
-  const [password, setPassword] = React.useState("");
   const [companyName, setCompanyName] = React.useState("");
   const [gstNumber, setGstNumber] = React.useState("");
   const [panNumber, setPanNumber] = React.useState("");
@@ -159,6 +149,7 @@ export function NewConsultantForm({ universities }: Props) {
   const [mouFile, setMouFile] = React.useState<File | null>(null);
   const [selectedUniIds, setSelectedUniIds] = React.useState<Set<string>>(new Set());
   const [uniSearch, setUniSearch] = React.useState("");
+  const [uniStateFilter, setUniStateFilter] = React.useState("");
   const [addSpoc, setAddSpoc] = React.useState(true);
   const [spocRows, setSpocRows] = React.useState<ConsultantSpocDraft[]>(() => [createEmptyConsultantSpocDraft()]);
   const yearOptions = React.useMemo(() => buildAcademicYearOptions(), []);
@@ -189,7 +180,6 @@ export function NewConsultantForm({ universities }: Props) {
       name,
       email,
       phone,
-      password,
       selectedCount: selectedUniIds.size,
       universitiesAvailable: universities.length,
       academicYear,
@@ -199,16 +189,26 @@ export function NewConsultantForm({ universities }: Props) {
       addSpoc,
       spocRows,
     }),
-    [name, email, phone, password, selectedUniIds.size, universities.length, academicYear, mouFile, gstNumber, panNumber, addSpoc, spocRows],
+    [name, email, phone, selectedUniIds.size, universities.length, academicYear, mouFile, gstNumber, panNumber, addSpoc, spocRows],
   );
+
+  const universityStates = React.useMemo(() => {
+    const states = new Set<string>();
+    for (const u of universities) {
+      if (u.state?.trim()) states.add(u.state.trim());
+    }
+    return [...states].sort((a, b) => a.localeCompare(b));
+  }, [universities]);
 
   const filteredUniversities = React.useMemo(() => {
     const term = uniSearch.trim().toLowerCase();
-    if (!term) return universities;
-    return universities.filter(
-      (u) => u.name.toLowerCase().includes(term) || u.code.toLowerCase().includes(term),
-    );
-  }, [universities, uniSearch]);
+    const stateFilter = uniStateFilter.trim();
+    return universities.filter((u) => {
+      if (stateFilter && (u.state?.trim() ?? "") !== stateFilter) return false;
+      if (!term) return true;
+      return u.name.toLowerCase().includes(term) || u.code.toLowerCase().includes(term);
+    });
+  }, [universities, uniSearch, uniStateFilter]);
 
   const formValid = React.useMemo(
     () => Object.keys(validateConsultantForm(formSnapshot)).length === 0,
@@ -234,7 +234,11 @@ export function NewConsultantForm({ universities }: Props) {
   }
 
   function selectAllUniversities() {
-    setSelectedUniIds(new Set(universities.map((u) => u.id)));
+    setSelectedUniIds((prev) => {
+      const next = new Set(prev);
+      for (const u of filteredUniversities) next.add(u.id);
+      return next;
+    });
     setFieldErrors((f) => {
       const n = { ...f };
       delete n.universityIds;
@@ -266,7 +270,6 @@ export function NewConsultantForm({ universities }: Props) {
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
-        password: password.trim() || undefined,
         universityIds: [...selectedUniIds],
         companyName: companyName.trim() || undefined,
         gstNumber: normalizeGstNumber(gstNumber) || undefined,
@@ -283,7 +286,6 @@ export function NewConsultantForm({ universities }: Props) {
               phone: row.phone.trim(),
               whatsapp: row.whatsapp.trim() || undefined,
               designation: row.designation.trim() || undefined,
-              password: row.password.trim() || undefined,
             }))
           : undefined,
       };
@@ -400,7 +402,7 @@ export function NewConsultantForm({ universities }: Props) {
           </label>
         </div>
         <p className="mt-1 text-xs text-[var(--foreground-muted)]">
-          Sub-user who can manage leads on the same assigned universities. Login details are emailed separately.
+          Sub-user who can manage leads on the same assigned universities. An activation link is emailed separately.
         </p>
         {addSpoc ? (
           <div className="mt-4 space-y-4">
@@ -504,24 +506,6 @@ export function NewConsultantForm({ universities }: Props) {
                       </p>
                     ) : null}
                   </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-[var(--foreground)]">Password</label>
-                    <input
-                      type="password"
-                      value={row.password}
-                      onChange={(e) => {
-                        updateSpocRow(row.id, { password: e.target.value });
-                        clearSpocFieldError(index, "password");
-                      }}
-                      placeholder="Leave blank to auto-generate"
-                      className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor(spocFieldKey(index, "password", spocRows.length))}`}
-                    />
-                    {fieldErrors[spocFieldKey(index, "password", spocRows.length)] ? (
-                      <p className="mt-1 text-xs text-red-600">
-                        {fieldErrors[spocFieldKey(index, "password", spocRows.length)]}
-                      </p>
-                    ) : null}
-                  </div>
                 </div>
               </div>
             ))}
@@ -548,7 +532,9 @@ export function NewConsultantForm({ universities }: Props) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[var(--foreground)]">GST number</label>
+            <label className="block text-sm font-medium text-[var(--foreground)]">
+              GST number <span className="font-normal text-[var(--foreground-muted)]">(optional)</span>
+            </label>
             <input
               value={gstNumber}
               onChange={(e) => {
@@ -674,11 +660,24 @@ export function NewConsultantForm({ universities }: Props) {
           Select one, several, or all. Partners with multiple assignments can switch the active university in their hub.
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
+          <select
+            value={uniStateFilter}
+            onChange={(e) => setUniStateFilter(e.target.value)}
+            className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-sm"
+            aria-label="Filter universities by state"
+          >
+            <option value="">All states</option>
+            {universityStates.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
           <input
             type="search"
             value={uniSearch}
             onChange={(e) => setUniSearch(e.target.value)}
-            placeholder="Search universities by name or code…"
+            placeholder="Search by name or code…"
             className="min-w-[12rem] flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-sm"
           />
           <button
@@ -706,7 +705,7 @@ export function NewConsultantForm({ universities }: Props) {
           {universities.length === 0 ? (
             <li className="text-sm text-[var(--foreground-muted)]">No universities available.</li>
           ) : filteredUniversities.length === 0 ? (
-            <li className="text-sm text-[var(--foreground-muted)]">No universities match your search.</li>
+            <li className="text-sm text-[var(--foreground-muted)]">No universities match your filters.</li>
           ) : (
             filteredUniversities.map((u) => (
               <li key={u.id}>
@@ -719,7 +718,10 @@ export function NewConsultantForm({ universities }: Props) {
                   />
                   <span>
                     {u.name}{" "}
-                    <span className="text-xs text-[var(--foreground-muted)]">({u.code})</span>
+                    <span className="text-xs text-[var(--foreground-muted)]">
+                      ({u.code}
+                      {u.state ? ` · ${u.state}` : ""})
+                    </span>
                   </span>
                 </label>
               </li>
@@ -732,33 +734,13 @@ export function NewConsultantForm({ universities }: Props) {
           </p>
         ) : null}
       </div>
-      <div>
-        <label className="block text-sm font-medium text-[var(--foreground)]">Password</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => {
-            setPassword(e.target.value);
-            setFieldErrors((f) => {
-              const n = { ...f };
-              delete n.password;
-              return n;
-            });
-          }}
-          placeholder="Leave blank to auto-generate"
-          className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[var(--foreground)] ${borderFor("password")}`}
-          aria-invalid={Boolean(fieldErrors.password)}
-        />
-        <p className="mt-1 text-xs text-[var(--foreground-muted)]">Minimum 8 characters if set manually.</p>
-        {fieldErrors.password ? <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p> : null}
-      </div>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       <button
         type="submit"
         disabled={busy || !formValid}
         className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-blue-hover)] disabled:opacity-50"
       >
-        {busy ? "Sending…" : "Send email & create"}
+        {busy ? "Sending…" : "Send activation email & create"}
       </button>
     </form>
   );

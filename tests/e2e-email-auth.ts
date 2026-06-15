@@ -504,6 +504,10 @@ async function main() {
       const portal = await runPortalFlowE2e(baseUrl);
       http.passed += portal.passed;
       http.failed += portal.failed;
+      const { runConsultantStudentPrefillE2e } = await import("./e2e-consultant-student-prefill");
+      const prefill = await runConsultantStudentPrefillE2e(baseUrl);
+      http.passed += prefill.passed;
+      http.failed += prefill.failed;
     } else {
       console.log(`\nHTTP E2E skipped — ${baseUrl}/login returned ${probe.status}`);
     }

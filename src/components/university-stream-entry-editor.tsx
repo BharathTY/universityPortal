@@ -1,33 +1,25 @@
 "use client";
 
 import * as React from "react";
-import { HostelGender, HostelRoomType, HostelSharing } from "@prisma/client";
-import type { HostelFeesForm, StreamEntry } from "@/lib/stream-entry-payload";
+import type { StreamEntry } from "@/lib/stream-entry-payload";
 import { createEmptyStreamEntry } from "@/lib/stream-entry-payload";
+import type { ProgramCatalogSnapshot } from "@/lib/qspiders-program-catalog";
 import {
-  comboForSelection,
-  HOSTEL_FEE_COMBOS,
-  type HostelFeeKey,
-  type HostelSelection,
-} from "@/lib/hostel-fee-matrix";
-import {
-  isValidProgramForLevel,
-  programsForLevel,
-  UNIVERSITY_PROGRAM_LEVEL_OPTIONS,
-  type UniversityProgramLevel,
-} from "@/lib/university-programs";
+  degreeTypesForQualification,
+  getFallbackProgramCatalog,
+  streamsForDegreeType,
+} from "@/lib/qspiders-program-catalog";
+import type { UniversityProgramLevel } from "@/lib/university-programs";
 
 type UniversityStreamEntryEditorProps = {
   entries: StreamEntry[];
   onChange: (entries: StreamEntry[]) => void;
-  hostelFees: HostelFeesForm;
-  onHostelChange: (fees: HostelFeesForm) => void;
+  catalog: ProgramCatalogSnapshot | null;
+  catalogLoading?: boolean;
   targetStudentsUg: string;
   targetStudentsPg: string;
   onTargetStudentsUgChange: (value: string) => void;
   onTargetStudentsPgChange: (value: string) => void;
-  foodFee: string;
-  onFoodFeeChange: (value: string) => void;
   disabled?: boolean;
   fieldErrors?: Record<string, string>;
 };
@@ -42,35 +34,33 @@ function patchEntry(entries: StreamEntry[], id: string, patch: Partial<StreamEnt
   return entries.map((e) => (e.id === id ? { ...e, ...patch } : e));
 }
 
+function selectClass(hasError: boolean) {
+  return `mt-0.5 w-full rounded-md border bg-[var(--background)] px-2 py-1.5 text-sm ${
+    hasError ? "border-red-500" : "border-[var(--border)]"
+  }`;
+}
+
 export function UniversityStreamEntryEditor({
   entries,
   onChange,
-  hostelFees,
-  onHostelChange,
+  catalog,
+  catalogLoading,
   targetStudentsUg,
   targetStudentsPg,
   onTargetStudentsUgChange,
   onTargetStudentsPgChange,
-  foodFee,
-  onFoodFeeChange,
   disabled,
   fieldErrors = {},
 }: UniversityStreamEntryEditorProps) {
-  const [hostelOpen, setHostelOpen] = React.useState(false);
-  const [hostelSelection, setHostelSelection] = React.useState<HostelSelection>({
-    gender: HostelGender.GIRLS,
-    roomType: HostelRoomType.AC,
-    sharing: HostelSharing.SINGLE,
-  });
-
-  const activeHostelCombo = comboForSelection(hostelSelection);
-  const activeHostelKey = activeHostelCombo?.key;
+  const effectiveCatalog = catalog ?? getFallbackProgramCatalog();
+  const qualificationTypes = effectiveCatalog.qualificationTypes;
+  const catalogSource = catalog?.source ?? "fallback";
 
   function updateEntry(id: string, patch: Partial<StreamEntry>) {
     onChange(patchEntry(entries, id, patch));
   }
 
-  function updateProgramLevel(id: string, programLevel: UniversityProgramLevel) {
+  function updateQualificationType(id: string, programLevel: UniversityProgramLevel) {
     onChange(
       patchEntry(entries, id, {
         programLevel,
@@ -80,8 +70,8 @@ export function UniversityStreamEntryEditor({
     );
   }
 
-  function updateProgramName(id: string, programName: string) {
-    onChange(patchEntry(entries, id, { programName }));
+  function updateDegreeType(id: string, programName: string) {
+    onChange(patchEntry(entries, id, { programName, streamName: "" }));
   }
 
   function removeEntry(id: string) {
@@ -96,19 +86,27 @@ export function UniversityStreamEntryEditor({
     onChange([...entries, createEmptyStreamEntry()]);
   }
 
-  function setHostelField(key: HostelFeeKey, value: string) {
-    onHostelChange({ ...hostelFees, [key]: value });
-  }
-
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-[var(--foreground)]">UG &amp; PG streams</h2>
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">Program details</h2>
           <p className="mt-1 text-sm text-[var(--foreground-muted)]">
-            Select program category and program, then enter each stream. Add multiple entries — e.g. Computer
-            Science, Information Science, Finance, Marketing.
+            Select qualification type, degree type, and stream for each program. Add multiple programs as
+            add-ons — e.g. Computer Science, Information Science, Artificial Intelligence.
           </p>
+          {catalogLoading ? (
+            <p className="mt-1 text-xs text-[var(--foreground-muted)]">Loading program catalog…</p>
+          ) : (
+            <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+              Catalog source:{" "}
+              {catalogSource === "external"
+                ? "QSpiders API"
+                : catalogSource === "database"
+                  ? "Synced catalog"
+                  : "Default placeholders until QSpiders API is configured"}
+            </p>
+          )}
         </div>
         <button
           type="button"
@@ -116,11 +114,11 @@ export function UniversityStreamEntryEditor({
           disabled={disabled}
           className="shrink-0 text-sm font-medium text-[var(--primary)] hover:underline disabled:opacity-50"
         >
-          + Add stream
+          + Add program
         </button>
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-3">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div>
           <label className="block text-xs font-medium text-[var(--foreground-muted)]">Target students (UG)</label>
           <input
@@ -143,318 +141,339 @@ export function UniversityStreamEntryEditor({
             className="mt-0.5 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm tabular-nums"
           />
         </div>
-        <div>
-          <label className="block text-xs font-medium text-[var(--foreground-muted)]">Food fee</label>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={foodFee}
-            onChange={(e) => onFoodFeeChange(e.target.value.replace(/[^\d.]/g, ""))}
-            disabled={disabled}
-            className="mt-0.5 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm tabular-nums"
-          />
-        </div>
       </div>
 
       <div className="mt-4 space-y-3">
-        {entries.map((entry, index) => (
-          <article
-            key={entry.id}
-            className="rounded-lg border border-[var(--border)] bg-[var(--background)]/40 p-3 shadow-sm"
-          >
-            <div className="flex flex-wrap items-end gap-3">
-              <span className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
-                Stream {index + 1}
-              </span>
-              <div className="min-w-[11rem]">
-                <label className="block text-xs font-medium text-[var(--foreground-muted)]">Program category</label>
-                <select
-                  value={entry.programLevel}
-                  onChange={(e) => updateProgramLevel(entry.id, e.target.value as UniversityProgramLevel)}
-                  disabled={disabled}
-                  className="mt-0.5 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm font-medium"
-                >
-                  {UNIVERSITY_PROGRAM_LEVEL_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="min-w-[9rem]">
-                <label className="block text-xs font-medium text-[var(--foreground-muted)]">Program</label>
-                <select
-                  value={isValidProgramForLevel(entry.programLevel, entry.programName) ? entry.programName : ""}
-                  onChange={(e) => updateProgramName(entry.id, e.target.value)}
-                  disabled={disabled}
-                  aria-invalid={Boolean(fieldErrors[`stream-${entry.id}-program`])}
-                  className={`mt-0.5 w-full rounded-md border bg-[var(--background)] px-2 py-1.5 text-sm ${
-                    fieldErrors[`stream-${entry.id}-program`] ? "border-red-500" : "border-[var(--border)]"
-                  }`}
-                >
-                  <option value="">Select program</option>
-                  {programsForLevel(entry.programLevel).map((program) => (
-                    <option key={program} value={program}>
-                      {program}
-                    </option>
-                  ))}
-                </select>
-                {fieldErrors[`stream-${entry.id}-program`] ? (
-                  <p className="mt-0.5 text-xs text-red-600">{fieldErrors[`stream-${entry.id}-program`]}</p>
-                ) : null}
-              </div>
-              <div className="min-w-[12rem] flex-1">
-                <label className="block text-xs font-medium text-[var(--foreground-muted)]">Stream</label>
-                <input
-                  value={entry.streamName}
-                  onChange={(e) => updateEntry(entry.id, { streamName: e.target.value })}
-                  disabled={disabled}
-                  placeholder="e.g. Computer Science, Finance"
-                  aria-invalid={Boolean(fieldErrors[`stream-${entry.id}-stream`])}
-                  className={`mt-0.5 w-full rounded-md border bg-[var(--background)] px-2 py-1.5 text-sm ${
-                    fieldErrors[`stream-${entry.id}-stream`] ? "border-red-500" : "border-[var(--border)]"
-                  }`}
-                />
-                {fieldErrors[`stream-${entry.id}-stream`] ? (
-                  <p className="mt-0.5 text-xs text-red-600">{fieldErrors[`stream-${entry.id}-stream`]}</p>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                onClick={() => removeEntry(entry.id)}
-                disabled={disabled}
-                className="pb-1.5 text-sm text-red-600 hover:underline disabled:opacity-50"
-              >
-                Remove
-              </button>
-            </div>
+        {entries.map((entry, index) => {
+          const degreeOptions = degreeTypesForQualification(effectiveCatalog, entry.programLevel);
+          const streamOptions = streamsForDegreeType(
+            effectiveCatalog,
+            entry.programLevel,
+            entry.programName,
+          );
+          const degreeValid = degreeOptions.some((d) => d.value === entry.programName);
+          const streamValid = streamOptions.some(
+            (s) => s.value === entry.streamName || s.label === entry.streamName,
+          );
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-8">
-              {(
-                [
-                  ["Target students", "targetStudents", false],
-                  ["Annual tuition", "tuitionYear1", true],
-                  ["Program package", "tuitionTotal", true],
-                  ["Registration", "registrationFee", true],
-                  ["Application", "applicationFee", true],
-                  ["Mess", "messFee", true],
-                  ["Exam", "examFee", true],
-                  ["Other admin", "otherAdminAmount", true],
-                ] as const
-              ).map(([label, key, isFee]) => {
-                const errKey = `stream-${entry.id}-${key}`;
-                const hasError = Boolean(fieldErrors[errKey]);
-                return (
-                  <div key={key}>
-                    <label className="text-xs text-[var(--foreground-muted)]">{label}</label>
+          return (
+            <article
+              key={entry.id}
+              className="rounded-lg border border-[var(--border)] bg-[var(--background)]/40 p-3 shadow-sm"
+            >
+              <div className="flex flex-wrap items-end gap-3">
+                <span className="text-xs font-semibold uppercase tracking-wide text-[var(--foreground-muted)]">
+                  Program {index + 1}
+                </span>
+                <div className="min-w-[11rem]">
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)]">
+                    Qualification type <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    value={entry.programLevel}
+                    onChange={(e) => updateQualificationType(entry.id, e.target.value as UniversityProgramLevel)}
+                    disabled={disabled || catalogLoading}
+                    className={selectClass(false)}
+                  >
+                    {qualificationTypes.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-[9rem]">
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)]">
+                    Degree type <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    value={degreeValid ? entry.programName : ""}
+                    onChange={(e) => updateDegreeType(entry.id, e.target.value)}
+                    disabled={disabled || catalogLoading}
+                    aria-invalid={Boolean(fieldErrors[`stream-${entry.id}-program`])}
+                    className={selectClass(Boolean(fieldErrors[`stream-${entry.id}-program`]))}
+                  >
+                    <option value="">Select degree type</option>
+                    {degreeOptions.map((program) => (
+                      <option key={program.value} value={program.value}>
+                        {program.label}
+                      </option>
+                    ))}
+                  </select>
+                  {fieldErrors[`stream-${entry.id}-program`] ? (
+                    <p className="mt-0.5 text-xs text-red-600">{fieldErrors[`stream-${entry.id}-program`]}</p>
+                  ) : null}
+                </div>
+                <div className="min-w-[12rem] flex-1">
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)]">
+                    Stream <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    value={streamValid ? entry.streamName : ""}
+                    onChange={(e) => updateEntry(entry.id, { streamName: e.target.value })}
+                    disabled={disabled || catalogLoading || !entry.programName}
+                    aria-invalid={Boolean(fieldErrors[`stream-${entry.id}-stream`])}
+                    className={selectClass(Boolean(fieldErrors[`stream-${entry.id}-stream`]))}
+                  >
+                    <option value="">
+                      {entry.programName ? "Select stream" : "Select degree type first"}
+                    </option>
+                    {streamOptions.map((stream) => (
+                      <option key={stream.value} value={stream.value}>
+                        {stream.label}
+                      </option>
+                    ))}
+                  </select>
+                  {fieldErrors[`stream-${entry.id}-stream`] ? (
+                    <p className="mt-0.5 text-xs text-red-600">{fieldErrors[`stream-${entry.id}-stream`]}</p>
+                  ) : null}
+                </div>
+                {entries.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => removeEntry(entry.id)}
+                    disabled={disabled}
+                    className="pb-1.5 text-sm text-red-600 hover:underline disabled:opacity-50"
+                  >
+                    Delete program
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--muted)]/10 p-3">
+                <h4 className="text-sm font-semibold text-[var(--foreground)]">Seat allocation</h4>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--foreground-muted)]">
+                      Total target seats <span className="text-red-600">*</span>
+                    </label>
                     <input
                       type="text"
-                      inputMode={isFee ? "decimal" : "numeric"}
-                      value={entry[key]}
+                      inputMode="numeric"
+                      value={entry.targetStudents}
+                      onChange={(e) =>
+                        updateEntry(entry.id, { targetStudents: e.target.value.replace(/\D/g, "") })
+                      }
+                      disabled={disabled}
+                      placeholder="e.g. 120"
+                      aria-invalid={Boolean(fieldErrors[`stream-${entry.id}-targetStudents`])}
+                      className={feeInputClass(Boolean(fieldErrors[`stream-${entry.id}-targetStudents`]))}
+                    />
+                    {fieldErrors[`stream-${entry.id}-targetStudents`] ? (
+                      <p className="mt-0.5 text-xs text-red-600">
+                        {fieldErrors[`stream-${entry.id}-targetStudents`]}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--foreground-muted)]">
+                      CET allocation type <span className="text-red-600">*</span>
+                    </label>
+                    <select
+                      value={entry.cetAllocationMode}
+                      disabled={disabled}
                       onChange={(e) =>
                         updateEntry(entry.id, {
-                          [key]: isFee ? e.target.value.replace(/[^\d.]/g, "") : e.target.value.replace(/\D/g, ""),
+                          cetAllocationMode: e.target.value as StreamEntry["cetAllocationMode"],
+                          cetAllocationValue: "",
                         })
                       }
-                      disabled={disabled}
-                      className={feeInputClass(hasError)}
-                    />
-                    {hasError ? <p className="mt-0.5 text-xs text-red-600">{fieldErrors[errKey]}</p> : null}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-2 space-y-2">
-              <label className="flex items-center gap-2 text-sm text-[var(--foreground)]">
-                <input
-                  type="checkbox"
-                  checked={entry.hasOtherAdmin}
-                  disabled={disabled}
-                  onChange={(e) =>
-                    updateEntry(entry.id, {
-                      hasOtherAdmin: e.target.checked,
-                      ...(e.target.checked ? {} : { otherAdminCharges: "", otherAdminAmount: "" }),
-                    })
-                  }
-                  className="h-4 w-4 rounded border-[var(--border)]"
-                />
-                Additional administrative charges
-              </label>
-              {entry.hasOtherAdmin ? (
-                <div className="grid gap-2 sm:grid-cols-[1fr_7rem]">
-                  <div>
-                    <label className="text-xs text-[var(--foreground-muted)]">Charge name</label>
-                    <input
-                      value={entry.otherAdminCharges}
-                      onChange={(e) => updateEntry(entry.id, { otherAdminCharges: e.target.value })}
-                      disabled={disabled}
-                      className="mt-0.5 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm"
-                    />
+                      className={selectClass(false)}
+                    >
+                      <option value="SEATS">Count</option>
+                      <option value="PERCENT">Percentage</option>
+                    </select>
                   </div>
                   <div>
-                    <label className="text-xs text-[var(--foreground-muted)]">Charge amount</label>
+                    <label className="block text-xs font-medium text-[var(--foreground-muted)]">
+                      {entry.cetAllocationMode === "PERCENT"
+                        ? "CET percentage"
+                        : "CET seats"}{" "}
+                      <span className="text-red-600">*</span>
+                    </label>
                     <input
                       type="text"
-                      inputMode="decimal"
-                      value={entry.otherAdminAmount}
+                      inputMode={entry.cetAllocationMode === "PERCENT" ? "decimal" : "numeric"}
+                      value={entry.cetAllocationValue}
                       onChange={(e) =>
-                        updateEntry(entry.id, { otherAdminAmount: e.target.value.replace(/[^\d.]/g, "") })
+                        updateEntry(entry.id, {
+                          cetAllocationValue:
+                            entry.cetAllocationMode === "PERCENT"
+                              ? e.target.value.replace(/[^\d.]/g, "")
+                              : e.target.value.replace(/\D/g, ""),
+                        })
                       }
+                      placeholder={entry.cetAllocationMode === "PERCENT" ? "e.g. 25" : "e.g. 40"}
                       disabled={disabled}
-                      className="mt-0.5 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm tabular-nums"
+                      aria-invalid={Boolean(fieldErrors[`stream-${entry.id}-cet`])}
+                      className={feeInputClass(Boolean(fieldErrors[`stream-${entry.id}-cet`]))}
                     />
+                    {fieldErrors[`stream-${entry.id}-cet`] ? (
+                      <p className="mt-0.5 text-xs text-red-600">{fieldErrors[`stream-${entry.id}-cet`]}</p>
+                    ) : (
+                      <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+                        {entry.cetAllocationMode === "PERCENT"
+                          ? "Must be between 0 and 100."
+                          : "Cannot exceed total target seats."}
+                      </p>
+                    )}
                   </div>
                 </div>
-              ) : null}
-            </div>
-            <div className="mt-2">
-              <label className="text-xs text-[var(--foreground-muted)]">CET allocation</label>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <select
-                  value={entry.cetAllocationMode}
-                  disabled={disabled}
-                  onChange={(e) =>
-                    updateEntry(entry.id, {
-                      cetAllocationMode: e.target.value as StreamEntry["cetAllocationMode"],
-                    })
-                  }
-                  className="rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm"
-                >
-                  <option value="SEATS">Seat count</option>
-                  <option value="PERCENT">Percentage of intake</option>
-                </select>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--muted)]/10 p-3">
+                <h4 className="text-sm font-semibold text-[var(--foreground)]">Fee structure</h4>
+                <div className="mt-3">
+                  <p className="text-xs font-semibold text-[var(--foreground-muted)]">5.1 Tuition fee</p>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--foreground-muted)]">
+                        Annual tuition fee (₹) <span className="text-red-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={entry.tuitionYear1}
+                        onChange={(e) =>
+                          updateEntry(entry.id, { tuitionYear1: e.target.value.replace(/[^\d.]/g, "") })
+                        }
+                        disabled={disabled}
+                        placeholder="e.g. 150000"
+                        aria-invalid={Boolean(fieldErrors[`stream-${entry.id}-tuitionYear1`])}
+                        className={feeInputClass(Boolean(fieldErrors[`stream-${entry.id}-tuitionYear1`]))}
+                      />
+                      {fieldErrors[`stream-${entry.id}-tuitionYear1`] ? (
+                        <p className="mt-0.5 text-xs text-red-600">
+                          {fieldErrors[`stream-${entry.id}-tuitionYear1`]}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--foreground-muted)]">
+                        Overall package fee (₹)
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={entry.tuitionTotal}
+                        onChange={(e) =>
+                          updateEntry(entry.id, { tuitionTotal: e.target.value.replace(/[^\d.]/g, "") })
+                        }
+                        disabled={disabled}
+                        placeholder="e.g. 600000"
+                        aria-invalid={Boolean(fieldErrors[`stream-${entry.id}-tuitionTotal`])}
+                        className={feeInputClass(Boolean(fieldErrors[`stream-${entry.id}-tuitionTotal`]))}
+                      />
+                      {fieldErrors[`stream-${entry.id}-tuitionTotal`] ? (
+                        <p className="mt-0.5 text-xs text-red-600">
+                          {fieldErrors[`stream-${entry.id}-tuitionTotal`]}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-xs font-semibold text-[var(--foreground-muted)]">5.2 Additional fees</p>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--foreground-muted)]">
+                        Application fee (₹)
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={entry.applicationFee}
+                        onChange={(e) =>
+                          updateEntry(entry.id, {
+                            applicationFee: e.target.value.replace(/\D/g, ""),
+                          })
+                        }
+                        disabled={disabled}
+                        placeholder="e.g. 500"
+                        aria-invalid={Boolean(fieldErrors[`stream-${entry.id}-applicationFee`])}
+                        className={feeInputClass(Boolean(fieldErrors[`stream-${entry.id}-applicationFee`]))}
+                      />
+                      {fieldErrors[`stream-${entry.id}-applicationFee`] ? (
+                        <p className="mt-0.5 text-xs text-red-600">
+                          {fieldErrors[`stream-${entry.id}-applicationFee`]}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--foreground-muted)]">
+                        Exam fee (₹)
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={entry.examFee}
+                        onChange={(e) =>
+                          updateEntry(entry.id, { examFee: e.target.value.replace(/[^\d.]/g, "") })
+                        }
+                        disabled={disabled}
+                        placeholder="e.g. 5000"
+                        aria-invalid={Boolean(fieldErrors[`stream-${entry.id}-examFee`])}
+                        className={feeInputClass(Boolean(fieldErrors[`stream-${entry.id}-examFee`]))}
+                      />
+                      {fieldErrors[`stream-${entry.id}-examFee`] ? (
+                        <p className="mt-0.5 text-xs text-red-600">{fieldErrors[`stream-${entry.id}-examFee`]}</p>
+                      ) : null}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--foreground-muted)]">
+                        Other administrative fee (₹)
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={entry.otherAdminAmount}
+                        onChange={(e) =>
+                          updateEntry(entry.id, {
+                            otherAdminAmount: e.target.value.replace(/[^\d.]/g, ""),
+                          })
+                        }
+                        disabled={disabled}
+                        placeholder="e.g. 2000"
+                        aria-invalid={Boolean(fieldErrors[`stream-${entry.id}-otherAdminAmount`])}
+                        className={feeInputClass(Boolean(fieldErrors[`stream-${entry.id}-otherAdminAmount`]))}
+                      />
+                      {fieldErrors[`stream-${entry.id}-otherAdminAmount`] ? (
+                        <p className="mt-0.5 text-xs text-red-600">
+                          {fieldErrors[`stream-${entry.id}-otherAdminAmount`]}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 max-w-xs">
+                <label className="text-xs text-[var(--foreground-muted)]">Registration fee (₹)</label>
                 <input
                   type="text"
                   inputMode="decimal"
-                  value={entry.cetAllocationValue}
+                  value={entry.registrationFee}
                   onChange={(e) =>
                     updateEntry(entry.id, {
-                      cetAllocationValue: e.target.value.replace(/[^\d.]/g, ""),
+                      registrationFee: e.target.value.replace(/[^\d.]/g, ""),
                     })
                   }
-                  placeholder={entry.cetAllocationMode === "PERCENT" ? "e.g. 25" : "e.g. 40"}
                   disabled={disabled}
-                  className={`w-full max-w-[10rem] rounded-md border bg-[var(--background)] px-2 py-1.5 text-sm tabular-nums ${
-                    fieldErrors[`stream-${entry.id}-cet`] ? "border-red-500" : "border-[var(--border)]"
-                  }`}
+                  className={feeInputClass(Boolean(fieldErrors[`stream-${entry.id}-registrationFee`]))}
                 />
-                <span className="text-xs text-[var(--foreground-muted)]">
-                  {entry.cetAllocationMode === "PERCENT" ? "% of target students" : "seats"}
-                </span>
+                {fieldErrors[`stream-${entry.id}-registrationFee`] ? (
+                  <p className="mt-0.5 text-xs text-red-600">
+                    {fieldErrors[`stream-${entry.id}-registrationFee`]}
+                  </p>
+                ) : null}
               </div>
-              {fieldErrors[`stream-${entry.id}-cet`] ? (
-                <p className="mt-1 text-xs text-red-600">{fieldErrors[`stream-${entry.id}-cet`]}</p>
-              ) : null}
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </div>
 
       {fieldErrors.streams ? <p className="mt-2 text-sm text-red-600">{fieldErrors.streams}</p> : null}
-
-      <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--muted)]/20">
-        <button
-          type="button"
-          onClick={() => setHostelOpen((o) => !o)}
-          className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm font-medium text-[var(--foreground)]"
-        >
-          <span>Hostel fee matrix (shared across streams)</span>
-          <span className="text-[var(--foreground-muted)]">{hostelOpen ? "▲" : "▼"}</span>
-        </button>
-        {hostelOpen ? (
-          <div className="border-t border-[var(--border)] px-3 pb-3 pt-2">
-            <p className="text-xs text-[var(--foreground-muted)]">
-              Boys/Girls × AC/Non-AC × Single/Double/Triple/Four sharing — select a combination to enter annual fee.
-            </p>
-            <div className="mt-3 grid gap-4 lg:grid-cols-[1fr_14rem]">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[32rem] border-collapse text-xs">
-                  <thead>
-                    <tr className="text-left text-[var(--foreground-muted)]">
-                      <th className="pb-2 pr-2 font-medium">Hostel</th>
-                      <th className="pb-2 px-1 font-medium">AC</th>
-                      <th className="pb-2 px-1 font-medium">Non-AC</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(
-                      [
-                        { gender: HostelGender.GIRLS, label: "Girls" },
-                        { gender: HostelGender.BOYS, label: "Boys" },
-                      ] as const
-                    ).map(({ gender, label }) => (
-                      <React.Fragment key={gender}>
-                        {(
-                          [
-                            { sharing: HostelSharing.SINGLE, sharingLabel: "Single" },
-                            { sharing: HostelSharing.TWO_SHARING, sharingLabel: "Double" },
-                            { sharing: HostelSharing.TRIPLE, sharingLabel: "Triple" },
-                            { sharing: HostelSharing.FOUR_SHARING, sharingLabel: "Four" },
-                          ] as const
-                        ).map(({ sharing, sharingLabel }) => (
-                          <tr key={`${gender}-${sharing}`} className="border-t border-[var(--border)]/60">
-                            <td className="py-1.5 pr-2 text-[var(--foreground)]">
-                              {label} · {sharingLabel}
-                            </td>
-                            {([HostelRoomType.AC, HostelRoomType.NON_AC] as const).map((roomType) => {
-                              const combo = comboForSelection({ gender, roomType, sharing });
-                              const selected =
-                                hostelSelection.gender === gender &&
-                                hostelSelection.roomType === roomType &&
-                                hostelSelection.sharing === sharing;
-                              const hasValue = combo ? hostelFees[combo.key].trim().length > 0 : false;
-                              return (
-                                <td key={roomType} className="px-1 py-1.5">
-                                  <button
-                                    type="button"
-                                    disabled={disabled}
-                                    onClick={() => setHostelSelection({ gender, roomType, sharing })}
-                                    className={`w-full rounded-md border px-2 py-1.5 text-left transition-colors ${
-                                      selected
-                                        ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]/10 font-medium text-[var(--foreground)]"
-                                        : hasValue
-                                          ? "border-[var(--border)] bg-[var(--muted)]/40 text-[var(--foreground)]"
-                                          : "border-dashed border-[var(--border)] text-[var(--foreground-muted)] hover:bg-[var(--muted)]/20"
-                                    }`}
-                                  >
-                                    {hasValue && combo ? `₹${hostelFees[combo.key]}` : "Set fee"}
-                                  </button>
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {activeHostelKey && activeHostelCombo ? (
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
-                  <p className="text-xs font-medium text-[var(--foreground)]">
-                    {activeHostelCombo.genderLabel} · {activeHostelCombo.roomLabel} ·{" "}
-                    {activeHostelCombo.sharingLabel}
-                  </p>
-                  <label className="mt-2 block text-xs text-[var(--foreground-muted)]">Annual fee (₹)</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={hostelFees[activeHostelKey]}
-                    onChange={(e) => setHostelField(activeHostelKey, e.target.value.replace(/[^\d.]/g, ""))}
-                    disabled={disabled}
-                    className="mt-0.5 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm tabular-nums"
-                  />
-                  <p className="mt-2 text-[10px] text-[var(--foreground-muted)]">
-                    {HOSTEL_FEE_COMBOS.filter((c) => hostelFees[c.key].trim().length > 0).length} of{" "}
-                    {HOSTEL_FEE_COMBOS.length} combinations filled
-                  </p>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-      </div>
     </section>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { PORTAL_BRAND_NAME } from "@/components/portal-logo";
+
 type Props = {
   transactionRef: string;
   amount: string;
@@ -23,7 +25,7 @@ export function PaymentReceiptLink({
 }: Props) {
   function downloadReceipt() {
     const lines = [
-      "University Portal — Payment Receipt",
+      `${PORTAL_BRAND_NAME} — Payment Receipt`,
       `Transaction ID: ${transactionRef}`,
       `Student: ${studentName}`,
       `University: ${universityName}`,

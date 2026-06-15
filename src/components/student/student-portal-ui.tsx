@@ -4,6 +4,7 @@ import * as React from "react";
 import { formatInr } from "@/lib/student-portal";
 import { leadStatusLabel } from "@/lib/lead-status";
 import { PaymentSplitNotice } from "@/components/payment-split-notice";
+import { PORTAL_BRAND_NAME } from "@/components/portal-logo";
 import type { AdmissionLeadStatus } from "@prisma/client";
 
 declare global {
@@ -179,7 +180,7 @@ export function StudentPaymentPanel({
 
   function downloadReceipt(tx: Transaction) {
     const lines = [
-      "Eduversity — Payment Receipt",
+      `${PORTAL_BRAND_NAME} — Payment Receipt`,
       `Transaction ref: ${tx.transactionRef}`,
       `Amount: ${formatInr(tx.amount)}`,
       `Status: ${tx.status}`,

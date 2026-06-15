@@ -7,7 +7,7 @@ import {
   isNavActive,
   type NavIconName,
 } from "@/components/dashboard-nav-config";
-import { PortalLogoSvg } from "@/components/portal-logo";
+import { PortalLogoSvg, PORTAL_BRAND_NAME, PORTAL_BRAND_TAGLINE } from "@/components/portal-logo";
 
 type DashboardSidebarProps = {
   onNavigate?: () => void;
@@ -29,8 +29,8 @@ export function DashboardSidebar({
   onToggleCollapse,
   roles,
   universityId,
-  brandTitle = "University Portal",
-  brandSubtitle = "Backed by QSpiders",
+  brandTitle = PORTAL_BRAND_NAME,
+  brandSubtitle = PORTAL_BRAND_TAGLINE,
 }: DashboardSidebarProps) {
   const pathname = usePathname() ?? "";
   const groups = buildDashboardNav(roles, { universityId });

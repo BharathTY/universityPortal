@@ -12,9 +12,8 @@ import type { AdmissionLeadStatus } from "@prisma/client";
 
 import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
 
-import { PaymentCollectorModal } from "@/components/payment-collector-modal";
-
-import { LEAD_STATUS_OPTIONS, isPaidLeadStatus, isReadyToPayStatus } from "@/lib/lead-status";
+import { ConsultantCollectPaymentModal } from "@/components/consultant-collect-payment-modal";
+import { LEAD_STATUS_OPTIONS, formatLeadCreatedAt, isReadyToPayStatus, leadStatusOptionsForLead } from "@/lib/lead-status";
 import {
   canTransitionLeadStatus,
   LEAD_STATUS_WORKFLOW_MESSAGE,
@@ -83,7 +82,7 @@ type Props = {
 
   universities: UniversityWithStreams[];
 
-  studentPortalUrl: string;
+  razorpayConfigured: boolean;
 
 };
 
@@ -115,21 +114,7 @@ const SORT_OPTIONS: { value: ConsultantLeadsSort; label: string }[] = [
 
   { value: "oldest", label: "Oldest created" },
 
-  { value: "name", label: "Student name" },
-
-  { value: "university", label: "University" },
-
 ];
-
-
-
-function formatInr(value: number | null | undefined): string {
-
-  if (value == null || !Number.isFinite(value)) return "Amount on file";
-
-  return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-}
 
 
 
@@ -329,16 +314,6 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
   const [paymentLead, setPaymentLead] = React.useState<LeadRowSerialized | null>(null);
 
-  const [paymentBusy, setPaymentBusy] = React.useState(false);
-
-  const [paymentError, setPaymentError] = React.useState<string | null>(null);
-
-  const [studentPaymentPageUrl, setStudentPaymentPageUrl] = React.useState<string | null>(null);
-
-  const [paymentCompleteUrl, setPaymentCompleteUrl] = React.useState<string | null>(null);
-
-
-
   const bulkUniversity = props.universities.find((u) => u.id === bulkUniversityId) ?? props.universities[0];
 
 
@@ -416,160 +391,6 @@ export function ConsultantStudentLeadsClient(props: Props) {
     router.refresh();
 
   }, [urlSearchParams, fetchLeads, router]);
-
-
-
-  React.useEffect(() => {
-
-    if (!paymentLead) {
-
-      setStudentPaymentPageUrl(null);
-
-      setPaymentCompleteUrl(null);
-
-      return;
-
-    }
-
-
-
-    let cancelled = false;
-
-    void fetch(`/api/consultant/leads/${paymentLead.id}/payment-share-token`)
-
-      .then(async (res) => {
-
-        const data = (await res.json().catch(() => ({}))) as {
-
-          paymentPageUrl?: string;
-
-          paymentCompleteUrl?: string;
-
-        };
-
-        if (cancelled || !res.ok) return;
-
-        setStudentPaymentPageUrl(data.paymentPageUrl ?? null);
-
-        setPaymentCompleteUrl(data.paymentCompleteUrl ?? null);
-
-      })
-
-      .catch(() => {
-
-        if (!cancelled) {
-
-          setStudentPaymentPageUrl(null);
-
-          setPaymentCompleteUrl(null);
-
-        }
-
-      });
-
-
-
-    return () => {
-
-      cancelled = true;
-
-    };
-
-  }, [paymentLead?.id]);
-
-
-
-  React.useEffect(() => {
-
-    function onPaymentMessage(event: MessageEvent) {
-
-      if (event.origin !== window.location.origin) return;
-
-      const data = event.data as { type?: string; leadId?: string } | null;
-
-      if (data?.type !== "lead-payment-done" || !data.leadId) return;
-
-      setPaymentLead((current) => {
-
-        if (current?.id !== data.leadId) return current;
-
-        void refreshLeadsData();
-
-        return null;
-
-      });
-
-    }
-
-
-
-    window.addEventListener("message", onPaymentMessage);
-
-    return () => window.removeEventListener("message", onPaymentMessage);
-
-  }, [refreshLeadsData]);
-
-
-
-  React.useEffect(() => {
-
-    if (!paymentLead || paymentBusy) return;
-
-
-
-    let cancelled = false;
-
-
-
-    async function pollLeadPayment() {
-
-      try {
-
-        const res = await fetch(`/api/consultant/leads/${paymentLead!.id}`);
-
-        const data = (await res.json().catch(() => ({}))) as {
-
-          lead?: { admissionStatus?: AdmissionLeadStatus };
-
-          error?: string;
-
-        };
-
-        if (cancelled || !res.ok || !data.lead?.admissionStatus) return;
-
-
-
-        if (isPaidLeadStatus(data.lead.admissionStatus)) {
-
-          setPaymentLead(null);
-
-          await refreshLeadsData();
-
-        }
-
-      } catch {
-
-        /* ignore transient poll errors */
-
-      }
-
-    }
-
-
-
-    void pollLeadPayment();
-
-    const timer = window.setInterval(() => void pollLeadPayment(), 2000);
-
-    return () => {
-
-      cancelled = true;
-
-      window.clearInterval(timer);
-
-    };
-
-  }, [paymentLead, paymentBusy, refreshLeadsData]);
 
 
 
@@ -755,41 +576,6 @@ export function ConsultantStudentLeadsClient(props: Props) {
     } finally {
 
       setDeleteBusyId(null);
-
-    }
-
-  }
-
-
-
-  async function onConfirmStudentPaid(payload: { paymentMethod: "UPI" | "CASH"; upiId?: string }) {
-    if (!paymentLead) return;
-    setPaymentError(null);
-    setPaymentBusy(true);
-    try {
-      const res = await fetch(`/api/consultant/leads/${paymentLead.id}/collect-payment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-
-      if (!res.ok) {
-
-        setPaymentError(data.error ?? "Could not record payment");
-
-        return;
-
-      }
-
-      setPaymentLead(null);
-
-      await refreshLeadsData();
-
-    } finally {
-
-      setPaymentBusy(false);
 
     }
 
@@ -1167,7 +953,7 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
             className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-2 text-sm"
 
-            aria-label="Created from date"
+            aria-label="Created date (DD-MM-YYYY)"
 
           />
 
@@ -1288,13 +1074,10 @@ export function ConsultantStudentLeadsClient(props: Props) {
                     <td className="px-4 py-3">
 
                       <span
-
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${leadAgeingBadgeClass(createdAt)}`}
-
+                        title={`Lead Created On: ${formatLeadCreatedAt(createdAt)}`}
+                        className={`cursor-default rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${leadAgeingBadgeClass(createdAt)}`}
                       >
-
                         {l.ageingDays}
-
                       </span>
 
                     </td>
@@ -1317,7 +1100,7 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
                       >
 
-                        {LEAD_STATUS_OPTIONS.map((opt) => (
+                        {leadStatusOptionsForLead(l.statusRaw).map((opt) => (
 
                           <option key={opt.value} value={opt.value} disabled={!isLeadStatusOptionEnabled(l.statusRaw, opt.value)}>
 
@@ -1353,13 +1136,7 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
                             type="button"
 
-                            onClick={() => {
-
-                              setPaymentError(null);
-
-                              setPaymentLead(l);
-
-                            }}
+                            onClick={() => setPaymentLead(l)}
 
                             className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]"
 
@@ -1559,30 +1336,20 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
 
 
-      <PaymentCollectorModal
+      <ConsultantCollectPaymentModal
         open={paymentLead != null}
-        leadName={
+        leadId={paymentLead?.id ?? ""}
+        studentName={
           paymentLead ? `${paymentLead.firstName} ${paymentLead.lastName}`.trim() || paymentLead.email : ""
         }
-        studentEmail={paymentLead?.email ?? ""}
         universityName={paymentLead?.universityName ?? ""}
-        universityUpiId={paymentLead?.universityPaymentUpiId ?? null}
-        amountLabel={
-          paymentLead?.applicationFee != null
-            ? `Application fee ${formatInr(paymentLead.applicationFee)}`
-            : "Application fee not set"
+        programName={paymentLead?.streamName ?? ""}
+        defaultAmount={
+          paymentLead?.applicationFee != null ? String(Number(paymentLead.applicationFee)) : ""
         }
-        amountRupees={
-          paymentLead?.applicationFee != null ? Number(String(paymentLead.applicationFee)) : undefined
-        }
-        hasStudentPortal={paymentLead?.hasStudentPortal ?? false}
-        studentPortalUrl={props.studentPortalUrl}
-        paymentCompleteUrl={paymentCompleteUrl}
-        studentPaymentPageUrl={studentPaymentPageUrl}
-        busy={paymentBusy}
-        error={paymentError}
-        onClose={() => (paymentBusy ? undefined : setPaymentLead(null))}
-        onConfirmStudentPaid={onConfirmStudentPaid}
+        razorpayConfigured={props.razorpayConfigured}
+        onClose={() => setPaymentLead(null)}
+        onSuccess={() => refreshLeadsData()}
       />
 
     </div>

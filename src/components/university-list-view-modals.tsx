@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import type { ScholarshipType } from "@prisma/client";
+import { SCHOLARSHIP_TYPE_LABELS } from "@/lib/university-scholarship";
 
 type OverviewSpoc = {
   name: string;
@@ -205,13 +207,17 @@ export function UniversityListViewModals({ universityId, universityName }: Props
                           {data.scholarships.map((s, i) => (
                             <li key={i} className="rounded-lg border border-[var(--border)] px-3 py-2">
                               <span className="font-medium">
-                                {s.type === "PERCENTAGE" ? `${s.value}% off tuition` : `₹${s.value} off tuition`}
+                                {SCHOLARSHIP_TYPE_LABELS[s.type as ScholarshipType] ??
+                                  s.type.replace(/_/g, " ").toLowerCase()}{" "}
+                                — {s.value}
                               </span>
-                              <ul className="mt-1 list-inside list-disc text-[var(--foreground-muted)]">
-                                {s.criteria.map((criterion, j) => (
-                                  <li key={j}>{criterion}</li>
-                                ))}
-                              </ul>
+                              {s.criteria.length > 0 ? (
+                                <ul className="mt-1 list-inside list-disc text-[var(--foreground-muted)]">
+                                  {s.criteria.map((criterion, j) => (
+                                    <li key={j}>{criterion}</li>
+                                  ))}
+                                </ul>
+                              ) : null}
                             </li>
                           ))}
                         </ul>

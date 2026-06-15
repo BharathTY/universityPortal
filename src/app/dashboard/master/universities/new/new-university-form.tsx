@@ -2,17 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import * as React from "react";
-
-const LOGO_MAX_BYTES = 2 * 1024 * 1024;
-const LOGO_ALLOWED_MIME = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/jpg",
-  "image/webp",
-  "image/svg+xml",
-]);
-const LOGO_TYPE_ERR = "Only PNG, JPG, JPEG, SVG, or WEBP files are allowed";
-const LOGO_SIZE_ERR = "File size should not exceed 2 MB";
+import {
+  UNIVERSITY_LOGO_ACCEPT,
+  validateUniversityLogoFile,
+} from "@/lib/university-logo";
 
 function mapApiFieldErrors(raw: unknown): Record<string, string> {
   if (!raw || typeof raw !== "object") return {};
@@ -29,10 +22,7 @@ function looksLikeEmail(s: string): boolean {
 }
 
 function validateLogoFile(file: File): string | null {
-  const mime = file.type || "";
-  if (!LOGO_ALLOWED_MIME.has(mime)) return LOGO_TYPE_ERR;
-  if (file.size > LOGO_MAX_BYTES) return LOGO_SIZE_ERR;
-  return null;
+  return validateUniversityLogoFile(file);
 }
 
 function validateUniversityClient(input: {
@@ -303,12 +293,12 @@ export function NewUniversityForm() {
       <div>
         <label className="block text-sm font-medium text-[var(--foreground)]">Logo (optional)</label>
         <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
-          PNG, JPG, JPEG, SVG, or WEBP — max 2 MB.
+          JPG, JPEG, or PNG only. Maximum file size 2 MB.
         </p>
         <input
           ref={fileRef}
           type="file"
-          accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+          accept={UNIVERSITY_LOGO_ACCEPT}
           onChange={onLogoPick}
           disabled={locked}
           className={`mt-2 block w-full text-sm text-[var(--foreground-muted)] file:mr-3 file:rounded-lg file:border file:border-[var(--border)] file:bg-[var(--muted)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-[var(--foreground)] ${logoFileError ? "rounded-lg ring-1 ring-red-500" : ""}`}

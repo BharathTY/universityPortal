@@ -1,7 +1,7 @@
-import { DocumentKind, CetAllocationMode, MasterUniversityType, Prisma, ProgramLevel, ScholarshipType } from "@prisma/client";
+import { DocumentKind, CetAllocationMode, MasterUniversityType, MouTenure, Prisma, ProgramLevel, ScholarshipType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { sendAccountCredentialsEmail } from "@/lib/email";
+import { sendAccountCredentialsEmail, sendMouSpocDetailsToSheshuTeam } from "@/lib/email";
 import { storeUpload } from "@/lib/file-storage";
 import { requireMasterApi } from "@/lib/master-session";
 import { generateRandomPassword, hashPassword } from "@/lib/password";
@@ -9,13 +9,20 @@ import { prisma } from "@/lib/prisma";
 import { ROLES } from "@/lib/roles";
 import { generateUniqueUniversityCode } from "@/lib/university-code";
 import {
-  isSelectableYopYearLabel,
-  normalizeAcademicYearLabel,
+  formatAcademicYearLabel,
+  isSelectableYopYear,
   parseAcademicYearStartYear,
 } from "@/lib/academic-year-yop";
+import {
+  EVENT_PHOTO_MAX_BYTES,
+  MOU_PDF_MAX_BYTES,
+  validateEventPhotoFile,
+  validateMouPdfFile,
+} from "@/lib/university-mou-documents";
 import { validateUniversityPhone } from "@/lib/university-phone";
+import { validateUniversityPincode } from "@/lib/university-pincode";
 import { HOSTEL_FEE_COMBOS, type HostelFeeKey } from "@/lib/hostel-fee-matrix";
-import { syncUniversityHostelFees } from "@/lib/university-hostel-fees-db";
+import { validateAdditionalFees, validateSeatAllocation, validateTuitionFees, type StreamEntry } from "@/lib/stream-entry-payload";
 
 const nameSchema = z.string().trim().min(1).max(200);
 
@@ -62,15 +69,21 @@ const cetSeatSchema = z.object({
 const scholarshipItemSchema = z.object({
   type: z.nativeEnum(ScholarshipType),
   value: z.coerce.number().positive().max(999_999_999),
-  criteria: z.array(z.string().trim().min(1).max(500)).min(1).max(20),
+  criteria: z.array(z.string().trim().min(1).max(500)).max(20).optional().default([]),
   sortOrder: z.coerce.number().int().nonnegative().optional(),
 });
 
 const universitySpocItemSchema = z.object({
   name: z.string().trim().min(1, { message: "SPOC name is required" }).max(200),
   designation: z.string().trim().min(1, { message: "Designation is required" }).max(200),
-  mobile: z.string().trim().min(1, { message: "Mobile number is required" }).max(32),
-  email: z.string().trim().min(1, { message: "Email address is required" }).email().max(254),
+  mobile: z.string().trim().superRefine((s, ctx) => {
+    const err = validateUniversityPhone(s);
+    if (err) {
+      const message = err.includes("10 digits") ? "Mobile number must be 10 digits" : err.replace("Contact number", "Mobile number");
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+    }
+  }),
+  email: z.string().trim().min(1, { message: "Email ID is required" }).email({ message: "Enter a valid email ID" }).max(254),
 });
 
 const streamDetailSchema = z.object({
@@ -101,16 +114,26 @@ const createSchema = z.object({
   website: z.string().trim().max(500).optional().nullable(),
   masterUniversityId: z.string().trim().min(1).max(64).optional().nullable(),
   address: z.string().trim().max(2000).optional().nullable(),
+  location: z.string().trim().max(2000).optional().nullable(),
   state: z.string().trim().max(120).optional().nullable(),
   district: z.string().trim().max(120).optional().nullable(),
   city: z.string().trim().max(120).optional().nullable(),
-  pincode: z.string().trim().max(10).optional().nullable(),
+  area: z.string().trim().max(120).optional().nullable(),
+  pincode: z.preprocess((v) => {
+    if (v === null || v === undefined) return "";
+    return typeof v === "string" ? v.trim() : String(v);
+  }, z.string().superRefine((s, ctx) => {
+    if (s.length === 0) return;
+    const err = validateUniversityPincode(s);
+    if (err) ctx.addIssue({ code: z.ZodIssueCode.custom, message: err });
+  }).optional().nullable()),
   universityType: z.nativeEnum(MasterUniversityType).optional().nullable(),
   spocName: z.string().trim().max(200).optional().nullable(),
   spocDesignation: z.string().trim().max(200).optional().nullable(),
   spocMobile: optionalPhone,
   spocEmail: optionalEmail,
   spocs: z.array(universitySpocItemSchema).min(1).max(20).optional(),
+  mouSpocs: z.array(universitySpocItemSchema).min(1).max(20).optional(),
   offersUg: z.boolean().optional(),
   offersPg: z.boolean().optional(),
   ugStreams: z.array(z.string().trim().min(1).max(200)).optional(),
@@ -125,13 +148,9 @@ const createSchema = z.object({
   otherAdminAmount: optionalNullableFee,
   cetSeats: z.array(cetSeatSchema).max(80).optional(),
   scholarships: z.array(scholarshipItemSchema).max(20).optional(),
-  academicYearLabel: z
-    .string()
-    .trim()
-    .optional()
-    .nullable()
-    .refine((s) => !s || isSelectableYopYearLabel(s), { message: "Select a valid academic year" })
-    .transform((s) => (s ? normalizeAcademicYearLabel(s) : null)),
+  mouYear: z.coerce.number().int().optional().nullable(),
+  mouTenure: z.nativeEnum(MouTenure).optional().nullable(),
+  academicYearLabel: z.string().trim().optional().nullable(),
   hostelFees: z
     .object(
       Object.fromEntries(
@@ -191,21 +210,51 @@ function refineCreateBody(data: z.infer<typeof createSchema>, ctx: z.RefinementC
     });
   }
 
+  const mouSpocInputs = data.mouSpocs ?? [];
+  if (mouSpocInputs.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Add at least one MOU SPOC",
+      path: ["mouSpocs"],
+    });
+  }
+
+  const seenMouSpocEmails = new Set<string>();
+  for (let i = 0; i < mouSpocInputs.length; i++) {
+    const spoc = mouSpocInputs[i]!;
+    const fieldPrefix = `mouSpocs.${i}`;
+
+    const mobileError = validateUniversityPhone(spoc.mobile);
+    if (mobileError) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: mobileError.includes("10 digits") ? "Mobile number must be 10 digits" : mobileError.replace("Contact number", "Mobile number"),
+        path: [`${fieldPrefix}.mobile`],
+      });
+    }
+
+    const email = spoc.email.toLowerCase();
+    if (seenMouSpocEmails.has(email)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Each MOU SPOC must have a unique email ID",
+        path: [`${fieldPrefix}.email`],
+      });
+    } else {
+      seenMouSpocEmails.add(email);
+    }
+  }
+
   const seenEmails = new Set<string>();
   for (let i = 0; i < spocInputs.length; i++) {
     const spoc = spocInputs[i]!;
     const fieldPrefix = spocInputs.length === 1 && !data.spocs?.length ? "spoc" : `spocs.${i}`;
 
-    if (!/^\d+$/.test(spoc.mobile)) {
+    const mobileError = validateUniversityPhone(spoc.mobile);
+    if (mobileError) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Only numeric values are allowed",
-        path: [`${fieldPrefix}Mobile`],
-      });
-    } else if (spoc.mobile.length !== 10) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Phone number must be 10 digits",
+        message: mobileError.includes("10 digits") ? "Mobile number must be 10 digits" : mobileError.replace("Contact number", "Mobile number"),
         path: [`${fieldPrefix}Mobile`],
       });
     }
@@ -214,7 +263,7 @@ function refineCreateBody(data: z.infer<typeof createSchema>, ctx: z.RefinementC
     if (seenEmails.has(email)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Each SPOC must have a unique email",
+        message: "Each SPOC must have a unique email ID",
         path: [`${fieldPrefix}Email`],
       });
     } else {
@@ -260,6 +309,84 @@ function refineCreateBody(data: z.infer<typeof createSchema>, ctx: z.RefinementC
       });
     }
   }
+
+  for (let i = 0; i < (data.streamDetails ?? []).length; i++) {
+    const stream = data.streamDetails![i]!;
+    const entry = {
+      id: String(i),
+      programLevel: stream.programLevel,
+      programName: stream.programName,
+      streamName: stream.streamName,
+      targetStudents: stream.targetStudents != null ? String(stream.targetStudents) : "",
+      tuitionYear1: stream.tuitionYear1 != null ? String(stream.tuitionYear1) : "",
+      tuitionTotal: stream.tuitionTotal != null ? String(stream.tuitionTotal) : "",
+      registrationFee: stream.registrationFee != null ? String(stream.registrationFee) : "",
+      applicationFee: stream.applicationFee != null ? String(stream.applicationFee) : "",
+      messFee: stream.messFee != null ? String(stream.messFee) : "",
+      examFee: stream.examFee != null ? String(stream.examFee) : "",
+      otherAdminCharges: stream.otherAdminCharges ?? "",
+      otherAdminAmount: stream.otherAdminAmount != null ? String(stream.otherAdminAmount) : "",
+      hasOtherAdmin: false,
+      cetAllocationMode: stream.cetAllocationMode ?? "SEATS",
+      cetAllocationValue:
+        stream.cetAllocationValue != null ? String(stream.cetAllocationValue) : "",
+    } satisfies StreamEntry;
+
+    const seatErrors = validateSeatAllocation(entry);
+    if (seatErrors.targetStudents) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: seatErrors.targetStudents,
+        path: ["streamDetails", i, "targetStudents"],
+      });
+    }
+    if (seatErrors.cet) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: seatErrors.cet,
+        path: ["streamDetails", i, "cetAllocationValue"],
+      });
+    }
+
+    const tuitionErrors = validateTuitionFees(entry);
+    if (tuitionErrors.tuitionYear1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: tuitionErrors.tuitionYear1,
+        path: ["streamDetails", i, "tuitionYear1"],
+      });
+    }
+    if (tuitionErrors.tuitionTotal) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: tuitionErrors.tuitionTotal,
+        path: ["streamDetails", i, "tuitionTotal"],
+      });
+    }
+
+    const additionalErrors = validateAdditionalFees(entry);
+    if (additionalErrors.applicationFee) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: additionalErrors.applicationFee,
+        path: ["streamDetails", i, "applicationFee"],
+      });
+    }
+    if (additionalErrors.examFee) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: additionalErrors.examFee,
+        path: ["streamDetails", i, "examFee"],
+      });
+    }
+    if (additionalErrors.otherAdminAmount) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: additionalErrors.otherAdminAmount,
+        path: ["streamDetails", i, "otherAdminAmount"],
+      });
+    }
+  }
 }
 
 const createBodySchema = createSchema.superRefine(refineCreateBody);
@@ -275,7 +402,7 @@ function toDecimal(v: number | null | undefined): Prisma.Decimal | null {
 }
 
 type UploadFiles = {
-  mouFile?: File;
+  mouFiles: File[];
   logoFile?: File;
   eventPhotos: File[];
 };
@@ -296,10 +423,16 @@ async function parseCreateRequest(req: Request): Promise<{ data: unknown; files:
     } catch {
       throw new Error("Invalid payload JSON");
     }
-    const mouRaw = form.get("mouFile");
     const logoRaw = form.get("logoFile");
+    const mouFiles: File[] = [];
     const eventPhotos: File[] = [];
     for (const [key, val] of form.entries()) {
+      if (key === "mouFiles" && val instanceof File && val.size > 0) {
+        mouFiles.push(val);
+      }
+      if (key === "mouFile" && val instanceof File && val.size > 0) {
+        mouFiles.push(val);
+      }
       if (key === "eventPhotos" && val instanceof File && val.size > 0) {
         eventPhotos.push(val);
       }
@@ -307,7 +440,7 @@ async function parseCreateRequest(req: Request): Promise<{ data: unknown; files:
     return {
       data,
       files: {
-        mouFile: mouRaw instanceof File && mouRaw.size > 0 ? mouRaw : undefined,
+        mouFiles,
         logoFile: logoRaw instanceof File && logoRaw.size > 0 ? logoRaw : undefined,
         eventPhotos,
       },
@@ -315,7 +448,7 @@ async function parseCreateRequest(req: Request): Promise<{ data: unknown; files:
   }
 
   try {
-    return { data: await req.json(), files: { eventPhotos: [] } };
+    return { data: await req.json(), files: { mouFiles: [], eventPhotos: [] } };
   } catch {
     throw new Error("Invalid JSON");
   }
@@ -349,15 +482,52 @@ export async function POST(req: Request) {
     );
   }
 
-  if ((files.mouFile || files.eventPhotos.length > 0) && !parsed.data.academicYearLabel?.trim()) {
+  if (parsed.data.mouYear == null || !isSelectableYopYear(parsed.data.mouYear)) {
     return NextResponse.json(
       {
-        error: "Academic year is required when uploading MOU or event photos",
-        fieldErrors: { academicYear: ["Select an academic year for MOU and event photos"] },
+        error: "MOU year is required",
+        fieldErrors: { mouYear: ["Select a valid MOU year"] },
       },
       { status: 400 },
     );
   }
+
+  if (!parsed.data.mouTenure) {
+    return NextResponse.json(
+      {
+        error: "MOU tenure is required",
+        fieldErrors: { mouTenure: ["Select MOU tenure"] },
+      },
+      { status: 400 },
+    );
+  }
+
+  if (files.mouFiles.length === 0) {
+    return NextResponse.json(
+      {
+        error: "Upload at least one MOU document",
+        fieldErrors: { mouFiles: ["Upload at least one MOU document"] },
+      },
+      { status: 400 },
+    );
+  }
+
+  for (const mouFile of files.mouFiles) {
+    const mouError = validateMouPdfFile(mouFile);
+    if (mouError) {
+      return NextResponse.json({ error: mouError, fieldErrors: { mouFiles: [mouError] } }, { status: 400 });
+    }
+  }
+
+  for (const photo of files.eventPhotos) {
+    const photoError = validateEventPhotoFile(photo);
+    if (photoError) {
+      return NextResponse.json({ error: photoError, fieldErrors: { eventPhotos: [photoError] } }, { status: 400 });
+    }
+  }
+
+  const docAcademicYear = formatAcademicYearLabel(parsed.data.mouYear);
+  const mouYearLabel = String(parsed.data.mouYear);
 
   let logoUrl = parsed.data.logoUrl?.trim() || null;
   if (files.logoFile) {
@@ -376,7 +546,6 @@ export async function POST(req: Request) {
 
   let mouFileUrl: string | null = null;
   const eventPhotoUrls: string[] = [];
-  const docAcademicYear = parsed.data.academicYearLabel ?? null;
   const documentRows: {
     kind: DocumentKind;
     fileName: string;
@@ -384,10 +553,13 @@ export async function POST(req: Request) {
     academicYear: string | null;
   }[] = [];
 
-  if (files.mouFile) {
+  for (const mouFile of files.mouFiles) {
     try {
-      const stored = await storeUpload(files.mouFile, "universities/mou", "mou");
-      mouFileUrl = stored.fileUrl;
+      const stored = await storeUpload(mouFile, "universities/mou", "mou", {
+        maxBytes: MOU_PDF_MAX_BYTES,
+        allowedMime: ["application/pdf"],
+      });
+      if (!mouFileUrl) mouFileUrl = stored.fileUrl;
       documentRows.push({
         kind: DocumentKind.MOU,
         fileName: stored.fileName,
@@ -402,7 +574,9 @@ export async function POST(req: Request) {
 
   for (const photo of files.eventPhotos) {
     try {
-      const stored = await storeUpload(photo, "universities/events", "image");
+      const stored = await storeUpload(photo, "universities/events", "image", {
+        maxBytes: EVENT_PHOTO_MAX_BYTES,
+      });
       eventPhotoUrls.push(stored.fileUrl);
       documentRows.push({
         kind: DocumentKind.EVENT_PHOTO,
@@ -462,7 +636,11 @@ export async function POST(req: Request) {
   const offersUg = parsed.data.offersUg ?? ugStreams.length > 0;
   const offersPg = parsed.data.offersPg ?? pgStreams.length > 0;
   const locationParts = [parsed.data.city, parsed.data.district, parsed.data.state].filter(Boolean);
-  const location = locationParts.length > 0 ? locationParts.join(", ") : null;
+  const locationFromParts = locationParts.length > 0 ? locationParts.join(", ") : null;
+  const location =
+    parsed.data.location?.trim() ||
+    parsed.data.address?.trim() ||
+    locationFromParts;
 
   let credentialMail: { to: string; name: string; email: string; password: string } | null = null;
   const spocCredentialMails: { to: string; name: string; email: string; password: string }[] = [];
@@ -476,10 +654,11 @@ export async function POST(req: Request) {
         phone,
         status: "ACTIVE",
         masterUniversityId: parsed.data.masterUniversityId ?? null,
-        address: parsed.data.address?.trim() || null,
+        address: parsed.data.location?.trim() || parsed.data.address?.trim() || null,
         state: parsed.data.state?.trim() || null,
         district: parsed.data.district?.trim() || null,
         city: parsed.data.city?.trim() || null,
+        area: parsed.data.area?.trim() || null,
         pincode: parsed.data.pincode?.trim() || null,
         website: parsed.data.website?.trim() || websiteFromMaster,
         location,
@@ -500,6 +679,8 @@ export async function POST(req: Request) {
         examFee: toDecimal(parsed.data.examFee ?? undefined),
         otherAdminCharges: parsed.data.otherAdminCharges?.trim() || null,
         otherAdminAmount: toDecimal(parsed.data.otherAdminAmount ?? undefined),
+        mouYear: mouYearLabel,
+        mouTenure: parsed.data.mouTenure,
         mouFileUrl,
         eventPhotoUrls,
         logoUrl,
@@ -644,6 +825,20 @@ export async function POST(req: Request) {
       }
     }
 
+    for (let i = 0; i < (parsed.data.mouSpocs ?? []).length; i++) {
+      const mouSpoc = parsed.data.mouSpocs![i]!;
+      await tx.universityMouSpoc.create({
+        data: {
+          universityId: university.id,
+          name: mouSpoc.name.trim(),
+          designation: mouSpoc.designation.trim(),
+          mobile: mouSpoc.mobile.trim(),
+          email: mouSpoc.email.trim().toLowerCase(),
+          sortOrder: i,
+        },
+      });
+    }
+
     if (docAcademicYear) {
       await tx.academicYear.upsert({
         where: {
@@ -700,6 +895,23 @@ export async function POST(req: Request) {
     } catch (e) {
       console.error("sendAccountCredentialsEmail spoc", e);
     }
+  }
+
+  try {
+    await sendMouSpocDetailsToSheshuTeam({
+      universityName: result.university.name,
+      universityCode: result.university.code,
+      mouYear: mouYearLabel,
+      mouTenure: parsed.data.mouTenure ?? null,
+      spocs: (parsed.data.mouSpocs ?? []).map((s) => ({
+        name: s.name.trim(),
+        designation: s.designation.trim(),
+        mobile: s.mobile.trim(),
+        email: s.email.trim(),
+      })),
+    });
+  } catch (e) {
+    console.error("sendMouSpocDetailsToSheshuTeam", e);
   }
 
   return NextResponse.json({

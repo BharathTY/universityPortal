@@ -21,14 +21,7 @@ import { getAllowedConsultantUniversityIds } from "@/lib/consultant-universities
 import { prisma } from "@/lib/prisma";
 
 import { isConsultantOnly } from "@/lib/roles";
-
-function studentPortalBaseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.APP_BASE_URL?.trim() ||
-    "http://localhost:7777"
-  ).replace(/\/$/, "");
-}
+import { isRazorpayConfigured } from "@/lib/razorpay-server";
 
 
 
@@ -134,7 +127,7 @@ export default async function ConsultantLeadsPage({ searchParams }: PageProps) {
 
       universities={universitiesWithStreams}
 
-      studentPortalUrl={studentPortalBaseUrl()}
+      razorpayConfigured={isRazorpayConfigured()}
 
     />
 

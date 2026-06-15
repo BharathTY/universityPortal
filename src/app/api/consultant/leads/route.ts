@@ -17,6 +17,7 @@ import {
   buildLeadExtendedData,
   consultantLeadBodySchema,
   parseConsultantLeadRequest,
+  replaceLeadEntranceExams,
 } from "@/lib/consultant-lead-payload";
 import { sendAdmissionLeadWelcomeEmail } from "@/lib/email";
 import { storeUpload } from "@/lib/file-storage";
@@ -128,10 +129,14 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   let json: unknown;
   let photoFile: File | null = null;
+  let sslcMarksCardFile: File | null = null;
+  let qualMarksCardFile: File | null = null;
   try {
     const parsedReq = await parseConsultantLeadRequest(req);
     json = parsedReq.data;
     photoFile = parsedReq.photoFile;
+    sslcMarksCardFile = parsedReq.sslcMarksCardFile;
+    qualMarksCardFile = parsedReq.qualMarksCardFile;
   } catch {
     return NextResponse.json({ error: "Invalid JSON or form data" }, { status: 400 });
   }
@@ -141,7 +146,7 @@ export async function POST(req: Request) {
     const flat = parsed.error.flatten();
     return NextResponse.json(
       {
-        error: "Invalid input",
+        error: parsed.error.issues[0]?.message ?? "Invalid input",
         fieldErrors: flat.fieldErrors,
         formErrors: flat.formErrors,
       },
@@ -149,26 +154,50 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!photoFile) {
-    return NextResponse.json(
-      {
-        error: "Photo is required",
-        fieldErrors: { photoFile: ["Upload a JPG, JPEG, or PNG photo (max 2 MB)"] },
-      },
-      { status: 400 },
-    );
+  let photoUrl: string | null = null;
+  if (photoFile) {
+    try {
+      const stored = await storeUpload(photoFile, "leads/photos", "image");
+      photoUrl = stored.fileUrl;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Photo upload failed";
+      return NextResponse.json(
+        { error: msg, fieldErrors: { photoFile: [msg] } },
+        { status: 400 },
+      );
+    }
   }
 
-  let photoUrl: string;
-  try {
-    const stored = await storeUpload(photoFile, "leads/photos", "image");
-    photoUrl = stored.fileUrl;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Photo upload failed";
-    return NextResponse.json(
-      { error: msg, fieldErrors: { photoFile: [msg] } },
-      { status: 400 },
-    );
+  let sslcMarksCardUrl: string | null = null;
+  if (sslcMarksCardFile) {
+    try {
+      const stored = await storeUpload(sslcMarksCardFile, "leads/marks-cards", "mou", {
+        maxBytes: 5 * 1024 * 1024,
+      });
+      sslcMarksCardUrl = stored.fileUrl;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "10th marks card upload failed";
+      return NextResponse.json(
+        { error: msg, fieldErrors: { sslcMarksCardFile: [msg] } },
+        { status: 400 },
+      );
+    }
+  }
+
+  let qualMarksCardUrl: string | null = null;
+  if (qualMarksCardFile) {
+    try {
+      const stored = await storeUpload(qualMarksCardFile, "leads/marks-cards", "mou", {
+        maxBytes: 5 * 1024 * 1024,
+      });
+      qualMarksCardUrl = stored.fileUrl;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Qualification marks card upload failed";
+      return NextResponse.json(
+        { error: msg, fieldErrors: { qualMarksCardFile: [msg] } },
+        { status: 400 },
+      );
+    }
   }
 
   const gate = await requireConsultantUniversity(parsed.data.universityId ?? null);
@@ -243,21 +272,27 @@ export async function POST(req: Request) {
     200,
   );
 
-  const lead = await prisma.admissionLead.create({
-    data: {
-      universityId,
-      academicYearId: yearId,
-      streamId: parsed.data.streamId,
-      consultantCode: consultantCodeFromUserId(session.sub),
-      consultantRoleId: consultantRole.roleId,
-      admissionStatus: AdmissionLeadStatus.NEW_LEAD,
-      pipelineStatus: LeadPipelineStatus.NEW,
-      photoUrl,
-      branchName: creator?.branchName?.trim() || null,
-      createdByUserId: session.sub,
-      assignedPartnerDisplayName,
-      ...extended,
-    },
+  const lead = await prisma.$transaction(async (tx) => {
+    const created = await tx.admissionLead.create({
+      data: {
+        universityId,
+        academicYearId: yearId,
+        streamId: parsed.data.streamId,
+        consultantCode: consultantCodeFromUserId(session.sub),
+        consultantRoleId: consultantRole.roleId,
+        admissionStatus: AdmissionLeadStatus.NEW_LEAD,
+        pipelineStatus: LeadPipelineStatus.NEW,
+        photoUrl,
+        sslcMarksCardUrl,
+        qualMarksCardUrl,
+        branchName: creator?.branchName?.trim() || null,
+        createdByUserId: session.sub,
+        assignedPartnerDisplayName,
+        ...extended,
+      },
+    });
+    await replaceLeadEntranceExams(tx, created.id, parsed.data.hasEntranceExams, parsed.data.entranceExams);
+    return created;
   });
 
   const fullName = `${parsed.data.firstName} ${parsed.data.lastName}`.trim();
