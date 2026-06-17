@@ -20,6 +20,7 @@ import {
 import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
 import { ListQueryToolbar, SORT_LEADS } from "@/components/list-controls";
 import type { SerializedConsultantLeadDetail } from "@/lib/consultant-lead-payload";
+import { newClientId } from "@/lib/client-id";
 
 type Stream = { id: string; name: string; programLevel?: "UG" | "PG" | null; degreeType?: string | null };
 type AcademicYearOption = { id: string; label: string };
@@ -343,7 +344,7 @@ export function ConsultantLeadsClient(props: Props) {
     setEntranceExams(
       l.entranceExams.length > 0
         ? l.entranceExams.map((exam) => ({
-            clientId: exam.id ?? crypto.randomUUID(),
+            clientId: exam.id ?? newClientId("exam"),
             examName: exam.examName,
             centreName: exam.centreName,
             registrationNumber: exam.registrationNumber ?? "",

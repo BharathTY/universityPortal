@@ -467,6 +467,16 @@ export function NewUniversityWizard({ initialMasterId }: { initialMasterId?: str
             onDetailsCleared={clearDetailsState}
             onEmailChange={setEmail}
             onPhoneChange={setPhone}
+            pincode={pincode}
+            onPincodeChange={(value) => {
+              setPincode(value);
+              setFieldErrors((f) => {
+                if (!f.pincode) return f;
+                const next = { ...f };
+                delete next.pincode;
+                return next;
+              });
+            }}
             onLogoPick={onLogoPick}
             onClearLogo={() => {
               setLogoUrl("");

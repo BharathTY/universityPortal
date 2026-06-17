@@ -152,8 +152,11 @@ export function UniversityStreamEntryEditor({
             entry.programName,
           );
           const degreeValid = degreeOptions.some((d) => d.value === entry.programName);
-          const streamValid = streamOptions.some(
-            (s) => s.value === entry.streamName || s.label === entry.streamName,
+          const selectedStreamOption = streamOptions.find(
+            (s) =>
+              s.value === entry.streamName ||
+              s.label === entry.streamName ||
+              s.externalId === entry.streamName,
           );
 
           return (
@@ -209,8 +212,11 @@ export function UniversityStreamEntryEditor({
                     Stream <span className="text-red-600">*</span>
                   </label>
                   <select
-                    value={streamValid ? entry.streamName : ""}
-                    onChange={(e) => updateEntry(entry.id, { streamName: e.target.value })}
+                    value={selectedStreamOption?.value ?? ""}
+                    onChange={(e) => {
+                      const selected = streamOptions.find((s) => s.value === e.target.value);
+                      updateEntry(entry.id, { streamName: selected?.label ?? e.target.value });
+                    }}
                     disabled={disabled || catalogLoading || !entry.programName}
                     aria-invalid={Boolean(fieldErrors[`stream-${entry.id}-stream`])}
                     className={selectClass(Boolean(fieldErrors[`stream-${entry.id}-stream`]))}
@@ -219,7 +225,7 @@ export function UniversityStreamEntryEditor({
                       {entry.programName ? "Select stream" : "Select degree type first"}
                     </option>
                     {streamOptions.map((stream) => (
-                      <option key={stream.value} value={stream.value}>
+                      <option key={stream.externalId ?? stream.value} value={stream.value}>
                         {stream.label}
                       </option>
                     ))}

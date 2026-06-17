@@ -36,7 +36,7 @@ export function DashboardSidebar({
   const groups = buildDashboardNav(roles, { universityId });
 
   return (
-    <aside className="flex h-full max-h-screen flex-col overflow-hidden">
+    <aside className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Brand strip — single source of truth for portal identity */}
       <div
         className={`relative shrink-0 bg-[var(--navy-900)] ${

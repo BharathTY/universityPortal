@@ -1,6 +1,17 @@
 import { normalizeIndianState } from "@/lib/indian-states";
 import { validateUniversityPincode } from "@/lib/university-pincode";
 
+/** Try to pull a 6-digit Indian PIN from address / location text. */
+export function extractPincodeFromText(...parts: (string | null | undefined)[]): string {
+  for (const part of parts) {
+    const text = part?.trim();
+    if (!text) continue;
+    const matches = text.match(/\b(\d{6})\b/g);
+    if (matches?.length) return matches[matches.length - 1]!;
+  }
+  return "";
+}
+
 /** Normalized university details returned to the onboarding UI. */
 export type UniversityDetailsPayload = {
   universityName: string;
@@ -85,6 +96,11 @@ export function normalizeExternalUniversityDetails(
     pickString(body, ["area", "locality", "areaName", "area_name"]) || city;
   const pincode =
     pickString(body, ["pincode", "pinCode", "pin_code", "postalCode"]) ||
+    extractPincodeFromText(
+      pickString(body, ["address", "location", "universityLocation"]),
+      fallback.address,
+      fallback.pincode,
+    ) ||
     fallback.pincode?.trim() ||
     "";
 
@@ -132,7 +148,10 @@ export function universityDetailsFromCatalog(fallback: MasterCatalogRecord): Uni
     district: fallback.district,
     city: fallback.city?.trim() ?? fallback.district,
     area: fallback.city?.trim() ?? fallback.district,
-    pincode: fallback.pincode?.trim() ?? "",
+    pincode:
+      fallback.pincode?.trim() ||
+      extractPincodeFromText(fallback.address, fallback.city, fallback.district) ||
+      "",
     contactNumber: "",
     email: "",
     logoUrl: null,

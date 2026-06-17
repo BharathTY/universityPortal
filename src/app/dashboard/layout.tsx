@@ -13,7 +13,7 @@ export default async function DashboardLayout({
   const brandTitle = PORTAL_BRAND_NAME;
   const brandSubtitle = studentView ? "Student portal" : PORTAL_BRAND_TAGLINE;
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="fixed inset-0 overflow-hidden bg-[var(--background)]">
       <DashboardShell
         email={session.email}
         roles={session.roles}

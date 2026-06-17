@@ -54,6 +54,55 @@ function pickOptions(raw: unknown): ProgramCatalogOption[] {
     .filter((x): x is ProgramCatalogOption => x !== null);
 }
 
+/** Drop duplicate rows (same externalId/value) while preserving order. */
+function dedupeStreamOptions(options: ProgramCatalogOption[]): ProgramCatalogOption[] {
+  const seen = new Set<string>();
+  const deduped: ProgramCatalogOption[] = [];
+  for (const opt of options) {
+    const id = opt.externalId?.trim() || opt.value.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    deduped.push(opt);
+  }
+  return deduped;
+}
+
+/** Ensure stream options have unique values and disambiguate duplicate labels in one list. */
+export function normalizeStreamOptions(options: ProgramCatalogOption[]): ProgramCatalogOption[] {
+  const labelCounts = new Map<string, number>();
+  for (const opt of options) {
+    labelCounts.set(opt.label, (labelCounts.get(opt.label) ?? 0) + 1);
+  }
+
+  const seenValues = new Set<string>();
+  const labelIndex = new Map<string, number>();
+  const normalized: ProgramCatalogOption[] = [];
+
+  for (let i = 0; i < options.length; i++) {
+    const opt = options[i];
+    let value = opt.externalId?.trim() || opt.value.trim();
+    if (!value || seenValues.has(value)) {
+      value = `${opt.externalId?.trim() || opt.value.trim() || "stream"}__${i}`;
+    }
+    seenValues.add(value);
+
+    let label = opt.label;
+    if ((labelCounts.get(opt.label) ?? 0) > 1) {
+      const idx = (labelIndex.get(opt.label) ?? 0) + 1;
+      labelIndex.set(opt.label, idx);
+      if (idx > 1) label = `${opt.label} (${idx})`;
+    }
+
+    normalized.push({
+      value,
+      label,
+      externalId: opt.externalId ?? value,
+    });
+  }
+
+  return normalized;
+}
+
 function buildFallbackCatalog(): ProgramCatalogSnapshot {
   const degreeTypesByQualification: Record<string, ProgramCatalogOption[]> = {
     UG: [...FALLBACK_DEGREE_TYPES.UG],
@@ -175,16 +224,33 @@ async function buildDatabaseCatalog(): Promise<ProgramCatalogSnapshot | null> {
       degreeTypesByQualification.PG = [...FALLBACK_DEGREE_TYPES.PG];
     }
 
+    const degreeCodeByExternalId = new Map(
+      degreeRows.map((row) => [row.externalId, row.code] as const),
+    );
+
     const streamsByDegreeType: Record<string, ProgramCatalogOption[]> = {};
     for (const row of streamRows) {
       const option: ProgramCatalogOption = {
-        value: row.code ?? row.name,
+        value: row.externalId,
         label: row.name,
         externalId: row.externalId,
       };
-      const key = row.degreeTypeExternalId ?? "default";
-      if (!streamsByDegreeType[key]) streamsByDegreeType[key] = [];
-      streamsByDegreeType[key].push(option);
+      const keys = new Set<string>();
+      if (row.degreeTypeExternalId) keys.add(row.degreeTypeExternalId);
+      const degreeCode = row.degreeTypeExternalId
+        ? degreeCodeByExternalId.get(row.degreeTypeExternalId)
+        : undefined;
+      if (degreeCode) keys.add(degreeCode);
+      if (keys.size === 0) keys.add("default");
+
+      for (const key of keys) {
+        if (!streamsByDegreeType[key]) streamsByDegreeType[key] = [];
+        streamsByDegreeType[key].push(option);
+      }
+    }
+
+    for (const key of Object.keys(streamsByDegreeType)) {
+      streamsByDegreeType[key] = normalizeStreamOptions(streamsByDegreeType[key]!);
     }
 
     return {
@@ -192,14 +258,7 @@ async function buildDatabaseCatalog(): Promise<ProgramCatalogSnapshot | null> {
       qualificationTypes: [...FALLBACK_QUALIFICATION_TYPES],
       degreeTypesByQualification,
       streamsByDegreeType,
-      defaultStreams:
-        streamRows.length > 0
-          ? streamRows.map((r) => ({
-              value: r.code ?? r.name,
-              label: r.name,
-              externalId: r.externalId,
-            }))
-          : [...FALLBACK_STREAM_OPTIONS],
+      defaultStreams: [...FALLBACK_STREAM_OPTIONS],
     };
   } catch {
     return null;
@@ -235,17 +294,24 @@ export function streamsForDegreeType(
   qualificationType: string,
   degreeType: string,
 ): ProgramCatalogOption[] {
-  if (!degreeType) return catalog.defaultStreams;
-  const byCode = catalog.streamsByDegreeType[degreeType];
-  if (byCode?.length) return byCode;
+  if (!degreeType) return normalizeStreamOptions(catalog.defaultStreams);
 
   const degrees = degreeTypesForQualification(catalog, qualificationType);
-  const match = degrees.find((d) => d.value === degreeType);
-  if (match?.externalId && catalog.streamsByDegreeType[match.externalId]?.length) {
-    return catalog.streamsByDegreeType[match.externalId]!;
+  const match = degrees.find((d) => d.value === degreeType || d.externalId === degreeType);
+
+  const candidates: ProgramCatalogOption[] = [];
+  const byCode = catalog.streamsByDegreeType[degreeType];
+  if (byCode?.length) candidates.push(...byCode);
+  if (match?.externalId) {
+    const byExternalId = catalog.streamsByDegreeType[match.externalId];
+    if (byExternalId?.length) candidates.push(...byExternalId);
   }
 
-  return catalog.defaultStreams;
+  if (candidates.length > 0) {
+    return normalizeStreamOptions(dedupeStreamOptions(candidates));
+  }
+
+  return normalizeStreamOptions(catalog.defaultStreams);
 }
 
 export function isValidDegreeForQualification(

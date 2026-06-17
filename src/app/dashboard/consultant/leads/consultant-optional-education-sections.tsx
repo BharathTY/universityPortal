@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { SSLC_RESULT_TYPES } from "@/lib/student-form-options";
+import { newClientId } from "@/lib/client-id";
 
 export type PriorDegreeFormValues = {
   priorDegreeType: string;
@@ -38,7 +39,7 @@ export function createEmptyPriorDegreeValues(): PriorDegreeFormValues {
 
 export function createEmptyEntranceExamRow(): EntranceExamFormRow {
   return {
-    clientId: crypto.randomUUID(),
+    clientId: newClientId("exam"),
     examName: "",
     centreName: "",
     registrationNumber: "",

@@ -21,6 +21,8 @@ type Props = {
   onDetailsCleared: () => void;
   onEmailChange: (value: string) => void;
   onPhoneChange: (value: string) => void;
+  pincode: string;
+  onPincodeChange: (value: string) => void;
   onLogoPick: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onClearLogo: () => void;
 };
@@ -67,6 +69,8 @@ export function UniversityDetailsSection({
   onDetailsCleared,
   onEmailChange,
   onPhoneChange,
+  pincode,
+  onPincodeChange,
   onLogoPick,
   onClearLogo,
 }: Props) {
@@ -181,12 +185,32 @@ export function UniversityDetailsSection({
             <ReadOnlyField label="Area" value={details.area} required />
             {fieldErrors.area ? <p className="text-xs text-red-600 sm:col-span-2">{fieldErrors.area}</p> : null}
 
-            <ReadOnlyField label="Pincode" value={details.pincode} required />
-            {fieldErrors.pincode ? (
-              <p className="text-xs text-red-600 sm:col-span-2">{fieldErrors.pincode}</p>
-            ) : (
-              <p className="text-xs text-[var(--foreground-muted)] sm:col-span-2">Must be 6 digits.</p>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)]">
+                Pincode <span className="text-red-600">*</span>
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                required
+                value={pincode}
+                onChange={(e) => onPincodeChange(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="6-digit PIN"
+                className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor(fieldErrors, "pincode")}`}
+                disabled={disabled}
+                aria-invalid={Boolean(fieldErrors.pincode)}
+              />
+              {fieldErrors.pincode ? (
+                <p className="mt-1 text-xs text-red-600">{fieldErrors.pincode}</p>
+              ) : (
+                <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                  {pincode.length === 6
+                    ? "Valid 6-digit pincode."
+                    : "Required when not available from catalog — enter 6 digits."}
+                </p>
+              )}
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-[var(--foreground)]">

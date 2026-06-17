@@ -1,6 +1,6 @@
 "use client";
 
-import { PORTAL_BRAND_NAME } from "@/components/portal-logo";
+import { downloadPaymentReceiptHtml } from "@/lib/payment-receipt-html";
 
 type Props = {
   transactionRef: string;
@@ -24,22 +24,14 @@ export function PaymentReceiptLink({
   createdAt,
 }: Props) {
   function downloadReceipt() {
-    const lines = [
-      `${PORTAL_BRAND_NAME} — Payment Receipt`,
-      `Transaction ID: ${transactionRef}`,
-      `Student: ${studentName}`,
-      `University: ${universityName}`,
-      `Amount: ${formatInr(amount)}`,
-      `Status: SUCCESS`,
-      `Date: ${new Date(createdAt).toLocaleString("en-IN")}`,
-    ];
-    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `receipt-${transactionRef}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadPaymentReceiptHtml({
+      transactionRef,
+      amountLabel: formatInr(amount),
+      status: "SUCCESS",
+      paidAt: createdAt,
+      universityName,
+      studentName,
+    });
   }
 
   return (

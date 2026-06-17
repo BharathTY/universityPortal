@@ -4,7 +4,7 @@ import * as React from "react";
 import { formatInr } from "@/lib/student-portal";
 import { leadStatusLabel } from "@/lib/lead-status";
 import { PaymentSplitNotice } from "@/components/payment-split-notice";
-import { PORTAL_BRAND_NAME } from "@/components/portal-logo";
+import { downloadPaymentReceiptHtml } from "@/lib/payment-receipt-html";
 import type { AdmissionLeadStatus } from "@prisma/client";
 
 declare global {
@@ -179,21 +179,14 @@ export function StudentPaymentPanel({
   }
 
   function downloadReceipt(tx: Transaction) {
-    const lines = [
-      `${PORTAL_BRAND_NAME} — Payment Receipt`,
-      `Transaction ref: ${tx.transactionRef}`,
-      `Amount: ${formatInr(tx.amount)}`,
-      `Status: ${tx.status}`,
-      `Date: ${new Date(tx.createdAt).toLocaleString("en-IN")}`,
-      `University: ${universityName}`,
-    ];
-    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `receipt-${tx.transactionRef}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadPaymentReceiptHtml({
+      transactionRef: tx.transactionRef,
+      amountLabel: formatInr(tx.amount),
+      status: tx.status,
+      paidAt: tx.createdAt,
+      universityName,
+      applicationId,
+    });
   }
 
   const latestSuccess = transactions.find((t) => t.status === "SUCCESS");

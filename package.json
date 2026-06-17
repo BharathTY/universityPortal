@@ -16,6 +16,7 @@
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
     "import:universities": "tsx scripts/import-universities-from-csv.ts",
+    "import:qspiders-catalog": "tsx scripts/import-qspiders-catalog-to-db.ts",
     "sync:master-universities": "tsx scripts/sync-master-universities-to-db.ts",
     "postinstall": "prisma generate"
   },
