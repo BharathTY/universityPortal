@@ -22,6 +22,7 @@ import {
 import { validateUniversityPhone } from "@/lib/university-phone";
 import { validateUniversityPincode } from "@/lib/university-pincode";
 import { HOSTEL_FEE_COMBOS, type HostelFeeKey } from "@/lib/hostel-fee-matrix";
+import { syncUniversityHostelFees } from "@/lib/university-hostel-fees-db";
 import { validateAdditionalFees, validateSeatAllocation, validateTuitionFees, type StreamEntry } from "@/lib/stream-entry-payload";
 
 const nameSchema = z.string().trim().min(1).max(200);
