@@ -26,11 +26,11 @@ import {
   type StreamEntry,
 } from "@/lib/stream-entry-payload";
 import {
-  emptyHostelDetailsForm,
-  hostelDetailsFoodFee,
-  hostelDetailsToHostelFeesForm,
-  validateHostelDetails,
-  type HostelDetailsForm,
+  emptyHostelDetailsState,
+  hostelEntriesFoodFee,
+  hostelEntriesToHostelFeesForm,
+  validateHostelDetailsState,
+  type HostelDetailsState,
 } from "@/lib/university-hostel-details";
 import {
   completeUniversityMouSpocRows,
@@ -120,7 +120,7 @@ export function NewUniversityWizard({ initialMasterId }: { initialMasterId?: str
   const [streamEntries, setStreamEntries] = React.useState<StreamEntry[]>([createEmptyStreamEntry()]);
   const [programCatalog, setProgramCatalog] = React.useState<ProgramCatalogSnapshot | null>(null);
   const [programCatalogLoading, setProgramCatalogLoading] = React.useState(true);
-  const [hostelDetails, setHostelDetails] = React.useState<HostelDetailsForm>(() => emptyHostelDetailsForm());
+  const [hostelDetails, setHostelDetails] = React.useState<HostelDetailsState>(() => emptyHostelDetailsState());
   const [targetStudentsUg, setTargetStudentsUg] = React.useState("");
   const [targetStudentsPg, setTargetStudentsPg] = React.useState("");
   const [scholarshipEntries, setScholarshipEntries] = React.useState<ScholarshipEntry[]>(() => [
@@ -276,7 +276,7 @@ export function NewUniversityWizard({ initialMasterId }: { initialMasterId?: str
       e,
       validateStreamEntries(streamEntries, programCatalog ?? getFallbackProgramCatalog()),
     );
-    Object.assign(e, validateHostelDetails(hostelDetails));
+    Object.assign(e, validateHostelDetailsState(hostelDetails));
     Object.assign(e, validateScholarshipEntries(scholarshipEntries));
     Object.assign(e, validateUniversityMouSpocRows(mouSpocRows));
     Object.assign(e, validateMouDocuments({ mouYear, mouTenure, mouFiles, eventPhotos }));
@@ -311,11 +311,11 @@ export function NewUniversityWizard({ initialMasterId }: { initialMasterId?: str
     try {
       const streamPayload = streamEntriesToCreatePayload(
         streamEntries,
-        hostelDetailsToHostelFeesForm(hostelDetails),
+        hostelEntriesToHostelFeesForm(hostelDetails.entries),
         {
           targetStudentsUg,
           targetStudentsPg,
-          foodFee: hostelDetailsFoodFee(hostelDetails),
+          foodFee: hostelEntriesFoodFee(hostelDetails.entries),
         },
       );
 
