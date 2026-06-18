@@ -646,7 +646,9 @@ export async function POST(req: Request) {
   let credentialMail: { to: string; name: string; email: string; password: string } | null = null;
   const spocCredentialMails: { to: string; name: string; email: string; password: string }[] = [];
 
-  const result = await prisma.$transaction(async (tx) => {
+  let result: { university: { id: string; name: string; code: string }; userId: string | null };
+  try {
+    result = await prisma.$transaction(async (tx) => {
     const university = await tx.university.create({
       data: {
         name: parsed.data.name,
@@ -881,6 +883,18 @@ export async function POST(req: Request) {
 
     return { university, userId: null as string | null };
   });
+  } catch (e) {
+    console.error("POST /api/master/universities failed", e);
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      const target = Array.isArray(e.meta?.target) ? e.meta.target.join(", ") : "unique field";
+      return NextResponse.json(
+        { error: `A record with this ${target} already exists`, fieldErrors: {} },
+        { status: 409 },
+      );
+    }
+    const message = e instanceof Error ? e.message : "Could not create university";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
   if (credentialMail) {
     try {
