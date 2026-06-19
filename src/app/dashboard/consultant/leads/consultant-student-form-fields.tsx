@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { StudentPhotoUploadField } from "@/components/student-photo-upload-field";
 import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
 import {
   HIGHER_QUALIFICATION_TYPES,
@@ -56,10 +57,10 @@ type Props = {
   borderFor: (key: string) => string;
   clearError: (key: string) => void;
   isEdit: boolean;
-  photoPreview: string | null;
-  existingPhotoUrl: string | null;
   photoFile: File | null;
   onPhotoChange: (file: File | null) => void;
+  onPhotoError: (message: string | null) => void;
+  existingPhotoUrl: string | null;
   sslcMarksCardFile: File | null;
   existingSslcMarksCardUrl: string | null;
   onSslcMarksCardChange: (file: File | null) => void;
@@ -107,10 +108,10 @@ export function ConsultantStudentFormFields({
   borderFor,
   clearError,
   isEdit,
-  photoPreview,
-  existingPhotoUrl,
   photoFile,
   onPhotoChange,
+  onPhotoError,
+  existingPhotoUrl,
   sslcMarksCardFile,
   existingSslcMarksCardUrl,
   onSslcMarksCardChange,
@@ -314,34 +315,14 @@ export function ConsultantStudentFormFields({
             </select>
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Student photo" error={fieldErrors.photoFile}>
-              <p className="mt-1 text-xs text-[var(--foreground-muted)]">
-                Optional — JPG, JPEG, or PNG, max 2 MB
-                {isEdit && existingPhotoUrl && !photoFile ? " · Upload only to replace the current photo." : ""}
-              </p>
-              <div className="mt-2 flex flex-wrap items-start gap-4">
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-sm font-semibold hover:bg-[var(--muted)]">
-                  Choose photo
-                  <input
-                    type="file"
-                    accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                    className="sr-only"
-                    onChange={(e) => {
-                      onPhotoChange(e.target.files?.[0] ?? null);
-                      clearError("photoFile");
-                    }}
-                  />
-                </label>
-                {photoPreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photoPreview} alt="Preview" className="h-24 w-24 rounded-lg border object-cover" />
-                ) : (
-                  <div className="flex h-24 w-24 items-center justify-center rounded-lg border border-dashed text-xs text-[var(--foreground-muted)]">
-                    Preview
-                  </div>
-                )}
-              </div>
-            </Field>
+            <StudentPhotoUploadField
+              existingPhotoUrl={existingPhotoUrl}
+              selectedFile={photoFile}
+              error={fieldErrors.photoFile}
+              isEdit={isEdit}
+              onFileChange={onPhotoChange}
+              onError={onPhotoError}
+            />
           </div>
         </div>
       </Section>

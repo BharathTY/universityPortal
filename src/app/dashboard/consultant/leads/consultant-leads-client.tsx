@@ -21,7 +21,6 @@ import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
 import { ListQueryToolbar, SORT_LEADS } from "@/components/list-controls";
 import type { SerializedConsultantLeadDetail } from "@/lib/consultant-lead-payload";
 import { newClientId } from "@/lib/client-id";
-import { readStudentPhotoPreview, validateStudentPhotoFile } from "@/lib/student-photo";
 
 type Stream = { id: string; name: string; programLevel?: "UG" | "PG" | null; degreeType?: string | null };
 type AcademicYearOption = { id: string; label: string };
@@ -285,7 +284,6 @@ export function ConsultantLeadsClient(props: Props) {
   const [existingQualMarksCardUrl, setExistingQualMarksCardUrl] = React.useState<string | null>(
     props.initialLead?.qualMarksCardUrl ?? null,
   );
-  const [photoPreview, setPhotoPreview] = React.useState<string | null>(props.initialLead?.photoUrl ?? null);
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
   function updatePriorDegree<K extends keyof PriorDegreeFormValues>(key: K, value: PriorDegreeFormValues[K]) {
@@ -307,35 +305,13 @@ export function ConsultantLeadsClient(props: Props) {
     });
   }
 
-  async function handlePhotoChange(file: File | null) {
-    setPhotoFile(file);
-    if (!file) {
-      setPhotoPreview(existingPhotoUrl);
-      setFieldErrors((f) => {
-        const n = { ...f };
-        delete n.photoFile;
-        return n;
-      });
-      return;
-    }
-    const photoError = validateStudentPhotoFile(file);
-    if (photoError) {
-      setFieldErrors((f) => ({ ...f, photoFile: photoError }));
-      setPhotoPreview(existingPhotoUrl);
-      return;
-    }
+  function setPhotoFieldError(message: string | null) {
     setFieldErrors((f) => {
       const n = { ...f };
-      delete n.photoFile;
+      if (message) n.photoFile = message;
+      else delete n.photoFile;
       return n;
     });
-    try {
-      const preview = await readStudentPhotoPreview(file);
-      setPhotoPreview(preview);
-    } catch {
-      setFieldErrors((f) => ({ ...f, photoFile: "Could not read photo" }));
-      setPhotoPreview(existingPhotoUrl);
-    }
   }
 
   React.useEffect(() => {
@@ -612,7 +588,6 @@ export function ConsultantLeadsClient(props: Props) {
     setRefPhone("");
     setRefEmail("");
     setPhotoFile(null);
-    setPhotoPreview(null);
     setSslcMarksCardFile(null);
     setQualMarksCardFile(null);
     setExistingPhotoUrl(null);
@@ -712,10 +687,10 @@ export function ConsultantLeadsClient(props: Props) {
             borderFor={borderFor}
             clearError={clearStudentFieldError}
             isEdit={isEdit}
-            photoPreview={photoPreview}
-            existingPhotoUrl={existingPhotoUrl}
             photoFile={photoFile}
-            onPhotoChange={handlePhotoChange}
+            onPhotoChange={setPhotoFile}
+            onPhotoError={setPhotoFieldError}
+            existingPhotoUrl={existingPhotoUrl}
             sslcMarksCardFile={sslcMarksCardFile}
             existingSslcMarksCardUrl={existingSslcMarksCardUrl}
             onSslcMarksCardChange={setSslcMarksCardFile}
