@@ -2,6 +2,7 @@ import { DocumentKind } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { replaceConsultantUniversityAssignments } from "@/lib/consultant-universities";
+import { CONSULTANT_SPOC_ROLE_SLUGS } from "@/lib/consultant-spoc";
 import { storeUpload } from "@/lib/file-storage";
 import { validateGstNumber, validatePanNumber, normalizeGstNumber, normalizePanNumber } from "@/lib/indian-tax-ids";
 import { requireMasterApi } from "@/lib/master-session";
@@ -56,6 +57,89 @@ const patchSchema = z
   });
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+export async function GET(_req: Request, ctx: RouteContext) {
+  const gate = await requireMasterApi();
+  if (!gate.ok) return gate.response;
+
+  const { id } = await ctx.params;
+
+  const user = await prisma.user.findUnique({
+    where: { id },
+    include: {
+      consultantUniversities: {
+        include: { university: { select: { id: true, name: true, code: true } } },
+      },
+      consultantDocuments: {
+        where: { kind: "MOU" },
+        orderBy: { uploadedAt: "desc" },
+        select: { fileName: true, fileUrl: true, academicYear: true },
+      },
+    },
+  });
+
+  if (!user) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const spocsByConsultant = await prisma.user.findMany({
+    where: {
+      reportsToConsultantId: id,
+      roles: { some: { role: { slug: { in: [...CONSULTANT_SPOC_ROLE_SLUGS] } } } },
+    },
+    orderBy: [{ name: "asc" }, { email: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      whatsappNumber: true,
+      designation: true,
+      accountStatus: true,
+    },
+  });
+
+  const universities =
+    user.consultantUniversities.length > 0
+      ? user.consultantUniversities.map((c) => c.university)
+      : user.universityId
+        ? await prisma.university
+            .findUnique({
+              where: { id: user.universityId },
+              select: { id: true, name: true, code: true },
+            })
+            .then((u) => (u ? [u] : []))
+        : [];
+
+  return NextResponse.json({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    companyName: user.companyName,
+    designation: user.designation,
+    gstNumber: user.gstNumber,
+    panNumber: user.panNumber,
+    address: user.address,
+    city: user.city,
+    district: user.district,
+    state: user.state,
+    academicYear: user.academicYear,
+    accountStatus: user.accountStatus,
+    createdAt: user.createdAt.toISOString(),
+    universities,
+    mouDocuments: user.consultantDocuments,
+    spocs: spocsByConsultant.map((s) => ({
+      id: s.id,
+      name: s.name,
+      email: s.email,
+      phone: s.phone,
+      whatsapp: s.whatsappNumber,
+      designation: s.designation,
+      accountStatus: s.accountStatus,
+    })),
+  });
+}
 
 async function parsePatchRequest(req: Request): Promise<{ data: unknown; mouFile?: File }> {
   const ct = req.headers.get("content-type") ?? "";

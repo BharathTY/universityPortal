@@ -17,6 +17,8 @@ type Props = {
   logoFileError: string | null;
   fieldErrors: Record<string, string>;
   disabled?: boolean;
+  /** When set, skip catalog fetch and show these details (edit mode). */
+  preloadedDetails?: UniversityDetailsPayload | null;
   onDetailsLoaded: (details: UniversityDetailsPayload) => void;
   onDetailsCleared: () => void;
   onEmailChange: (value: string) => void;
@@ -65,6 +67,7 @@ export function UniversityDetailsSection({
   logoFileError,
   fieldErrors,
   disabled,
+  preloadedDetails,
   onDetailsLoaded,
   onDetailsCleared,
   onEmailChange,
@@ -79,6 +82,13 @@ export function UniversityDetailsSection({
   const [details, setDetails] = React.useState<UniversityDetailsPayload | null>(null);
 
   React.useEffect(() => {
+    if (preloadedDetails) {
+      setDetails(preloadedDetails);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     if (!masterUniversityId) {
       setDetails(null);
       setError(null);
@@ -122,9 +132,9 @@ export function UniversityDetailsSection({
     return () => {
       cancelled = true;
     };
-  }, [masterUniversityId, onDetailsCleared, onDetailsLoaded]);
+  }, [masterUniversityId, onDetailsCleared, onDetailsLoaded, preloadedDetails]);
 
-  if (!masterUniversityId) return null;
+  if (!masterUniversityId && !preloadedDetails) return null;
 
   return (
     <section className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--background)]/40 p-5">

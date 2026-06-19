@@ -17,6 +17,8 @@ export type ConsultantSpocSummary = {
   id: string;
   name: string | null;
   email: string;
+  phone: string | null;
+  whatsapp: string | null;
   designation: string | null;
   accountStatus: string;
 };
@@ -64,6 +66,8 @@ export async function loadConsultantSpocsGrouped(
       id: true,
       name: true,
       email: true,
+      phone: true,
+      whatsappNumber: true,
       designation: true,
       accountStatus: true,
       reportsToConsultantId: true,
@@ -78,6 +82,8 @@ export async function loadConsultantSpocsGrouped(
       id: row.id,
       name: row.name,
       email: row.email,
+      phone: row.phone,
+      whatsapp: row.whatsappNumber,
       designation: row.designation,
       accountStatus: row.accountStatus,
     });

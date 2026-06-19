@@ -1,9 +1,7 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import type { Prisma } from "@prisma/client";
 import { ListQueryToolbar, SORT_USERS } from "@/components/list-controls";
+import { ConsultantsListTable, type ConsultantListRow } from "@/components/consultants-list-table";
 import { requireAuth } from "@/lib/auth";
-import { ADMISSION_PARTNER_ROLE_SLUGS } from "@/lib/admission-partner-slugs";
+import { CONSULTANT_LIST_ROLE_SLUGS } from "@/lib/admission-partner-slugs";
 import {
   paginationMeta,
   parsePage,
@@ -15,7 +13,9 @@ import {
 import { loadConsultantSpocsGrouped } from "@/lib/consultant-spoc";
 import { prisma } from "@/lib/prisma";
 import { isMaster } from "@/lib/roles";
-import { ConsultantRowActions } from "@/app/dashboard/master/consultants/consultant-row-actions";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +44,7 @@ export default async function MasterConsultantsListPage(props: PageProps) {
   const pageSize = parsePageSize(searchParamOne(sp, "pageSize"), 25);
 
   const baseWhere: Prisma.UserWhereInput = {
-    roles: { some: { role: { slug: { in: [...ADMISSION_PARTNER_ROLE_SLUGS] } } } },
+    roles: { some: { role: { slug: { in: [...CONSULTANT_LIST_ROLE_SLUGS] } } } },
   };
   const textWhere = userTextSearchWhere(q);
   const where: Prisma.UserWhereInput = textWhere ? { AND: [baseWhere, textWhere] } : baseWhere;
@@ -68,6 +68,28 @@ export default async function MasterConsultantsListPage(props: PageProps) {
 
   const { page: safePage, totalPages } = paginationMeta(total, page, pageSize);
   const spocsByConsultantId = await loadConsultantSpocsGrouped(consultants.map((c) => c.id));
+
+  const rows: ConsultantListRow[] = consultants.map((u) => {
+    const uniLabels =
+      u.consultantUniversities.length > 0
+        ? [...u.consultantUniversities]
+            .sort((a, b) => a.university.name.localeCompare(b.university.name))
+            .map((c) => `${c.university.name} (${c.university.code})`)
+        : u.university
+          ? [`${u.university.name} (${u.university.code})`]
+          : [];
+    return {
+      id: u.id,
+      name: u.name,
+      companyName: u.companyName,
+      email: u.email,
+      phone: u.phone,
+      accountStatus: u.accountStatus,
+      createdAtLabel: formatDate(u.createdAt),
+      uniLabels,
+      spocs: spocsByConsultantId.get(u.id) ?? [],
+    };
+  });
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
@@ -108,130 +130,7 @@ export default async function MasterConsultantsListPage(props: PageProps) {
           {q ? "No consultants match your search." : "No consultants yet. Click Add consultant."}
         </p>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
-          <table className="w-full min-w-[1000px] text-left text-sm">
-            <thead className="border-b border-[var(--border)] bg-[var(--muted)]/40">
-              <tr>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Consultant name</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Company</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Email</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Phone</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Assigned universities</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">SPOC</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Status</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Created</th>
-                <th className="px-3 py-3 font-semibold text-[var(--foreground)]">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {consultants.map((u) => {
-                const uniLabels =
-                  u.consultantUniversities.length > 0
-                    ? [...u.consultantUniversities]
-                        .sort((a, b) => a.university.name.localeCompare(b.university.name))
-                        .map((c) => `${c.university.name} (${c.university.code})`)
-                    : u.university
-                      ? [`${u.university.name} (${u.university.code})`]
-                      : [];
-                const primaryUni = uniLabels[0] ?? null;
-                const extraUniCount = uniLabels.length > 1 ? uniLabels.length - 1 : 0;
-                const spocs = spocsByConsultantId.get(u.id) ?? [];
-                const primarySpoc = spocs[0] ?? null;
-                const extraSpocCount = spocs.length > 1 ? spocs.length - 1 : 0;
-                const spocLabels = spocs.map((s) => {
-                  const label = s.name?.trim() || s.email;
-                  return s.designation?.trim() ? `${label} (${s.designation})` : label;
-                });
-                return (
-                  <tr
-                    key={u.id}
-                    className={`border-b border-[var(--border)] last:border-0 ${
-                      u.accountStatus === "INACTIVE" ? "bg-[var(--muted)]/30" : ""
-                    }`}
-                  >
-                    <td className="px-3 py-3 font-medium text-[var(--foreground)]">{u.name ?? "—"}</td>
-                    <td className="max-w-[10rem] truncate px-3 py-3 text-[var(--foreground-muted)]" title={u.companyName ?? undefined}>
-                      {u.companyName?.trim() || "—"}
-                    </td>
-                    <td className="max-w-[12rem] truncate px-3 py-3" title={u.email}>
-                      {u.email}
-                    </td>
-                    <td className="px-3 py-3 tabular-nums">{u.phone ?? "—"}</td>
-                    <td className="max-w-[16rem] px-3 py-3 text-[var(--foreground-muted)]">
-                      {primaryUni ? (
-                        <span title={uniLabels.join("\n")}>
-                          {primaryUni}
-                          {extraUniCount > 0 ? (
-                            <span className="ml-1 rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs font-medium text-[var(--foreground)]">
-                              +{extraUniCount}
-                            </span>
-                          ) : null}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="max-w-[14rem] px-3 py-3 text-[var(--foreground-muted)]">
-                      {primarySpoc ? (
-                        <span title={spocLabels.join("\n")}>
-                          {primarySpoc.name?.trim() || primarySpoc.email}
-                          {primarySpoc.designation?.trim() ? (
-                            <span className="block text-xs text-[var(--foreground-muted)]">
-                              {primarySpoc.designation}
-                            </span>
-                          ) : null}
-                          {extraSpocCount > 0 ? (
-                            <span className="ml-1 rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs font-medium text-[var(--foreground)]">
-                              +{extraSpocCount}
-                            </span>
-                          ) : null}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="px-3 py-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          u.accountStatus === "ACTIVE"
-                            ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
-                            : "bg-[var(--muted)] text-[var(--foreground-muted)]"
-                        }`}
-                      >
-                        {u.accountStatus === "ACTIVE" ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 tabular-nums text-[var(--foreground-muted)]">
-                      {formatDate(u.createdAt)}
-                    </td>
-                    <td className="px-3 py-3 align-top">
-                      <div className="flex flex-col gap-1.5">
-                        <Link
-                          href={`/dashboard/master/consultants/${u.id}/admissions`}
-                          className="text-[var(--primary)] underline-offset-2 hover:underline"
-                        >
-                          View leads
-                        </Link>
-                        <Link
-                          href={`/dashboard/master/consultants/${u.id}/edit`}
-                          className="text-[var(--primary)] underline-offset-2 hover:underline"
-                        >
-                          Edit
-                        </Link>
-                        <ConsultantRowActions
-                          userId={u.id}
-                          name={u.name}
-                          email={u.email}
-                          accountStatus={u.accountStatus}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ConsultantsListTable consultants={rows} />
       )}
     </div>
   );

@@ -88,6 +88,7 @@ const universitySpocItemSchema = z.object({
 });
 
 const streamDetailSchema = z.object({
+  id: z.string().optional(),
   programLevel: z.enum(["UG", "PG"]),
   programName: z.string().trim().min(1).max(120),
   streamName: z.string().trim().min(1).max(200),
@@ -406,6 +407,15 @@ type UploadFiles = {
   mouFiles: File[];
   logoFile?: File;
   eventPhotos: File[];
+};
+
+export type { UploadFiles };
+export {
+  createBodySchema,
+  parseCreateRequest,
+  resolveUniversitySpocInputs,
+  toDecimal,
+  isValidLogoRef,
 };
 
 async function parseCreateRequest(req: Request): Promise<{ data: unknown; files: UploadFiles }> {

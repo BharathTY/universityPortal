@@ -62,8 +62,12 @@ export function validateEventPhotoFile(file: File): string | null {
   return null;
 }
 
-export function validateMouDocuments(form: MouDocumentsForm): Record<string, string> {
+export function validateMouDocuments(
+  form: MouDocumentsForm,
+  options?: { existingMouCount?: number },
+): Record<string, string> {
   const errors: Record<string, string> = {};
+  const existingMouCount = options?.existingMouCount ?? 0;
 
   const year = form.mouYear.trim();
   if (!year) {
@@ -79,7 +83,7 @@ export function validateMouDocuments(form: MouDocumentsForm): Record<string, str
     errors.mouTenure = "MOU tenure is required";
   }
 
-  if (form.mouFiles.length === 0) {
+  if (form.mouFiles.length === 0 && existingMouCount === 0) {
     errors.mouFiles = "Upload at least one MOU document";
   } else {
     for (const draft of form.mouFiles) {

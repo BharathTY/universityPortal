@@ -164,13 +164,18 @@ Warm regards,
 Team QSpiders Eduversity`;
 
   const html = `<p>Hello <strong>${escapeHtml(consultantName)}</strong>,</p>
-<p>Welcome to <strong>QSpiders Eduversity</strong>, we're glad to have you on board.</p>
-<p>Your consultant account has been created. Activate your account and set your password using the link below:</p>
-<p><a href="${escapeHtml(params.activationUrl)}">Activate your QSpiders Eduversity account</a></p>
-<p><strong>Registered email:</strong> ${escapeHtml(params.email)}</p>
-<p>After setting your password, sign in at <a href="${escapeHtml(`${getPublicAppOrigin()}/login`)}">${escapeHtml(`${getPublicAppOrigin()}/login`)}</a> with your email and the password you choose.</p>
-<p>If you did not expect this email, please contact support.</p>
-<p>Warm regards,<br/>Team QSpiders Eduversity</p>`;
+<p>Welcome to <strong>QSpiders Eduversity</strong>!</p>
+<p>Your consultant account has been successfully created. To get started, please activate your account and set your password by clicking the button below.</p>
+<p style="margin:24px 0">
+  <a href="${escapeHtml(params.activationUrl)}" style="display:inline-block;padding:12px 24px;background:#c0392b;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600">Activate Account</a>
+</p>
+<p><strong>Registered Email:</strong> ${escapeHtml(params.email)}</p>
+<p>After setting your password, log in with your registered email and password.</p>
+<p style="margin:24px 0">
+  <a href="${escapeHtml(`${getPublicAppOrigin()}/login`)}" style="display:inline-block;padding:12px 24px;background:#1e293b;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600">Sign In to QSpiders Eduversity</a>
+</p>
+<p>If you did not request this account, please contact our support team.</p>
+<p>Best regards,<br/>Team QSpiders Eduversity</p>`;
 
   if (!host || !user || !pass) {
     if (process.env.NODE_ENV === "development") {

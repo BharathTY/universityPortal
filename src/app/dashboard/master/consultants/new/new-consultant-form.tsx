@@ -6,17 +6,18 @@ import { buildAcademicYearOptions } from "@/lib/academic-year-options";
 import {
   createEmptyConsultantSpocDraft,
   filledConsultantSpocRows,
-  isConsultantSpocRowFilled,
   type ConsultantSpocDraft,
 } from "@/lib/consultant-spoc";
+import {
+  spocFieldKey,
+  validateConsultantForm,
+} from "@/lib/consultant-form-validation";
 import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
-import { normalizeGstNumber, normalizePanNumber, validateGstNumber, validatePanNumber } from "@/lib/indian-tax-ids";
+import { normalizeGstNumber, normalizePanNumber } from "@/lib/indian-tax-ids";
 
 type Uni = { id: string; name: string; code: string; state: string | null };
 
 type Props = { universities: Uni[] };
-
-const NAME_OK = /^[\p{L} ]+$/u;
 
 function mapApiFieldErrors(raw: unknown): Record<string, string> {
   if (!raw || typeof raw !== "object") return {};
@@ -26,108 +27,6 @@ function mapApiFieldErrors(raw: unknown): Record<string, string> {
     else if (typeof v === "string") out[k] = v;
   }
   return out;
-}
-
-function looksLikeEmail(s: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
-}
-
-function spocFieldKey(index: number, field: string, rowCount: number): string {
-  if (rowCount === 1) return `spoc${field.charAt(0).toUpperCase()}${field.slice(1)}`;
-  return `spocs.${index}${field.charAt(0).toUpperCase()}${field.slice(1)}`;
-}
-
-function validateConsultantForm(input: {
-  name: string;
-  email: string;
-  phone: string;
-  selectedCount: number;
-  universitiesAvailable: number;
-  academicYear: string;
-  hasMouFile: boolean;
-  gstNumber: string;
-  panNumber: string;
-  addSpoc: boolean;
-  spocRows: ConsultantSpocDraft[];
-}): Record<string, string> {
-  const e: Record<string, string> = {};
-  const n = input.name.trim();
-  if (n.length === 0) e.name = "Name is required";
-  else if (!NAME_OK.test(n)) e.name = "Name must contain only letters.";
-  else if (n.length < 3) e.name = "Name must be at least 3 characters";
-
-  const em = input.email.trim();
-  if (em.length === 0) e.email = "Email is required";
-  else if (!looksLikeEmail(em)) e.email = "Enter a valid email address";
-
-  const p = input.phone.trim();
-  if (p.length === 0) e.phone = "Phone number is required";
-  else if (!/^\d+$/.test(p)) e.phone = "Only numbers are allowed";
-  else if (p.length !== 10) e.phone = "Phone number must be 10 digits";
-
-  if (input.universitiesAvailable > 0 && input.selectedCount < 1) {
-    e.universityIds = "Please select at least one university";
-  }
-  if (input.universitiesAvailable === 0) {
-    e.universityIds = "No universities available to assign";
-  }
-
-  if (input.hasMouFile && !input.academicYear.trim()) {
-    e.academicYear = "Select academic year for MOU upload";
-  }
-
-  const gstErr = validateGstNumber(input.gstNumber);
-  if (gstErr) e.gstNumber = gstErr;
-  const panErr = validatePanNumber(input.panNumber);
-  if (panErr) e.panNumber = panErr;
-
-  if (input.addSpoc) {
-    const rowsToValidate =
-      input.spocRows.length === 1
-        ? input.spocRows
-        : input.spocRows.filter(isConsultantSpocRowFilled);
-
-    if (rowsToValidate.length === 0) {
-      const key = spocFieldKey(0, "name", input.spocRows.length);
-      e[key] = "Add at least one SPOC or uncheck Add SPOC";
-    }
-
-    const seenEmails = new Set<string>();
-    for (let i = 0; i < rowsToValidate.length; i++) {
-      const row = rowsToValidate[i]!;
-      const rowIndex = input.spocRows.indexOf(row);
-      const prefix = (field: string) => spocFieldKey(rowIndex, field, input.spocRows.length);
-
-      const sn = row.name.trim();
-      if (sn.length === 0) e[prefix("name")] = "SPOC name is required";
-      else if (!NAME_OK.test(sn)) e[prefix("name")] = "Name must contain only letters.";
-      else if (sn.length < 3) e[prefix("name")] = "Name must be at least 3 characters";
-
-      const sem = row.email.trim();
-      if (sem.length === 0) e[prefix("email")] = "SPOC email is required";
-      else if (!looksLikeEmail(sem)) e[prefix("email")] = "Enter a valid email address";
-      else if (sem.toLowerCase() === input.email.trim().toLowerCase()) {
-        e[prefix("email")] = "SPOC email must differ from the consultant email";
-      } else if (seenEmails.has(sem.toLowerCase())) {
-        e[prefix("email")] = "Each SPOC must have a unique email";
-      } else {
-        seenEmails.add(sem.toLowerCase());
-      }
-
-      const sp = row.phone.trim();
-      if (sp.length === 0) e[prefix("phone")] = "SPOC mobile is required";
-      else if (!/^\d+$/.test(sp)) e[prefix("phone")] = "Only numbers are allowed";
-      else if (sp.length !== 10) e[prefix("phone")] = "Phone number must be 10 digits";
-
-      const sw = row.whatsapp.trim();
-      if (sw.length > 0) {
-        if (!/^\d+$/.test(sw)) e[prefix("whatsapp")] = "Only numbers are allowed";
-        else if (sw.length !== 10) e[prefix("whatsapp")] = "WhatsApp number must be 10 digits";
-      }
-    }
-  }
-
-  return e;
 }
 
 export function NewConsultantForm({ universities }: Props) {
@@ -184,12 +83,31 @@ export function NewConsultantForm({ universities }: Props) {
       universitiesAvailable: universities.length,
       academicYear,
       hasMouFile: Boolean(mouFile),
+      requireMouFile: true,
       gstNumber,
       panNumber,
+      address,
+      district,
+      state,
       addSpoc,
       spocRows,
     }),
-    [name, email, phone, selectedUniIds.size, universities.length, academicYear, mouFile, gstNumber, panNumber, addSpoc, spocRows],
+    [
+      name,
+      email,
+      phone,
+      selectedUniIds.size,
+      universities.length,
+      academicYear,
+      mouFile,
+      gstNumber,
+      panNumber,
+      address,
+      district,
+      state,
+      addSpoc,
+      spocRows,
+    ],
   );
 
   const universityStates = React.useMemo(() => {
@@ -209,11 +127,6 @@ export function NewConsultantForm({ universities }: Props) {
       return u.name.toLowerCase().includes(term) || u.code.toLowerCase().includes(term);
     });
   }, [universities, uniSearch, uniStateFilter]);
-
-  const formValid = React.useMemo(
-    () => Object.keys(validateConsultantForm(formSnapshot)).length === 0,
-    [formSnapshot],
-  );
 
   function borderFor(key: string) {
     return fieldErrors[key] ? "border-red-500" : "border-[var(--border)]";
@@ -573,10 +486,19 @@ export function NewConsultantForm({ universities }: Props) {
             <label className="block text-sm font-medium text-[var(--foreground)]">Address</label>
             <textarea
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={(e) => {
+                setAddress(e.target.value);
+                setFieldErrors((f) => {
+                  const n = { ...f };
+                  delete n.address;
+                  return n;
+                });
+              }}
               rows={2}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[var(--foreground)] ${borderFor("address")}`}
+              aria-invalid={Boolean(fieldErrors.address)}
             />
+            {fieldErrors.address ? <p className="mt-1 text-xs text-red-600">{fieldErrors.address}</p> : null}
           </div>
           <div>
             <label className="block text-sm font-medium text-[var(--foreground)]">City</label>
@@ -590,16 +512,33 @@ export function NewConsultantForm({ universities }: Props) {
             <label className="block text-sm font-medium text-[var(--foreground)]">District</label>
             <input
               value={district}
-              onChange={(e) => setDistrict(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+              onChange={(e) => {
+                setDistrict(e.target.value);
+                setFieldErrors((f) => {
+                  const n = { ...f };
+                  delete n.district;
+                  return n;
+                });
+              }}
+              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[var(--foreground)] ${borderFor("district")}`}
+              aria-invalid={Boolean(fieldErrors.district)}
             />
+            {fieldErrors.district ? <p className="mt-1 text-xs text-red-600">{fieldErrors.district}</p> : null}
           </div>
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-[var(--foreground)]">State</label>
             <select
               value={state}
-              onChange={(e) => setState(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
+              onChange={(e) => {
+                setState(e.target.value);
+                setFieldErrors((f) => {
+                  const n = { ...f };
+                  delete n.state;
+                  return n;
+                });
+              }}
+              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[var(--foreground)] ${borderFor("state")}`}
+              aria-invalid={Boolean(fieldErrors.state)}
             >
               <option value="">Select state</option>
               {INDIAN_STATES_AND_UT.map((s) => (
@@ -608,6 +547,7 @@ export function NewConsultantForm({ universities }: Props) {
                 </option>
               ))}
             </select>
+            {fieldErrors.state ? <p className="mt-1 text-xs text-red-600">{fieldErrors.state}</p> : null}
           </div>
         </div>
       </section>
@@ -646,10 +586,19 @@ export function NewConsultantForm({ universities }: Props) {
             <input
               type="file"
               accept=".pdf,.doc,.docx,application/pdf"
-              onChange={(e) => setMouFile(e.target.files?.[0] ?? null)}
-              className="mt-2 block w-full text-sm text-[var(--foreground-muted)]"
+              onChange={(e) => {
+                setMouFile(e.target.files?.[0] ?? null);
+                setFieldErrors((f) => {
+                  const n = { ...f };
+                  delete n.mouFile;
+                  return n;
+                });
+              }}
+              className={`mt-2 block w-full text-sm text-[var(--foreground-muted)] ${fieldErrors.mouFile ? "rounded-lg border border-red-500 p-2" : ""}`}
+              aria-invalid={Boolean(fieldErrors.mouFile)}
             />
             {mouFile ? <p className="mt-1 text-xs text-[var(--foreground-muted)]">{mouFile.name}</p> : null}
+            {fieldErrors.mouFile ? <p className="mt-1 text-xs text-red-600">{fieldErrors.mouFile}</p> : null}
           </div>
         </div>
       </section>
@@ -737,7 +686,7 @@ export function NewConsultantForm({ universities }: Props) {
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       <button
         type="submit"
-        disabled={busy || !formValid}
+        disabled={busy}
         className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-blue-hover)] disabled:opacity-50"
       >
         {busy ? "Sending…" : "Send activation email & create"}

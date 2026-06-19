@@ -21,6 +21,7 @@ import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
 import { ListQueryToolbar, SORT_LEADS } from "@/components/list-controls";
 import type { SerializedConsultantLeadDetail } from "@/lib/consultant-lead-payload";
 import { newClientId } from "@/lib/client-id";
+import { readStudentPhotoPreview, validateStudentPhotoFile } from "@/lib/student-photo";
 
 type Stream = { id: string; name: string; programLevel?: "UG" | "PG" | null; degreeType?: string | null };
 type AcademicYearOption = { id: string; label: string };
@@ -306,14 +307,36 @@ export function ConsultantLeadsClient(props: Props) {
     });
   }
 
-  React.useEffect(() => {
-    if (photoFile) {
-      const url = URL.createObjectURL(photoFile);
-      setPhotoPreview(url);
-      return () => URL.revokeObjectURL(url);
+  async function handlePhotoChange(file: File | null) {
+    setPhotoFile(file);
+    if (!file) {
+      setPhotoPreview(existingPhotoUrl);
+      setFieldErrors((f) => {
+        const n = { ...f };
+        delete n.photoFile;
+        return n;
+      });
+      return;
     }
-    setPhotoPreview(existingPhotoUrl);
-  }, [photoFile, existingPhotoUrl]);
+    const photoError = validateStudentPhotoFile(file);
+    if (photoError) {
+      setFieldErrors((f) => ({ ...f, photoFile: photoError }));
+      setPhotoPreview(existingPhotoUrl);
+      return;
+    }
+    setFieldErrors((f) => {
+      const n = { ...f };
+      delete n.photoFile;
+      return n;
+    });
+    try {
+      const preview = await readStudentPhotoPreview(file);
+      setPhotoPreview(preview);
+    } catch {
+      setFieldErrors((f) => ({ ...f, photoFile: "Could not read photo" }));
+      setPhotoPreview(existingPhotoUrl);
+    }
+  }
 
   React.useEffect(() => {
     if (!isEdit || !props.initialLead) return;
@@ -589,6 +612,7 @@ export function ConsultantLeadsClient(props: Props) {
     setRefPhone("");
     setRefEmail("");
     setPhotoFile(null);
+    setPhotoPreview(null);
     setSslcMarksCardFile(null);
     setQualMarksCardFile(null);
     setExistingPhotoUrl(null);
@@ -691,7 +715,7 @@ export function ConsultantLeadsClient(props: Props) {
             photoPreview={photoPreview}
             existingPhotoUrl={existingPhotoUrl}
             photoFile={photoFile}
-            onPhotoChange={setPhotoFile}
+            onPhotoChange={handlePhotoChange}
             sslcMarksCardFile={sslcMarksCardFile}
             existingSslcMarksCardUrl={existingSslcMarksCardUrl}
             onSslcMarksCardChange={setSslcMarksCardFile}
