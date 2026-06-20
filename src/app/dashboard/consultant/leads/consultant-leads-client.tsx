@@ -21,6 +21,7 @@ import { ConsultantBulkCsvPanel } from "@/components/consultant-bulk-csv-panel";
 import { ListQueryToolbar, SORT_LEADS } from "@/components/list-controls";
 import type { SerializedConsultantLeadDetail } from "@/lib/consultant-lead-payload";
 import { newClientId } from "@/lib/client-id";
+import type { StudentPhotoUploadRef } from "@/components/student-photo-upload-field";
 
 type Stream = { id: string; name: string; programLevel?: "UG" | "PG" | null; degreeType?: string | null };
 type AcademicYearOption = { id: string; label: string };
@@ -272,7 +273,7 @@ export function ConsultantLeadsClient(props: Props) {
   const [refLn, setRefLn] = React.useState("");
   const [refPhone, setRefPhone] = React.useState("");
   const [refEmail, setRefEmail] = React.useState("");
-  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
+  const photoUploadRef = React.useRef<StudentPhotoUploadRef | null>(null);
   const [sslcMarksCardFile, setSslcMarksCardFile] = React.useState<File | null>(null);
   const [qualMarksCardFile, setQualMarksCardFile] = React.useState<File | null>(null);
   const [existingPhotoUrl, setExistingPhotoUrl] = React.useState<string | null>(
@@ -301,15 +302,6 @@ export function ConsultantLeadsClient(props: Props) {
     setFieldErrors((f) => {
       const n = { ...f };
       delete n[key];
-      return n;
-    });
-  }
-
-  function setPhotoFieldError(message: string | null) {
-    setFieldErrors((f) => {
-      const n = { ...f };
-      if (message) n.photoFile = message;
-      else delete n.photoFile;
       return n;
     });
   }
@@ -389,6 +381,7 @@ export function ConsultantLeadsClient(props: Props) {
       qualResultType: l.qualResultType ?? "",
       qualScore: l.qualScore,
     });
+    photoUploadRef.current?.clear();
   }, [isEdit, props.initialLead]);
 
   function borderFor(key: string) {
@@ -543,6 +536,7 @@ export function ConsultantLeadsClient(props: Props) {
     };
 
     let body: BodyInit;
+    const photoFile = photoUploadRef.current?.getFile() ?? null;
     const useMultipart =
       useExtendedFields &&
       (Boolean(photoFile) || Boolean(sslcMarksCardFile) || Boolean(qualMarksCardFile));
@@ -587,7 +581,7 @@ export function ConsultantLeadsClient(props: Props) {
     setRefLn("");
     setRefPhone("");
     setRefEmail("");
-    setPhotoFile(null);
+    photoUploadRef.current?.clear();
     setSslcMarksCardFile(null);
     setQualMarksCardFile(null);
     setExistingPhotoUrl(null);
@@ -687,9 +681,7 @@ export function ConsultantLeadsClient(props: Props) {
             borderFor={borderFor}
             clearError={clearStudentFieldError}
             isEdit={isEdit}
-            photoFile={photoFile}
-            onPhotoChange={setPhotoFile}
-            onPhotoError={setPhotoFieldError}
+            photoUploadRef={photoUploadRef}
             existingPhotoUrl={existingPhotoUrl}
             sslcMarksCardFile={sslcMarksCardFile}
             existingSslcMarksCardUrl={existingSslcMarksCardUrl}

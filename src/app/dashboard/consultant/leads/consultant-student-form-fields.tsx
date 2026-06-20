@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { StudentPhotoUploadField } from "@/components/student-photo-upload-field";
+import { StudentPhotoUploadField, type StudentPhotoUploadRef } from "@/components/student-photo-upload-field";
 import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
 import {
   HIGHER_QUALIFICATION_TYPES,
@@ -57,9 +57,7 @@ type Props = {
   borderFor: (key: string) => string;
   clearError: (key: string) => void;
   isEdit: boolean;
-  photoFile: File | null;
-  onPhotoChange: (file: File | null) => void;
-  onPhotoError: (message: string | null) => void;
+  photoUploadRef: React.RefObject<StudentPhotoUploadRef | null>;
   existingPhotoUrl: string | null;
   sslcMarksCardFile: File | null;
   existingSslcMarksCardUrl: string | null;
@@ -108,9 +106,7 @@ export function ConsultantStudentFormFields({
   borderFor,
   clearError,
   isEdit,
-  photoFile,
-  onPhotoChange,
-  onPhotoError,
+  photoUploadRef,
   existingPhotoUrl,
   sslcMarksCardFile,
   existingSslcMarksCardUrl,
@@ -316,12 +312,10 @@ export function ConsultantStudentFormFields({
           </Field>
           <div className="sm:col-span-2">
             <StudentPhotoUploadField
+              ref={photoUploadRef}
               existingPhotoUrl={existingPhotoUrl}
-              selectedFile={photoFile}
-              error={fieldErrors.photoFile}
+              apiError={fieldErrors.photoFile}
               isEdit={isEdit}
-              onFileChange={onPhotoChange}
-              onError={onPhotoError}
             />
           </div>
         </div>

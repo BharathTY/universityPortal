@@ -1,5 +1,7 @@
 export const STUDENT_PHOTO_MAX_BYTES = 2 * 1024 * 1024;
 
+const THUMBNAIL_MAX_DIM = 240;
+
 export function validateStudentPhotoFile(file: File): string | null {
   const name = file.name.toLowerCase();
   const typeOk =
@@ -12,14 +14,38 @@ export function validateStudentPhotoFile(file: File): string | null {
   return null;
 }
 
-export function readStudentPhotoPreview(file: File): Promise<string> {
+/** Small JPEG data URL for UI preview — avoids storing multi-MB strings in parent state. */
+export function createStudentPhotoThumbnail(file: File, maxDim = THUMBNAIL_MAX_DIM): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") resolve(reader.result);
-      else reject(new Error("Could not read photo"));
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      try {
+        const scale = Math.min(maxDim / img.naturalWidth, maxDim / img.naturalHeight, 1);
+        const width = Math.max(1, Math.round(img.naturalWidth * scale));
+        const height = Math.max(1, Math.round(img.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Could not create preview"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      } catch {
+        reject(new Error("Could not create preview"));
+      }
     };
-    reader.onerror = () => reject(new Error("Could not read photo"));
-    reader.readAsDataURL(file);
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not load photo"));
+    };
+
+    img.src = objectUrl;
   });
 }
