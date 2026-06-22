@@ -25,6 +25,7 @@ export const StudentPhotoUploadField = React.forwardRef<StudentPhotoUploadRef, P
     const [previewUrl, setPreviewUrl] = React.useState<string | null>(existingPhotoUrl);
     const [localError, setLocalError] = React.useState<string | null>(null);
     const [hasSelection, setHasSelection] = React.useState(false);
+    const [busy, setBusy] = React.useState(false);
 
     const resetPreview = React.useCallback(() => {
       fileRef.current = null;

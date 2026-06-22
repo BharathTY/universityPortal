@@ -3,7 +3,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireMasterApi } from "@/lib/master-session";
 import { prisma } from "@/lib/prisma";
-import { ROLES } from "@/lib/roles";
+import {
+  assertUniversityEmailAvailable,
+  syncUniversityPrimaryLoginUser,
+  UniversityEmailInUseError,
+} from "@/lib/university-primary-user";
 
 const phoneSchema = z
   .string()
@@ -69,25 +73,14 @@ export async function PATCH(req: Request, ctx: RouteContext) {
 
   const email =
     parsed.data.email !== undefined ? parsed.data.email.toLowerCase().trim() : undefined;
-  if (email !== undefined && email !== university.email) {
-    const [clashUser, clashUni] = await Promise.all([
-      prisma.user.findUnique({ where: { email } }),
-      prisma.university.findFirst({ where: { email, NOT: { id } } }),
-    ]);
-    if (clashUni) {
-      return NextResponse.json({ error: "Email is already in use" }, { status: 409 });
-    }
-    if (clashUser) {
-      const primary = await prisma.user.findFirst({
-        where: {
-          universityId: id,
-          roles: { some: { role: { slug: ROLES.university } } },
-        },
-        orderBy: { createdAt: "asc" },
-      });
-      if (!primary || clashUser.id !== primary.id) {
+  if (email) {
+    try {
+      await assertUniversityEmailAvailable(id, email, university.email);
+    } catch (e) {
+      if (e instanceof UniversityEmailInUseError) {
         return NextResponse.json({ error: "Email is already in use" }, { status: 409 });
       }
+      throw e;
     }
   }
 
@@ -111,27 +104,11 @@ export async function PATCH(req: Request, ctx: RouteContext) {
       },
     });
 
-    if (email !== undefined || parsed.data.phone !== undefined || parsed.data.name !== undefined) {
-      const uniUsers = await tx.user.findMany({
-        where: {
-          universityId: id,
-          roles: { some: { role: { slug: ROLES.university } } },
-        },
-        orderBy: { createdAt: "asc" },
-        take: 1,
-      });
-      const primary = uniUsers[0];
-      if (primary) {
-        await tx.user.update({
-          where: { id: primary.id },
-          data: {
-            ...(email !== undefined ? { email } : {}),
-            ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone } : {}),
-            ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
-          },
-        });
-      }
-    }
+    await syncUniversityPrimaryLoginUser(tx, id, {
+      ...(email !== undefined ? { email } : {}),
+      ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone } : {}),
+      ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+    });
   });
 
   return NextResponse.json({ ok: true });

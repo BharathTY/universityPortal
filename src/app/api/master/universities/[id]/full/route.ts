@@ -13,8 +13,12 @@ import {
 import { storeUpload } from "@/lib/file-storage";
 import { requireMasterApi } from "@/lib/master-session";
 import { prisma } from "@/lib/prisma";
-import { ROLES } from "@/lib/roles";
 import { syncUniversityHostelFees } from "@/lib/university-hostel-fees-db";
+import {
+  assertUniversityEmailAvailable,
+  syncUniversityPrimaryLoginUser,
+  UniversityEmailInUseError,
+} from "@/lib/university-primary-user";
 import {
   EVENT_PHOTO_MAX_BYTES,
   MOU_PDF_MAX_BYTES,
@@ -177,16 +181,17 @@ export async function PUT(req: Request, ctx: RouteContext) {
   const spocInputs = resolveUniversitySpocInputs(parsed.data);
   const primarySpoc = spocInputs[0] ?? null;
 
-  if (email && email !== existing.email) {
-    const [emailUser, emailUni] = await Promise.all([
-      prisma.user.findUnique({ where: { email } }),
-      prisma.university.findFirst({ where: { email, NOT: { id } } }),
-    ]);
-    if (emailUser || emailUni) {
-      return NextResponse.json(
-        { error: "Email already exists", fieldErrors: { email: ["Email already exists"] } },
-        { status: 409 },
-      );
+  if (email) {
+    try {
+      await assertUniversityEmailAvailable(id, email, existing.email);
+    } catch (e) {
+      if (e instanceof UniversityEmailInUseError) {
+        return NextResponse.json(
+          { error: "Email is already in use", fieldErrors: { email: ["Email is already in use"] } },
+          { status: 409 },
+        );
+      }
+      throw e;
     }
   }
 
@@ -399,27 +404,19 @@ export async function PUT(req: Request, ctx: RouteContext) {
         });
       }
 
-      if (email !== undefined || parsed.data.phone !== undefined || parsed.data.name !== undefined) {
-        const primary = await tx.user.findFirst({
-          where: {
-            universityId: id,
-            roles: { some: { role: { slug: ROLES.university } } },
-          },
-          orderBy: { createdAt: "asc" },
-        });
-        if (primary) {
-          await tx.user.update({
-            where: { id: primary.id },
-            data: {
-              ...(email !== undefined && email !== null ? { email } : {}),
-              ...(parsed.data.phone !== undefined ? { phone } : {}),
-              ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
-            },
-          });
-        }
-      }
+      await syncUniversityPrimaryLoginUser(tx, id, {
+        email,
+        phone,
+        name: parsed.data.name,
+      });
     });
   } catch (e) {
+    if (e instanceof UniversityEmailInUseError) {
+      return NextResponse.json(
+        { error: "Email is already in use", fieldErrors: { email: ["Email is already in use"] } },
+        { status: 409 },
+      );
+    }
     console.error("PUT /api/master/universities/[id]/full failed", e);
     const message = e instanceof Error ? e.message : "Could not update university";
     return NextResponse.json({ error: message }, { status: 500 });
