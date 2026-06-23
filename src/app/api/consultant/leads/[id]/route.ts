@@ -174,7 +174,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   let photoUrl = existing.photoUrl;
-  if (photoFile) {
+  if (parsed.data.removePhoto) {
+    photoUrl = null;
+  } else if (photoFile) {
     try {
       const stored = await storeUpload(photoFile, "leads/photos", "image");
       photoUrl = stored.fileUrl;

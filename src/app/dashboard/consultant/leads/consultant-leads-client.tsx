@@ -54,7 +54,7 @@ type LeadRow = {
   assignedPartnerDisplayName?: string | null;
 };
 
-type Props = {
+type ConsultantLeadsClientProps = {
   universityId: string;
   universityName: string;
   universityCode: string;
@@ -204,7 +204,9 @@ function validateLeadForm(input: {
   return e;
 }
 
-export function ConsultantLeadsClient(props: Props) {
+export type { ConsultantLeadsClientProps };
+
+export function ConsultantLeadsClient(props: ConsultantLeadsClientProps) {
   const showBulk = props.showBulkUpload ?? false;
   const setActive = props.setActiveUniversityOnMount ?? false;
   const universityOptions = props.universityOptions ?? [];
@@ -469,6 +471,9 @@ export function ConsultantLeadsClient(props: Props) {
     }
     setFieldErrors({});
 
+    const photoFile = photoUploadRef.current?.getFile() ?? null;
+    const removePhoto = photoUploadRef.current?.isPhotoRemoved() ?? false;
+
     const f = studentForm;
     const payload = {
       universityId: activeUniversityId,
@@ -533,10 +538,10 @@ export function ConsultantLeadsClient(props: Props) {
       referralLastName: refLn.trim() || null,
       referralPhone: refPhone.trim() || null,
       referralEmail: refEmail.trim() || null,
+      ...(isEdit && removePhoto && !photoFile ? { removePhoto: true } : {}),
     };
 
     let body: BodyInit;
-    const photoFile = photoUploadRef.current?.getFile() ?? null;
     const useMultipart =
       useExtendedFields &&
       (Boolean(photoFile) || Boolean(sslcMarksCardFile) || Boolean(qualMarksCardFile));

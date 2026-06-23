@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { ConsultantLeadsClient } from "@/app/dashboard/consultant/leads/consultant-leads-client";
+import { ConsultantLeadsClientWithBoundary } from "@/app/dashboard/consultant/leads/consultant-leads-client-boundary";
 
 import { requireAuth } from "@/lib/auth";
 
@@ -104,7 +104,7 @@ export default async function ConsultantAddLeadPage({ searchParams }: PageProps)
 
   return (
 
-    <ConsultantLeadsClient
+    <ConsultantLeadsClientWithBoundary
 
       layoutMode="addOnly"
 

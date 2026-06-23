@@ -131,6 +131,7 @@ export const consultantLeadBodySchema = z.object({
   referralLastName: z.string().max(120).trim().optional().nullable(),
   referralPhone: z.string().max(32).trim().optional().nullable(),
   referralEmail: z.string().max(254).trim().optional().nullable(),
+  removePhoto: z.boolean().optional(),
 }).superRefine((data, ctx) => {
   const sslcYear = parseOptionalInt(data.sslcYear);
   if (sslcYear == null || sslcYear < 1980 || sslcYear > new Date().getFullYear()) {

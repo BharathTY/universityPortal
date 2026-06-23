@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
-import { ConsultantLeadsClient } from "@/app/dashboard/consultant/leads/consultant-leads-client";
+import { ConsultantLeadsClientWithBoundary } from "@/app/dashboard/consultant/leads/consultant-leads-client-boundary";
 import { requireAuth } from "@/lib/auth";
 import {
   consultantLeadDetailSelect,
@@ -59,7 +59,7 @@ export default async function ConsultantEditLeadPage({ params }: PageProps) {
   const initial = universities.find((u) => u.id === lead.universityId) ?? universities[0]!;
 
   return (
-    <ConsultantLeadsClient
+    <ConsultantLeadsClientWithBoundary
       layoutMode="edit"
       leadId={lead.id}
       initialLead={serializeConsultantLeadForClient(lead)}

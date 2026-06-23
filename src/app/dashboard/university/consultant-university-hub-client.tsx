@@ -3,7 +3,7 @@
 import Link from "next/link";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ConsultantLeadsClient } from "@/app/dashboard/consultant/leads/consultant-leads-client";
+import { ConsultantLeadsClientWithBoundary } from "@/app/dashboard/consultant/leads/consultant-leads-client-boundary";
 
 type UniCard = { id: string; name: string; code: string; logoUrl: string | null; status: "ACTIVE" | "INACTIVE" };
 type Stream = { id: string; name: string };
@@ -150,7 +150,7 @@ export function ConsultantUniversityHubClient({ initial }: { initial: InitialCon
         </ul>
       </section>
 
-      <ConsultantLeadsClient
+      <ConsultantLeadsClientWithBoundary
         layoutMode="hub"
         universityId={selectedId}
         universityName={universityName}
