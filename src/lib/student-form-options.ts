@@ -42,6 +42,18 @@ export const HIGHER_QUALIFICATION_TYPES = [
   { value: "DIPLOMA", label: "Diploma" },
 ] as const;
 
+const HIGHER_QUALIFICATION_TYPES_WITHOUT_BOARD = new Set(
+  HIGHER_QUALIFICATION_TYPES.map((q) => q.value),
+);
+
+/** Board / university name is not applicable for 12th/PUC, ITI, or Diploma. */
+export function higherQualificationShowsBoardField(qualificationType: string): boolean {
+  if (!qualificationType) return false;
+  return !HIGHER_QUALIFICATION_TYPES_WITHOUT_BOARD.has(
+    qualificationType as (typeof HIGHER_QUALIFICATION_TYPES)[number]["value"],
+  );
+}
+
 export const PROGRAM_TYPES = [
   { value: "UG", label: "Undergraduate (UG)" },
   { value: "PG", label: "Postgraduate (PG)" },

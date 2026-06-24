@@ -1,6 +1,12 @@
 import { Prisma, ProgramLevel } from "@prisma/client";
 import { z } from "zod";
-import { SSLC_BOARDS, SSLC_RESULT_TYPES, STUDENT_CATEGORIES, STUDENT_TITLES } from "@/lib/student-form-options";
+import {
+  higherQualificationShowsBoardField,
+  SSLC_BOARDS,
+  SSLC_RESULT_TYPES,
+  STUDENT_CATEGORIES,
+  STUDENT_TITLES,
+} from "@/lib/student-form-options";
 
 export const optionalDecimal = z.union([z.number(), z.string()]).optional().nullable();
 export const optionalInt = z.union([z.number().int(), z.string()]).optional().nullable();
@@ -23,10 +29,9 @@ export type EntranceExamInput = z.infer<typeof entranceExamRowSchema>;
 const mobileSchema = z
   .string()
   .trim()
-  .refine((s) => {
-    const digits = s.replace(/\D/g, "");
-    return digits.length >= 10 && digits.length <= 15;
-  }, { message: "Enter a valid mobile number (10–15 digits)" });
+  .refine((s) => s.replace(/\D/g, "").length === 10, {
+    message: "Enter a valid 10-digit mobile number",
+  });
 
 function validateOptionalScore(
   ctx: z.RefinementCtx,
@@ -46,25 +51,14 @@ function validateOptionalScore(
   }
 }
 
-function validateScore(
-  ctx: z.RefinementCtx,
-  resultType: string,
-  scoreRaw: number | string | null | undefined,
-  path: string,
-) {
-  const score = parseOptionalDecimal(scoreRaw);
-  if (score == null) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Score is required", path: [path] });
-    return;
-  }
-  const scoreNum = Number(String(score));
-  if (resultType === "PERCENTAGE") {
-    if (scoreNum < 0 || scoreNum > 100) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Percentage must be between 0 and 100", path: [path] });
-    }
-  } else if (scoreNum < 0 || scoreNum > 10) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "CGPA must be between 0 and 10", path: [path] });
-  }
+const emptyToNull = (v: unknown) => (typeof v === "string" && v.trim() === "" ? null : v);
+
+function optionalEnum<T extends [string, ...string[]]>(values: T) {
+  return z.preprocess(emptyToNull, z.enum(values).optional().nullable());
+}
+
+function optionalTrimmedString(max: number) {
+  return z.preprocess(emptyToNull, z.string().max(max).trim().optional().nullable());
 }
 
 export const consultantLeadBodySchema = z.object({
@@ -103,16 +97,19 @@ export const consultantLeadBodySchema = z.object({
   country: z.string().min(1).max(120).trim(),
   pincode: z.string().min(1).max(12).trim(),
   correspondenceAddress: z.string().min(1).max(1000).trim(),
-  sslcSchool: z.string().min(1).max(200).trim(),
-  sslcBoard: z.enum(boardValues),
+  sslcSchool: optionalTrimmedString(200),
+  sslcBoard: optionalEnum(boardValues),
   sslcYear: optionalInt,
-  sslcResultType: z.enum(resultTypeValues),
+  sslcResultType: optionalEnum(resultTypeValues),
   sslcPercent: optionalDecimal,
-  qualificationType: z.enum(["PUC", "DIPLOMA", "ITI"]),
-  qualInstitution: z.string().min(1).max(200).trim(),
-  qualBoardUniversity: z.string().min(1).max(200).trim(),
+  qualificationType: z.preprocess(
+    emptyToNull,
+    z.enum(["PUC", "DIPLOMA", "ITI"]).optional().nullable(),
+  ),
+  qualInstitution: optionalTrimmedString(200),
+  qualBoardUniversity: optionalTrimmedString(200),
   qualYear: optionalInt,
-  qualResultType: z.enum(resultTypeValues),
+  qualResultType: optionalEnum(resultTypeValues),
   qualScore: optionalDecimal,
   priorDegreeType: z.string().max(120).trim().optional().nullable(),
   priorDegreeName: z.string().max(200).trim().optional().nullable(),
@@ -134,16 +131,24 @@ export const consultantLeadBodySchema = z.object({
   removePhoto: z.boolean().optional(),
 }).superRefine((data, ctx) => {
   const sslcYear = parseOptionalInt(data.sslcYear);
-  if (sslcYear == null || sslcYear < 1980 || sslcYear > new Date().getFullYear()) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Enter a valid year of passing", path: ["sslcYear"] });
+  if (data.sslcYear != null && data.sslcYear !== "" && sslcYear != null) {
+    if (sslcYear < 1980 || sslcYear > new Date().getFullYear()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Enter a valid year of passing", path: ["sslcYear"] });
+    }
   }
-  validateScore(ctx, data.sslcResultType, data.sslcPercent, "sslcPercent");
+  if (data.sslcPercent != null && data.sslcPercent !== "" && data.sslcResultType) {
+    validateOptionalScore(ctx, data.sslcResultType, data.sslcPercent, "sslcPercent");
+  }
 
   const qualYear = parseOptionalInt(data.qualYear);
-  if (qualYear == null || qualYear < 1980 || qualYear > new Date().getFullYear()) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Enter a valid year of passing", path: ["qualYear"] });
+  if (data.qualYear != null && data.qualYear !== "" && qualYear != null) {
+    if (qualYear < 1980 || qualYear > new Date().getFullYear()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Enter a valid year of passing", path: ["qualYear"] });
+    }
   }
-  validateScore(ctx, data.qualResultType, data.qualScore, "qualScore");
+  if (data.qualScore != null && data.qualScore !== "" && data.qualResultType) {
+    validateOptionalScore(ctx, data.qualResultType, data.qualScore, "qualScore");
+  }
 
   const priorYear = parseOptionalInt(data.priorDegreeYear);
   if (data.priorDegreeYear != null && data.priorDegreeYear !== "" && priorYear != null) {
@@ -235,8 +240,10 @@ export function buildLeadExtendedData(data: ConsultantLeadBody) {
   const addressLine1 = data.addressLine1.trim();
   const uidai = data.uidaiNumber?.replace(/\D/g, "") ?? "";
   const qualScore = parseOptionalDecimal(data.qualScore);
-  const qualInstitution = data.qualInstitution.trim();
-  const qualBoard = data.qualBoardUniversity.trim();
+  const qualInstitution = data.qualInstitution?.trim() || null;
+  const qualBoard = higherQualificationShowsBoardField(data.qualificationType ?? "")
+    ? data.qualBoardUniversity?.trim() || null
+    : null;
   const qualYear = parseOptionalInt(data.qualYear);
 
   return {
@@ -267,16 +274,16 @@ export function buildLeadExtendedData(data: ConsultantLeadBody) {
     country: data.country.trim(),
     pincode: data.pincode.replace(/\D/g, ""),
     correspondenceAddress: data.correspondenceAddress.trim(),
-    sslcSchool: data.sslcSchool.trim(),
-    sslcBoard: data.sslcBoard,
+    sslcSchool: data.sslcSchool?.trim() || null,
+    sslcBoard: data.sslcBoard ?? null,
     sslcYear: parseOptionalInt(data.sslcYear),
-    sslcResultType: data.sslcResultType,
+    sslcResultType: data.sslcResultType ?? null,
     sslcPercent: parseOptionalDecimal(data.sslcPercent),
-    qualificationType: data.qualificationType,
+    qualificationType: data.qualificationType ?? null,
     qualInstitution,
     qualBoardUniversity: qualBoard,
     qualYear,
-    qualResultType: data.qualResultType,
+    qualResultType: data.qualResultType ?? null,
     qualScore,
     pucBoard: data.qualificationType === "PUC" ? qualBoard : null,
     pucYear: data.qualificationType === "PUC" ? qualYear : null,

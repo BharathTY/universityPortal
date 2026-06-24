@@ -6,6 +6,7 @@ import { isAdmissionLeadRoleSlug } from "@/lib/admission-lead-role";
 import { consultantCodeFromUserId } from "@/lib/consultant-code";
 import { requireConsultantUniversity } from "@/lib/consultant-api";
 import { resolveAcademicYearIdForLead } from "@/lib/consultant-default-year";
+import { ensureStudentApplicationForLead } from "@/lib/ensure-student-for-lead";
 import { prisma } from "@/lib/prisma";
 import { isConsultant, isMaster, isUniversity, ROLES } from "@/lib/roles";
 
@@ -235,7 +236,7 @@ export async function POST(req: Request) {
     }
 
     try {
-      await prisma.admissionLead.create({
+      const lead = await prisma.admissionLead.create({
         data: {
           universityId,
           academicYearId: yearId,
@@ -261,6 +262,13 @@ export async function POST(req: Request) {
           ...(batchId ? { batchId } : {}),
         },
       });
+      const ensured = await ensureStudentApplicationForLead({
+        leadId: lead.id,
+        consultantUserId: session.sub,
+      });
+      if (!ensured.ok) {
+        console.warn("ensureStudentApplicationForLead bulk", lead.id, ensured.error);
+      }
       created += 1;
     } catch (e) {
       errors.push({ row: rowNum, message: e instanceof Error ? e.message : "Create failed" });

@@ -74,6 +74,21 @@ export function isStudent(roles: string[]): boolean {
   return roles.includes(ROLES.student);
 }
 
+/** Student portal account without staff roles — signs in with email only. */
+export function isStudentOnly(roles: string[]): boolean {
+  return (
+    isStudent(roles) &&
+    !isMaster(roles) &&
+    !isUniversity(roles) &&
+    !isConsultant(roles)
+  );
+}
+
+/** Master, university, and partner accounts may require password when one is set. */
+export function accountRequiresPasswordOnLogin(roleSlugs: string[]): boolean {
+  return isMaster(roleSlugs) || isUniversity(roleSlugs) || isConsultant(roleSlugs);
+}
+
 export function canManageSpocs(roles: string[]): boolean {
   return isConsultantPrincipal(roles) && !isConsultantSpoc(roles);
 }

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { replaceLeadEntranceExams } from "@/lib/consultant-lead-payload";
 import { getStudentApplication, listStudentApplications } from "@/lib/student-application-data";
+import { syncStudentApplicationsForUser } from "@/lib/ensure-student-for-lead";
 import { buildStudentProfileUpdates } from "@/lib/student-application-save";
 import {
   type StudentProfileFormValues,
@@ -79,6 +80,8 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const applicationId = url.searchParams.get("applicationId");
+
+  await syncStudentApplicationsForUser({ userId: session.sub, email: session.email });
 
   const [applications, application] = await Promise.all([
     listStudentApplications(session.sub),

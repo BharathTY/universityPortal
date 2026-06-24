@@ -4,6 +4,7 @@ import * as React from "react";
 import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
 import {
   HIGHER_QUALIFICATION_TYPES,
+  higherQualificationShowsBoardField,
   SSLC_BOARDS,
   SSLC_RESULT_TYPES,
   STUDENT_CATEGORIES,
@@ -219,7 +220,17 @@ export function StudentProfileForm({ profile: p, onChange, fieldErrors, onPhotoU
 
       <Section title="Academic details — 12th / ITI / Diploma">
         <Field label="Qualification type" required error={fieldErrors.qualificationType}>
-          <select value={p.qualificationType} onChange={(e) => onChange({ qualificationType: e.target.value })} className={inputClass}>
+          <select
+            value={p.qualificationType}
+            onChange={(e) => {
+              const next = e.target.value;
+              onChange({
+                qualificationType: next,
+                ...(!higherQualificationShowsBoardField(next) ? { qualBoardUniversity: "" } : {}),
+              });
+            }}
+            className={inputClass}
+          >
             <option value="">Select</option>
             {HIGHER_QUALIFICATION_TYPES.map((q) => (
               <option key={q.value} value={q.value}>{q.label}</option>
@@ -229,9 +240,11 @@ export function StudentProfileForm({ profile: p, onChange, fieldErrors, onPhotoU
         <Field label="Institution name" required error={fieldErrors.qualInstitution}>
           <input value={p.qualInstitution} onChange={(e) => onChange({ qualInstitution: e.target.value })} className={inputClass} />
         </Field>
-        <Field label="Board / university name" required error={fieldErrors.qualBoardUniversity}>
-          <input value={p.qualBoardUniversity} onChange={(e) => onChange({ qualBoardUniversity: e.target.value })} className={inputClass} />
-        </Field>
+        {higherQualificationShowsBoardField(p.qualificationType) ? (
+          <Field label="Board / university name" required error={fieldErrors.qualBoardUniversity}>
+            <input value={p.qualBoardUniversity} onChange={(e) => onChange({ qualBoardUniversity: e.target.value })} className={inputClass} />
+          </Field>
+        ) : null}
         <Field label="Year of passing" required error={fieldErrors.qualYear}>
           <input value={p.qualYear} onChange={(e) => onChange({ qualYear: e.target.value.replace(/\D/g, "").slice(0, 4) })} className={inputClass} />
         </Field>

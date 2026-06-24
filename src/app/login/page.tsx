@@ -17,7 +17,7 @@ export default async function LoginPage({ searchParams }: Props) {
       subtitle={
         requireOtpLogin
           ? "Enter your work email. We'll send you a secure one-time code to continue."
-          : "Enter your email and password if your account has one, or email only for passwordless access."
+          : "Students: enter your registered email to continue. No password required."
       }
     >
       <LoginForm requireOtpLogin={requireOtpLogin} initialEmail={initialEmail} />

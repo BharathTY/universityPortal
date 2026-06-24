@@ -186,7 +186,7 @@ export default function StudentApplicationPage() {
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
         <h1 className="text-2xl font-bold text-[var(--foreground)]">My Application</h1>
         <p className="mt-4 text-sm text-[var(--foreground-muted)]">
-          No application is linked to your account yet. Your consultant will set your lead to Ready to Pay when you can complete your profile.
+          No application is linked to your account yet. Ask your admission consultant to register you as a student lead using the same email you use to sign in.
         </p>
       </div>
     );

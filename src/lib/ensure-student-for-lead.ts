@@ -13,6 +13,44 @@ type EnsureStudentResult =
   | { ok: true; created: boolean; applicationId: string | null; userId: string | null }
   | { ok: false; error: string };
 
+async function ensureStudentRole(userId: string): Promise<void> {
+  const studentRole = await prisma.role.findUnique({ where: { slug: ROLES.student } });
+  if (!studentRole) return;
+  const existing = await prisma.userRole.findFirst({
+    where: { userId, roleId: studentRole.id },
+    select: { id: true },
+  });
+  if (!existing) {
+    await prisma.userRole.create({ data: { userId, roleId: studentRole.id } });
+  }
+}
+
+/** Link any admission leads for this email that do not yet have a student application. */
+export async function syncStudentApplicationsForUser(params: {
+  userId: string;
+  email: string;
+}): Promise<void> {
+  const email = params.email.toLowerCase();
+  const leads = await prisma.admissionLead.findMany({
+    where: {
+      email,
+      application: { is: null },
+      createdByUserId: { not: null },
+    },
+    select: { id: true, createdByUserId: true },
+  });
+
+  for (const lead of leads) {
+    const ensured = await ensureStudentApplicationForLead({
+      leadId: lead.id,
+      consultantUserId: lead.createdByUserId!,
+    });
+    if (!ensured.ok) {
+      console.warn("syncStudentApplicationsForUser", lead.id, ensured.error);
+    }
+  }
+}
+
 /** Ensures the lead has a student user + application so they can pay via the student portal. */
 export async function ensureStudentApplicationForLead(params: {
   leadId: string;
@@ -49,11 +87,25 @@ export async function ensureStudentApplicationForLead(params: {
   }
 
   const email = lead.email.toLowerCase();
+  const fullName = `${lead.firstName} ${lead.lastName}`.trim();
   const existingUser = await prisma.user.findUnique({
     where: { email },
     select: { id: true },
   });
   if (existingUser) {
+    await ensureStudentRole(existingUser.id);
+    await prisma.user.update({
+      where: { id: existingUser.id },
+      data: {
+        name: fullName || undefined,
+        phone: lead.mobile,
+        universityId: lead.universityId,
+        studentOfId: params.consultantUserId,
+        inviteToken: null,
+        inviteAcceptedAt: new Date(),
+        accountStatus: "ACTIVE",
+      },
+    });
     const linked = await prisma.application.findFirst({
       where: { userId: existingUser.id, leadId: lead.id },
       select: { id: true },
@@ -144,8 +196,6 @@ export async function ensureStudentApplicationForLead(params: {
           orderBy: { createdAt: "desc" },
           select: { id: true, title: true },
         });
-
-  const fullName = `${lead.firstName} ${lead.lastName}`.trim();
 
   const result = await prisma.$transaction(async (tx) => {
     const referenceCode = await nextApplicationReferenceCode(tx, lead.universityId, lead.university.code);

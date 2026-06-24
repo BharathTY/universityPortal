@@ -233,6 +233,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
         select: consultantLeadDetailSelect,
       });
     });
+    const ensured = await ensureStudentApplicationForLead({
+      leadId: id,
+      consultantUserId: session.sub,
+    });
+    if (!ensured.ok) {
+      console.warn("ensureStudentApplicationForLead on update", ensured.error);
+    }
     return NextResponse.json({ lead });
   } catch (e) {
     console.error("consultant lead PATCH", e);

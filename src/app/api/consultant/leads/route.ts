@@ -20,6 +20,7 @@ import {
   replaceLeadEntranceExams,
 } from "@/lib/consultant-lead-payload";
 import { sendAdmissionLeadWelcomeEmail } from "@/lib/email";
+import { ensureStudentApplicationForLead } from "@/lib/ensure-student-for-lead";
 import { storeUpload } from "@/lib/file-storage";
 import { leadOrderBy, leadTextSearchWhere, parsePage, parsePageSize } from "@/lib/list-query";
 import { canSeeAdmissionLeadAssignedPartnerName } from "@/lib/roles";
@@ -306,6 +307,14 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     console.error("sendAdmissionLeadWelcomeEmail", e);
+  }
+
+  const ensured = await ensureStudentApplicationForLead({
+    leadId: lead.id,
+    consultantUserId: session.sub,
+  });
+  if (!ensured.ok) {
+    console.warn("ensureStudentApplicationForLead on create", ensured.error);
   }
 
   return NextResponse.json({ lead });

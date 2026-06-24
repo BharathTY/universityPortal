@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { higherQualificationShowsBoardField } from "@/lib/student-form-options";
 import type { StudentProfileFormValues } from "@/lib/student-lead-prefill";
 
 export function parseOptionalDate(value: string | null | undefined): Date | null {
@@ -77,7 +78,9 @@ export function buildStudentProfileUpdates(values: StudentProfileFormValues) {
       sslcPercent: parseOptionalDecimal(values.sslcPercent),
       qualificationType: values.qualificationType || null,
       qualInstitution: values.qualInstitution.trim() || null,
-      qualBoardUniversity: values.qualBoardUniversity.trim() || null,
+      qualBoardUniversity: higherQualificationShowsBoardField(values.qualificationType)
+        ? values.qualBoardUniversity.trim() || null
+        : null,
       qualYear: parseOptionalInt(values.qualYear),
       qualResultType: values.qualResultType || null,
       qualScore: parseOptionalDecimal(values.qualScore),

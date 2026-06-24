@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { COOKIE_NAME, buildSessionCookieOptions, createSessionToken, defaultSessionMaxAgeSec } from "@/lib/auth";
 import { initialSessionUniversityIdForUser } from "@/lib/consultant-universities";
 import { verifyPassword } from "@/lib/password";
-import { defaultDashboardPath } from "@/lib/roles";
+import { accountRequiresPasswordOnLogin, defaultDashboardPath } from "@/lib/roles";
 
 const schema = z.object({
   email: z.string().email(),
@@ -13,7 +13,7 @@ const schema = z.object({
 });
 
 /**
- * Sign-in: email + optional password when the account has a password set.
+ * Sign-in: students use email only. Staff/partner accounts use password when one is set.
  * Open sign-up (new student) is email-only if no password is sent.
  * Disabled when REQUIRE_OTP_LOGIN=true (use OTP flow instead).
  */
@@ -66,18 +66,26 @@ export async function POST(req: Request) {
     }
 
     if (user?.passwordHash) {
-      if (!password) {
-        return NextResponse.json({ error: "Password required" }, { status: 401 });
+      const roleSlugs = user.roles.map((ur) => ur.role.slug);
+      const requiresPassword = accountRequiresPasswordOnLogin(roleSlugs);
+
+      if (requiresPassword) {
+        if (!password) {
+          return NextResponse.json({ error: "Password required" }, { status: 401 });
+        }
+        const ok = await verifyPassword(password, user.passwordHash);
+        if (!ok) {
+          return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+        }
       }
-      const ok = await verifyPassword(password, user.passwordHash);
-      if (!ok) {
-        return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    } else if (password.length > 0 && user) {
+      const roleSlugs = user.roles.map((ur) => ur.role.slug);
+      if (accountRequiresPasswordOnLogin(roleSlugs)) {
+        return NextResponse.json(
+          { error: "This account signs in without a password. Leave the password field empty." },
+          { status: 400 },
+        );
       }
-    } else if (password.length > 0) {
-      return NextResponse.json(
-        { error: "This account signs in without a password. Leave the password field empty." },
-        { status: 400 },
-      );
     }
 
     if (!user) {

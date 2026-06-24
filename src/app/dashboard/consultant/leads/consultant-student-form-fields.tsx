@@ -4,7 +4,12 @@ import * as React from "react";
 import { StudentPhotoUploadField, type StudentPhotoUploadRef } from "@/components/student-photo-upload-field";
 import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
 import {
+  digitsOnlyMobileInput,
+  INDIAN_MOBILE_DIGIT_LENGTH,
+} from "@/lib/consultant-lead-form-validation";
+import {
   HIGHER_QUALIFICATION_TYPES,
+  higherQualificationShowsBoardField,
   SSLC_BOARDS,
   SSLC_RESULT_TYPES,
   STUDENT_CATEGORIES,
@@ -65,6 +70,8 @@ type Props = {
   qualMarksCardFile: File | null;
   existingQualMarksCardUrl: string | null;
   onQualMarksCardChange: (file: File | null) => void;
+  /** When true, 10th / 12th education fields are optional (consultant add/edit). */
+  educationOptional?: boolean;
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -114,10 +121,19 @@ export function ConsultantStudentFormFields({
   qualMarksCardFile,
   existingQualMarksCardUrl,
   onQualMarksCardChange,
+  educationOptional = true,
 }: Props) {
   const fullName = [v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(" ");
   const sslcScoreLabel = v.sslcResultType === "CGPA" ? "CGPA" : "Percentage (%)";
   const qualScoreLabel = v.qualResultType === "CGPA" ? "CGPA" : "Percentage (%)";
+  const eduRequired = !educationOptional;
+  const sslcSectionTitle = educationOptional
+    ? "Academic details — 10th standard (optional)"
+    : "Academic details — 10th standard";
+  const qualSectionTitle = educationOptional
+    ? "Academic details — 12th / ITI / Diploma (optional)"
+    : "Academic details — 12th / ITI / Diploma";
+  const showQualBoardField = higherQualificationShowsBoardField(v.qualificationType);
 
   return (
     <div className="space-y-6">
@@ -235,9 +251,11 @@ export function ConsultantStudentFormFields({
           <Field label="Mobile number" required error={fieldErrors.mobile}>
             <input
               type="tel"
+              inputMode="numeric"
+              maxLength={INDIAN_MOBILE_DIGIT_LENGTH}
               value={v.mobile}
               onChange={(e) => {
-                onChange("mobile", e.target.value);
+                onChange("mobile", digitsOnlyMobileInput(e.target.value));
                 clearError("mobile");
               }}
               className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("mobile")}`}
@@ -256,9 +274,11 @@ export function ConsultantStudentFormFields({
           <Field label="Parent / guardian mobile" required error={fieldErrors.guardianMobile}>
             <input
               type="tel"
+              inputMode="numeric"
+              maxLength={INDIAN_MOBILE_DIGIT_LENGTH}
               value={v.guardianMobile}
               onChange={(e) => {
-                onChange("guardianMobile", e.target.value.replace(/\D/g, "").slice(0, 15));
+                onChange("guardianMobile", digitsOnlyMobileInput(e.target.value));
                 clearError("guardianMobile");
               }}
               className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("guardianMobile")}`}
@@ -417,10 +437,10 @@ export function ConsultantStudentFormFields({
         </div>
       </Section>
 
-      <Section title="Academic details — 10th standard">
+      <Section title={sslcSectionTitle}>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Field label="School name" required error={fieldErrors.sslcSchool}>
+            <Field label="School name" required={eduRequired} error={fieldErrors.sslcSchool}>
               <input
                 value={v.sslcSchool}
                 onChange={(e) => {
@@ -431,7 +451,7 @@ export function ConsultantStudentFormFields({
               />
             </Field>
           </div>
-          <Field label="Board name" required error={fieldErrors.sslcBoard}>
+          <Field label="Board name" required={eduRequired} error={fieldErrors.sslcBoard}>
             <select
               value={v.sslcBoard}
               onChange={(e) => {
@@ -448,7 +468,7 @@ export function ConsultantStudentFormFields({
               ))}
             </select>
           </Field>
-          <Field label="Year of passing (YOP)" required error={fieldErrors.sslcYear}>
+          <Field label="Year of passing (YOP)" required={eduRequired} error={fieldErrors.sslcYear}>
             <input
               value={v.sslcYear}
               onChange={(e) => {
@@ -458,7 +478,7 @@ export function ConsultantStudentFormFields({
               className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("sslcYear")}`}
             />
           </Field>
-          <Field label="Result type" required error={fieldErrors.sslcResultType}>
+          <Field label="Result type" required={eduRequired} error={fieldErrors.sslcResultType}>
             <select
               value={v.sslcResultType}
               onChange={(e) => {
@@ -475,7 +495,7 @@ export function ConsultantStudentFormFields({
               ))}
             </select>
           </Field>
-          <Field label={sslcScoreLabel} required error={fieldErrors.sslcPercent}>
+          <Field label={sslcScoreLabel} required={eduRequired} error={fieldErrors.sslcPercent}>
             <input
               value={v.sslcPercent}
               onChange={(e) => {
@@ -507,15 +527,20 @@ export function ConsultantStudentFormFields({
           </div>
         </div>
       </Section>
-      <Section title="Academic details — 12th / ITI / Diploma">
+      <Section title={qualSectionTitle}>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Field label="Qualification" required error={fieldErrors.qualificationType}>
+            <Field label="Qualification" required={eduRequired} error={fieldErrors.qualificationType}>
               <select
                 value={v.qualificationType}
                 onChange={(e) => {
-                  onChange("qualificationType", e.target.value);
+                  const next = e.target.value;
+                  onChange("qualificationType", next);
                   clearError("qualificationType");
+                  if (!higherQualificationShowsBoardField(next)) {
+                    onChange("qualBoardUniversity", "");
+                    clearError("qualBoardUniversity");
+                  }
                 }}
                 className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("qualificationType")}`}
               >
@@ -531,7 +556,7 @@ export function ConsultantStudentFormFields({
           {v.qualificationType ? (
             <>
               <div className="sm:col-span-2">
-                <Field label="Institution name" required error={fieldErrors.qualInstitution}>
+                <Field label="Institution name" required={eduRequired} error={fieldErrors.qualInstitution}>
                   <input
                     value={v.qualInstitution}
                     onChange={(e) => {
@@ -542,17 +567,19 @@ export function ConsultantStudentFormFields({
                   />
                 </Field>
               </div>
-              <Field label="Board / university name" required error={fieldErrors.qualBoardUniversity}>
-                <input
-                  value={v.qualBoardUniversity}
-                  onChange={(e) => {
-                    onChange("qualBoardUniversity", e.target.value);
-                    clearError("qualBoardUniversity");
-                  }}
-                  className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("qualBoardUniversity")}`}
-                />
-              </Field>
-              <Field label="Year of passing (YOP)" required error={fieldErrors.qualYear}>
+              {showQualBoardField ? (
+                <Field label="Board / university name" required={eduRequired} error={fieldErrors.qualBoardUniversity}>
+                  <input
+                    value={v.qualBoardUniversity}
+                    onChange={(e) => {
+                      onChange("qualBoardUniversity", e.target.value);
+                      clearError("qualBoardUniversity");
+                    }}
+                    className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("qualBoardUniversity")}`}
+                  />
+                </Field>
+              ) : null}
+              <Field label="Year of passing (YOP)" required={eduRequired} error={fieldErrors.qualYear}>
                 <input
                   value={v.qualYear}
                   onChange={(e) => {
@@ -562,7 +589,7 @@ export function ConsultantStudentFormFields({
                   className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("qualYear")}`}
                 />
               </Field>
-              <Field label="Result type" required error={fieldErrors.qualResultType}>
+              <Field label="Result type" required={eduRequired} error={fieldErrors.qualResultType}>
                 <select
                   value={v.qualResultType}
                   onChange={(e) => {
@@ -579,7 +606,7 @@ export function ConsultantStudentFormFields({
                   ))}
                 </select>
               </Field>
-              <Field label={qualScoreLabel} required error={fieldErrors.qualScore}>
+              <Field label={qualScoreLabel} required={eduRequired} error={fieldErrors.qualScore}>
                 <input
                   value={v.qualScore}
                   onChange={(e) => {

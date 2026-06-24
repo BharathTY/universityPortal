@@ -1,4 +1,8 @@
-import { HIGHER_QUALIFICATION_TYPES, SSLC_RESULT_TYPES } from "@/lib/student-form-options";
+import {
+  HIGHER_QUALIFICATION_TYPES,
+  higherQualificationShowsBoardField,
+  SSLC_RESULT_TYPES,
+} from "@/lib/student-form-options";
 
 export type EntranceExamFormRow = {
   clientId: string;
@@ -334,7 +338,12 @@ export function validateStudentProfileSubmit(profile: StudentProfilePrefill): Re
 
   if (!values.qualificationType) e.qualificationType = "Qualification type is required";
   if (!values.qualInstitution.trim()) e.qualInstitution = "Institution name is required";
-  if (!values.qualBoardUniversity.trim()) e.qualBoardUniversity = "Board / university name is required";
+  if (
+    higherQualificationShowsBoardField(values.qualificationType) &&
+    !values.qualBoardUniversity.trim()
+  ) {
+    e.qualBoardUniversity = "Board / university name is required";
+  }
   if (!values.qualYear.trim()) e.qualYear = "Year of passing is required";
   if (!values.qualResultType) e.qualResultType = "Result type is required";
   if (!values.qualScore.trim()) e.qualScore = "Score is required";
