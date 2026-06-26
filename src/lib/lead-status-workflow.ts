@@ -32,6 +32,8 @@ export function canTransitionLeadStatus(
     return nextStrict === 0;
   }
 
+  if (nextStrict < currentStrict) return false;
+
   return nextStrict <= currentStrict + 1;
 }
 
@@ -39,5 +41,15 @@ export function isLeadStatusOptionEnabled(
   current: AdmissionLeadStatus,
   option: AdmissionLeadStatus,
 ): boolean {
+  if (option === "READY_TO_PAY" && hasAdvancedPastReadyToPay(current)) {
+    return false;
+  }
   return canTransitionLeadStatus(current, option);
+}
+
+/** Lead has reached Payment Done or a later workflow stage — Ready to Pay must not be re-selected. */
+export function hasAdvancedPastReadyToPay(status: AdmissionLeadStatus): boolean {
+  const idx = strictIndex(status);
+  const readyIdx = strictIndex("READY_TO_PAY");
+  return idx !== null && readyIdx !== null && idx > readyIdx;
 }

@@ -52,8 +52,7 @@ function buildLeadPayload(ctx: {
     programType: "UG",
     admissionDegreeType: "Bachelor of Technology",
     studentTitle: "Mr",
-    firstName: "E2E",
-    lastName: "Prefill",
+    fullName: "E2E Prefill",
     email: ctx.email,
     mobile: "9876543210",
     gender: "Male",
@@ -74,7 +73,7 @@ function buildLeadPayload(ctx: {
     state: "Karnataka",
     country: "India",
     pincode: "560001",
-    correspondenceAddress: "Same as permanent address",
+    correspondenceAddress: "123 Test Street\nNear Park\nBangalore, Bangalore Urban\nKarnataka, India, 560001",
     sslcSchool: "E2E High School",
     sslcBoard: "STATE_BOARD_SSLC",
     sslcYear: "2020",
@@ -90,8 +89,6 @@ function buildLeadPayload(ctx: {
     entranceExams: [
       {
         examName: "KCET",
-        centreName: "Bangalore Centre",
-        registrationNumber: "KCET2022-001",
         scoreRank: "Rank 1200",
         examYear: "2022",
       },
@@ -199,8 +196,7 @@ export async function runConsultantStudentPrefillE2e(
         application: {
           id: string;
           profile: {
-            firstName: string;
-            lastName: string;
+            fullName: string;
             sslcSchool: string;
             qualInstitution: string;
             guardianName: string;
@@ -215,8 +211,7 @@ export async function runConsultantStudentPrefillE2e(
         };
       };
       const p = data.application.profile;
-      assert.strictEqual(p.firstName, "E2E");
-      assert.strictEqual(p.lastName, "Prefill");
+      assert.strictEqual(p.fullName, "E2E Prefill");
       assert.strictEqual(p.sslcSchool, "E2E High School");
       assert.strictEqual(p.qualInstitution, "E2E PU College");
       assert.strictEqual(p.guardianName, "E2E Parent");

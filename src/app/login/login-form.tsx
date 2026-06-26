@@ -58,7 +58,6 @@ export function LoginForm({ requireOtpLogin, initialEmail = "" }: Props) {
   const router = useRouter();
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
-  const [staffSignIn, setStaffSignIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -106,9 +105,6 @@ export function LoginForm({ requireOtpLogin, initialEmail = "" }: Props) {
     const data = (await res.json().catch(() => ({}))) as { error?: string; detail?: string; redirectTo?: string };
     if (!res.ok) {
       const msg = data.error || "Something went wrong";
-      if (msg === "Password required") {
-        setStaffSignIn(true);
-      }
       setError(data.detail ? `${msg}: ${data.detail}` : msg);
       return;
     }
@@ -210,7 +206,7 @@ export function LoginForm({ requireOtpLogin, initialEmail = "" }: Props) {
         </span>
       </div>
 
-      {!requireOtpLogin && staffSignIn ? (
+      {!requireOtpLogin ? (
         <div className="relative">
           <input
             id="password"
@@ -236,21 +232,6 @@ export function LoginForm({ requireOtpLogin, initialEmail = "" }: Props) {
         </div>
       ) : null}
 
-      {!requireOtpLogin && !staffSignIn ? (
-        <p className="text-center text-sm text-slate-600">
-          <button
-            type="button"
-            onClick={() => {
-              setStaffSignIn(true);
-              setError(null);
-            }}
-            className="auth-link font-medium"
-          >
-            Partner or staff sign-in (password)
-          </button>
-        </p>
-      ) : null}
-
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
           <input
@@ -261,7 +242,7 @@ export function LoginForm({ requireOtpLogin, initialEmail = "" }: Props) {
           />
           Remember me
         </label>
-        {staffSignIn ? (
+        {!requireOtpLogin ? (
           <Link href="/forgot-password" className="auth-link">
             Forgot password?
           </Link>
@@ -290,7 +271,7 @@ export function LoginForm({ requireOtpLogin, initialEmail = "" }: Props) {
         </p>
       ) : (
         <p className="text-center text-xs text-slate-500">
-          Students sign in with email only. Partners and staff can use password sign-in above.
+          New students: use the link in your welcome email to set your password, then sign in here.
         </p>
       )}
     </form>

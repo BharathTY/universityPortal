@@ -7,6 +7,8 @@ import {
   STUDENT_CATEGORIES,
   STUDENT_TITLES,
 } from "@/lib/student-form-options";
+import { splitStudentFullName } from "@/lib/student-full-name";
+import { validateEducationScore } from "@/lib/education-score-validation";
 
 export const optionalDecimal = z.union([z.number(), z.string()]).optional().nullable();
 export const optionalInt = z.union([z.number().int(), z.string()]).optional().nullable();
@@ -18,7 +20,7 @@ const resultTypeValues = SSLC_RESULT_TYPES.map((r) => r.value) as [string, ...st
 
 export const entranceExamRowSchema = z.object({
   examName: z.string().min(1).max(120).trim(),
-  centreName: z.string().min(1).max(200).trim(),
+  centreName: z.string().max(200).trim().optional().default(""),
   registrationNumber: z.string().max(64).trim().optional().nullable(),
   scoreRank: z.string().min(1).max(64).trim(),
   examYear: optionalInt,
@@ -41,13 +43,9 @@ function validateOptionalScore(
 ) {
   const score = parseOptionalDecimal(scoreRaw);
   if (score == null) return;
-  const scoreNum = Number(String(score));
-  if (resultType === "PERCENTAGE") {
-    if (scoreNum < 0 || scoreNum > 100) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Percentage must be between 0 and 100", path: [path] });
-    }
-  } else if (scoreNum < 0 || scoreNum > 10) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "CGPA must be between 0 and 10", path: [path] });
+  const message = validateEducationScore(Number(String(score)), resultType);
+  if (message) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: [path] });
   }
 }
 
@@ -71,8 +69,7 @@ export const consultantLeadBodySchema = z.object({
     (v) => (typeof v === "string" && v.trim() === "" ? null : v),
     z.enum(titleValues).optional().nullable(),
   ),
-  firstName: z.string().min(1).max(120).trim(),
-  lastName: z.string().min(1).max(120).trim(),
+  fullName: z.string().min(1).max(240).trim(),
   email: z.string().email().max(254).trim(),
   mobile: mobileSchema,
   gender: z.string().min(1).max(32).trim(),
@@ -96,7 +93,7 @@ export const consultantLeadBodySchema = z.object({
   state: z.string().min(1).max(120).trim(),
   country: z.string().min(1).max(120).trim(),
   pincode: z.string().min(1).max(12).trim(),
-  correspondenceAddress: z.string().min(1).max(1000).trim(),
+  correspondenceAddress: optionalTrimmedString(1000),
   sslcSchool: optionalTrimmedString(200),
   sslcBoard: optionalEnum(boardValues),
   sslcYear: optionalInt,
@@ -224,19 +221,6 @@ export function dateToInput(value: Date | null | undefined): string {
 }
 
 export function buildLeadExtendedData(data: ConsultantLeadBody) {
-  let referralEmail: string | null = null;
-  const refE = data.referralEmail?.trim();
-  if (refE) {
-    const ok = z.string().email().safeParse(refE);
-    if (!ok.success) throw new Error("INVALID_REFERRAL_EMAIL");
-    referralEmail = refE.toLowerCase();
-  }
-
-  const refPhone = data.referralPhone?.trim();
-  if (refPhone && refPhone.replace(/\D/g, "").length < 10) {
-    throw new Error("INVALID_REFERRAL_PHONE");
-  }
-
   const addressLine1 = data.addressLine1.trim();
   const uidai = data.uidaiNumber?.replace(/\D/g, "") ?? "";
   const qualScore = parseOptionalDecimal(data.qualScore);
@@ -246,10 +230,52 @@ export function buildLeadExtendedData(data: ConsultantLeadBody) {
     : null;
   const qualYear = parseOptionalInt(data.qualYear);
 
+  const { firstName, lastName } = splitStudentFullName(data.fullName);
+
+  const hasReferralInPayload =
+    data.referralFirstName !== undefined ||
+    data.referralLastName !== undefined ||
+    data.referralPhone !== undefined ||
+    data.referralEmail !== undefined;
+
+  let referralFields: {
+    referralFirstName: string | null;
+    referralLastName: string | null;
+    referralPhone: string | null;
+    referralEmail: string | null;
+  } = {
+    referralFirstName: null,
+    referralLastName: null,
+    referralPhone: null,
+    referralEmail: null,
+  };
+
+  if (hasReferralInPayload) {
+    let referralEmail: string | null = null;
+    const refE = data.referralEmail?.trim();
+    if (refE) {
+      const ok = z.string().email().safeParse(refE);
+      if (!ok.success) throw new Error("INVALID_REFERRAL_EMAIL");
+      referralEmail = refE.toLowerCase();
+    }
+
+    const refPhone = data.referralPhone?.trim();
+    if (refPhone && refPhone.replace(/\D/g, "").length < 10) {
+      throw new Error("INVALID_REFERRAL_PHONE");
+    }
+
+    referralFields = {
+      referralFirstName: data.referralFirstName?.trim() || null,
+      referralLastName: data.referralLastName?.trim() || null,
+      referralPhone: data.referralPhone?.trim() || null,
+      referralEmail,
+    };
+  }
+
   return {
     studentTitle: data.studentTitle ?? null,
-    firstName: data.firstName,
-    lastName: data.lastName,
+    firstName,
+    lastName,
     email: data.email.toLowerCase(),
     mobile: data.mobile,
     gender: data.gender.trim(),
@@ -273,7 +299,7 @@ export function buildLeadExtendedData(data: ConsultantLeadBody) {
     state: data.state.trim(),
     country: data.country.trim(),
     pincode: data.pincode.replace(/\D/g, ""),
-    correspondenceAddress: data.correspondenceAddress.trim(),
+    correspondenceAddress: data.correspondenceAddress?.trim() || null,
     sslcSchool: data.sslcSchool?.trim() || null,
     sslcBoard: data.sslcBoard ?? null,
     sslcYear: parseOptionalInt(data.sslcYear),
@@ -297,10 +323,7 @@ export function buildLeadExtendedData(data: ConsultantLeadBody) {
     degreeUniversity: data.priorDegreeUniversity?.trim() || null,
     degreePercent: parseOptionalDecimal(data.priorDegreeScore),
     hasEntranceExams: Boolean(data.hasEntranceExams),
-    referralFirstName: data.referralFirstName?.trim() || null,
-    referralLastName: data.referralLastName?.trim() || null,
-    referralPhone: data.referralPhone?.trim() || null,
-    referralEmail,
+    ...(hasReferralInPayload ? referralFields : {}),
   };
 }
 
@@ -566,7 +589,7 @@ export function normalizeEntranceExamsForDb(
   if (!hasEntranceExams || !exams?.length) return [];
   return exams.map((exam, index) => ({
     examName: exam.examName.trim(),
-    centreName: exam.centreName.trim(),
+    centreName: exam.centreName?.trim() || "",
     registrationNumber: exam.registrationNumber?.trim() || null,
     scoreRank: exam.scoreRank.trim(),
     examYear: parseOptionalInt(exam.examYear) ?? 0,

@@ -9,9 +9,10 @@ import {
   SSLC_RESULT_TYPES,
   STUDENT_CATEGORIES,
   STUDENT_GENDERS,
-  STUDENT_TITLES,
 } from "@/lib/student-form-options";
 import { PHOTO_UPLOAD_GUIDELINES, type EntranceExamFormRow, type StudentProfilePrefill } from "@/lib/student-lead-prefill";
+import { STUDENT_FULL_NAME_AADHAAR_HINT } from "@/lib/student-full-name";
+import { permanentAddressFromForm, structuredAddressesEqual, type StructuredAddress } from "@/lib/student-address";
 import { createEmptyEntranceExamRow } from "@/app/dashboard/consultant/leads/consultant-optional-education-sections";
 import { inputClass } from "@/components/student/student-portal-ui";
 
@@ -56,34 +57,151 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export function StudentProfileForm({ profile: p, onChange, fieldErrors, onPhotoUpload, photoUploading }: Props) {
-  const fullName = [p.firstName.trim(), p.lastName.trim()].filter(Boolean).join(" ");
-
   function updateExam(clientId: string, patch: Partial<EntranceExamFormRow>) {
     onChange({
       entranceExams: p.entranceExams.map((row) => (row.clientId === clientId ? { ...row, ...patch } : row)),
     });
   }
 
-  return (
-    <div className="space-y-6">
-      <Section title="Student personal details">
-        <Field label="Student title">
-          <select value={p.studentTitle} onChange={(e) => onChange({ studentTitle: e.target.value })} className={inputClass}>
-            <option value="">Select</option>
-            {STUDENT_TITLES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
+  const permanentAddress = React.useMemo(
+    () => permanentAddressFromForm(p),
+    [p.addressLine1, p.addressLine2, p.city, p.district, p.state, p.country, p.pincode],
+  );
+
+  function copyPermanentToCurrent() {
+    onChange({
+      currentAddressLine1: p.addressLine1,
+      currentAddressLine2: p.addressLine2,
+      currentCity: p.city,
+      currentDistrict: p.district,
+      currentState: p.state,
+      currentCountry: p.country,
+      currentPincode: p.pincode,
+    });
+  }
+
+  React.useEffect(() => {
+    if (!p.currentSameAsPermanent) return;
+    const nextCurrent: StructuredAddress = {
+      addressLine1: p.currentAddressLine1,
+      addressLine2: p.currentAddressLine2,
+      city: p.currentCity,
+      district: p.currentDistrict,
+      state: p.currentState,
+      country: p.currentCountry,
+      pincode: p.currentPincode,
+    };
+    if (!structuredAddressesEqual(permanentAddress, nextCurrent)) {
+      copyPermanentToCurrent();
+    }
+  }, [
+    p.currentSameAsPermanent,
+    permanentAddress,
+    p.currentAddressLine1,
+    p.currentAddressLine2,
+    p.currentCity,
+    p.currentDistrict,
+    p.currentState,
+    p.currentCountry,
+    p.currentPincode,
+  ]);
+
+  function renderAddressFields(prefix: "permanent" | "current", disabled = false) {
+    const isCurrent = prefix === "current";
+    const line1 = isCurrent ? p.currentAddressLine1 : p.addressLine1;
+    const line2 = isCurrent ? p.currentAddressLine2 : p.addressLine2;
+    const city = isCurrent ? p.currentCity : p.city;
+    const district = isCurrent ? p.currentDistrict : p.district;
+    const state = isCurrent ? p.currentState : p.state;
+    const country = isCurrent ? p.currentCountry : p.country;
+    const pincode = isCurrent ? p.currentPincode : p.pincode;
+
+    const patch = (fields: Partial<typeof p>) => onChange(fields);
+
+    return (
+      <>
+        <div className="sm:col-span-2">
+          <Field label="Address line 1">
+            <input
+              value={line1}
+              disabled={disabled}
+              onChange={(e) => patch(isCurrent ? { currentAddressLine1: e.target.value } : { addressLine1: e.target.value })}
+              className={`${inputClass} ${disabled ? "opacity-70" : ""}`}
+            />
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <Field label="Address line 2">
+            <input
+              value={line2}
+              disabled={disabled}
+              onChange={(e) => patch(isCurrent ? { currentAddressLine2: e.target.value } : { addressLine2: e.target.value })}
+              className={`${inputClass} ${disabled ? "opacity-70" : ""}`}
+            />
+          </Field>
+        </div>
+        <Field label="City">
+          <input
+            value={city}
+            disabled={disabled}
+            onChange={(e) => patch(isCurrent ? { currentCity: e.target.value } : { city: e.target.value })}
+            className={`${inputClass} ${disabled ? "opacity-70" : ""}`}
+          />
+        </Field>
+        <Field label="District">
+          <input
+            value={district}
+            disabled={disabled}
+            onChange={(e) => patch(isCurrent ? { currentDistrict: e.target.value } : { district: e.target.value })}
+            className={`${inputClass} ${disabled ? "opacity-70" : ""}`}
+          />
+        </Field>
+        <Field label="State">
+          <select
+            value={state}
+            disabled={disabled}
+            onChange={(e) => patch(isCurrent ? { currentState: e.target.value } : { state: e.target.value })}
+            className={`${inputClass} ${disabled ? "opacity-70" : ""}`}
+          >
+            <option value="">Select state</option>
+            {INDIAN_STATES_AND_UT.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
             ))}
           </select>
         </Field>
-        <Field label="First name" required error={fieldErrors.firstName}>
-          <input value={p.firstName} onChange={(e) => onChange({ firstName: e.target.value })} className={inputClass} />
+        <Field label="Country">
+          <input
+            value={country}
+            disabled={disabled}
+            onChange={(e) => patch(isCurrent ? { currentCountry: e.target.value } : { country: e.target.value })}
+            className={`${inputClass} ${disabled ? "opacity-70" : ""}`}
+          />
         </Field>
-        <Field label="Last name" required error={fieldErrors.lastName}>
-          <input value={p.lastName} onChange={(e) => onChange({ lastName: e.target.value })} className={inputClass} />
+        <Field label="PIN code">
+          <input
+            value={pincode}
+            disabled={disabled}
+            onChange={(e) =>
+              patch(
+                isCurrent
+                  ? { currentPincode: e.target.value.replace(/\D/g, "").slice(0, 6) }
+                  : { pincode: e.target.value.replace(/\D/g, "").slice(0, 6) },
+              )
+            }
+            className={`${inputClass} ${disabled ? "opacity-70" : ""}`}
+          />
         </Field>
+      </>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Section title="Student personal details">
         <div className="sm:col-span-2">
-          <Field label="Full name">
-            <input readOnly value={fullName} className={`${inputClass} bg-[var(--muted)]/40`} />
+          <Field label="Full name" required error={fieldErrors.fullName}>
+            <input value={p.fullName} onChange={(e) => onChange({ fullName: e.target.value })} className={inputClass} />
+            <p className="mt-1 text-xs text-[var(--foreground-muted)]">{STUDENT_FULL_NAME_AADHAAR_HINT}</p>
           </Field>
         </div>
         <Field label="Gender" required error={fieldErrors.gender}>
@@ -110,20 +228,18 @@ export function StudentProfileForm({ profile: p, onChange, fieldErrors, onPhotoU
         <Field label="Nationality" required error={fieldErrors.nationality}>
           <input value={p.nationality} onChange={(e) => onChange({ nationality: e.target.value })} className={inputClass} />
         </Field>
-        <Field label="Mobile number" required error={fieldErrors.mobile}>
+        <Field label="Student phone number" required error={fieldErrors.mobile}>
           <input value={p.mobile} onChange={(e) => onChange({ mobile: e.target.value })} className={inputClass} />
         </Field>
-        <Field label="Parent / guardian name">
+        <Field label="Parent/guardian name">
           <input value={p.guardianName} onChange={(e) => onChange({ guardianName: e.target.value })} className={inputClass} />
         </Field>
-        <Field label="Parent / guardian mobile">
+        <Field label="Parent/guardian phone number">
           <input value={p.guardianMobile} onChange={(e) => onChange({ guardianMobile: e.target.value })} className={inputClass} />
         </Field>
-        <Field label="Email address">
+        <Field label="Student email">
           <input readOnly value={p.email} className={`${inputClass} bg-[var(--muted)]/40`} />
         </Field>
-        <Field label="UIDAI number"><input value={p.uidaiNumber} onChange={(e) => onChange({ uidaiNumber: e.target.value })} className={inputClass} /></Field>
-        <Field label="ABC ID / APAAR ID"><input value={p.abcApaarId} onChange={(e) => onChange({ abcApaarId: e.target.value })} className={inputClass} /></Field>
         <Field label="State">
           <select value={p.admissionState} onChange={(e) => onChange({ admissionState: e.target.value })} className={inputClass}>
             <option value="">Select state</option>
@@ -157,31 +273,25 @@ export function StudentProfileForm({ profile: p, onChange, fieldErrors, onPhotoU
         </div>
       </Section>
 
-      <Section title="Address details">
-        <div className="sm:col-span-2">
-          <Field label="Address line 1"><input value={p.addressLine1} onChange={(e) => onChange({ addressLine1: e.target.value })} className={inputClass} /></Field>
-        </div>
-        <div className="sm:col-span-2">
-          <Field label="Address line 2"><input value={p.addressLine2} onChange={(e) => onChange({ addressLine2: e.target.value })} className={inputClass} /></Field>
-        </div>
-        <Field label="City"><input value={p.city} onChange={(e) => onChange({ city: e.target.value })} className={inputClass} /></Field>
-        <Field label="District"><input value={p.district} onChange={(e) => onChange({ district: e.target.value })} className={inputClass} /></Field>
-        <Field label="State">
-          <select value={p.state} onChange={(e) => onChange({ state: e.target.value })} className={inputClass}>
-            <option value="">Select state</option>
-            {INDIAN_STATES_AND_UT.map((s) => (
-              <option key={s.value} value={s.value}>{s.label}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Country"><input value={p.country} onChange={(e) => onChange({ country: e.target.value })} className={inputClass} /></Field>
-        <Field label="PIN code"><input value={p.pincode} onChange={(e) => onChange({ pincode: e.target.value })} className={inputClass} /></Field>
-        <div className="sm:col-span-2">
-          <Field label="Correspondence address">
-            <textarea value={p.correspondenceAddress} onChange={(e) => onChange({ correspondenceAddress: e.target.value })} rows={2} className={inputClass} />
-          </Field>
-        </div>
-      </Section>
+      <Section title="Permanent address">{renderAddressFields("permanent")}</Section>
+
+      <div className="border-t border-[var(--border)] pt-6">
+        <h3 className="text-sm font-semibold text-[var(--foreground)]">Current address</h3>
+        <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={p.currentSameAsPermanent}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              onChange({ currentSameAsPermanent: checked });
+              if (checked) copyPermanentToCurrent();
+            }}
+            className="rounded border-[var(--border)]"
+          />
+          Current Address is the same as Permanent Address.
+        </label>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">{renderAddressFields("current", p.currentSameAsPermanent)}</div>
+      </div>
 
       <Section title="Academic details — 10th standard">
         <Field label="School name" required error={fieldErrors.sslcSchool}>
@@ -342,12 +452,6 @@ export function StudentProfileForm({ profile: p, onChange, fieldErrors, onPhotoU
                   <Field label="Examination name" error={fieldErrors[`entranceExams.${index}.examName`]}>
                     <input value={exam.examName} onChange={(e) => updateExam(exam.clientId, { examName: e.target.value })} className={inputClass} />
                   </Field>
-                  <Field label="Examination centre name" error={fieldErrors[`entranceExams.${index}.centreName`]}>
-                    <input value={exam.centreName} onChange={(e) => updateExam(exam.clientId, { centreName: e.target.value })} className={inputClass} />
-                  </Field>
-                  <Field label="Registration / hall ticket number">
-                    <input value={exam.registrationNumber} onChange={(e) => updateExam(exam.clientId, { registrationNumber: e.target.value })} className={inputClass} />
-                  </Field>
                   <Field label="Score / rank obtained" error={fieldErrors[`entranceExams.${index}.scoreRank`]}>
                     <input value={exam.scoreRank} onChange={(e) => updateExam(exam.clientId, { scoreRank: e.target.value })} className={inputClass} />
                   </Field>
@@ -366,6 +470,41 @@ export function StudentProfileForm({ profile: p, onChange, fieldErrors, onPhotoU
             </button>
           </div>
         ) : null}
+      </div>
+
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-4">
+        <h3 className="text-sm font-semibold text-[var(--foreground)]">Referral (optional)</h3>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Field label="First name" error={fieldErrors.referralFirstName}>
+            <input
+              value={p.referralFirstName}
+              onChange={(e) => onChange({ referralFirstName: e.target.value })}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Last name" error={fieldErrors.referralLastName}>
+            <input
+              value={p.referralLastName}
+              onChange={(e) => onChange({ referralLastName: e.target.value })}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Contact" error={fieldErrors.referralPhone}>
+            <input
+              value={p.referralPhone}
+              onChange={(e) => onChange({ referralPhone: e.target.value })}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Email" error={fieldErrors.referralEmail}>
+            <input
+              type="email"
+              value={p.referralEmail}
+              onChange={(e) => onChange({ referralEmail: e.target.value })}
+              className={inputClass}
+            />
+          </Field>
+        </div>
       </div>
     </div>
   );

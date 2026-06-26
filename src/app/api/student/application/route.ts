@@ -6,6 +6,7 @@ import { replaceLeadEntranceExams } from "@/lib/consultant-lead-payload";
 import { getStudentApplication, listStudentApplications } from "@/lib/student-application-data";
 import { syncStudentApplicationsForUser } from "@/lib/ensure-student-for-lead";
 import { buildStudentProfileUpdates } from "@/lib/student-application-save";
+import { validateEducationScore } from "@/lib/education-score-validation";
 import {
   type StudentProfileFormValues,
   validateStudentProfileSubmit,
@@ -17,7 +18,7 @@ import { isRazorpayConfigured } from "@/lib/razorpay-server";
 const entranceExamSchema = z.object({
   clientId: z.string().optional(),
   examName: z.string().max(120),
-  centreName: z.string().max(200),
+  centreName: z.string().max(200).optional().default(""),
   registrationNumber: z.string().max(64).optional().nullable(),
   scoreRank: z.string().max(64),
   examYear: z.string().max(4),
@@ -27,8 +28,7 @@ const profileSchema = z.object({
   applicationId: z.string().min(1),
   submitProfile: z.boolean().optional(),
   studentTitle: z.string().max(32).optional().nullable(),
-  firstName: z.string().min(1).max(120),
-  lastName: z.string().min(1).max(120),
+  fullName: z.string().min(1).max(240),
   gender: z.string().max(32).optional().nullable(),
   dateOfBirth: z.string().max(32).optional().nullable(),
   category: z.string().max(120).optional().nullable(),
@@ -48,6 +48,14 @@ const profileSchema = z.object({
   state: z.string().max(120).optional().nullable(),
   country: z.string().max(120).optional().nullable(),
   pincode: z.string().max(12).optional().nullable(),
+  currentSameAsPermanent: z.boolean().optional(),
+  currentAddressLine1: z.string().max(500).optional().nullable(),
+  currentAddressLine2: z.string().max(500).optional().nullable(),
+  currentCity: z.string().max(120).optional().nullable(),
+  currentDistrict: z.string().max(120).optional().nullable(),
+  currentState: z.string().max(120).optional().nullable(),
+  currentCountry: z.string().max(120).optional().nullable(),
+  currentPincode: z.string().max(12).optional().nullable(),
   correspondenceAddress: z.string().max(1000).optional().nullable(),
   sslcSchool: z.string().max(200).optional().nullable(),
   sslcBoard: z.string().max(120).optional().nullable(),
@@ -70,6 +78,10 @@ const profileSchema = z.object({
   priorDegreeScore: z.string().optional().nullable(),
   hasEntranceExams: z.boolean().optional(),
   entranceExams: z.array(entranceExamSchema).optional(),
+  referralFirstName: z.string().max(120).optional().nullable(),
+  referralLastName: z.string().max(120).optional().nullable(),
+  referralPhone: z.string().max(32).optional().nullable(),
+  referralEmail: z.string().max(254).optional().nullable(),
 });
 
 export async function GET(req: Request) {
@@ -133,6 +145,21 @@ export async function PATCH(req: Request) {
   }
 
   const formValues = parsed.data as StudentProfileFormValues & { applicationId: string };
+
+  const scoreFieldErrors: Record<string, string> = {};
+  const sslcScoreErr = validateEducationScore(formValues.sslcPercent, formValues.sslcResultType ?? "");
+  if (sslcScoreErr) scoreFieldErrors.sslcPercent = sslcScoreErr;
+  const qualScoreErr = validateEducationScore(formValues.qualScore, formValues.qualResultType ?? "");
+  if (qualScoreErr) scoreFieldErrors.qualScore = qualScoreErr;
+  const priorScoreErr = validateEducationScore(
+    formValues.priorDegreeScore,
+    formValues.priorDegreeResultType ?? "",
+  );
+  if (priorScoreErr) scoreFieldErrors.priorDegreeScore = priorScoreErr;
+  if (Object.keys(scoreFieldErrors).length > 0) {
+    return NextResponse.json({ error: "Invalid score values", fieldErrors: scoreFieldErrors }, { status: 400 });
+  }
+
   const profileForValidation = {
     ...current.profile,
     ...formValues,

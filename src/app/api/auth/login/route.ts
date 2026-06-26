@@ -13,9 +13,8 @@ const schema = z.object({
 });
 
 /**
- * Sign-in: students use email only. Staff/partner accounts use password when one is set.
- * Open sign-up (new student) is email-only if no password is sent.
- * Disabled when REQUIRE_OTP_LOGIN=true (use OTP flow instead).
+ * Sign-in: email + password when a password is set on the account.
+ * New students must activate via the email link before signing in.
  */
 export async function POST(req: Request) {
   let json: unknown;
@@ -66,17 +65,12 @@ export async function POST(req: Request) {
     }
 
     if (user?.passwordHash) {
-      const roleSlugs = user.roles.map((ur) => ur.role.slug);
-      const requiresPassword = accountRequiresPasswordOnLogin(roleSlugs);
-
-      if (requiresPassword) {
-        if (!password) {
-          return NextResponse.json({ error: "Password required" }, { status: 401 });
-        }
-        const ok = await verifyPassword(password, user.passwordHash);
-        if (!ok) {
-          return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
-        }
+      if (!password) {
+        return NextResponse.json({ error: "Password required" }, { status: 401 });
+      }
+      const ok = await verifyPassword(password, user.passwordHash);
+      if (!ok) {
+        return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
       }
     } else if (password.length > 0 && user) {
       const roleSlugs = user.roles.map((ur) => ur.role.slug);

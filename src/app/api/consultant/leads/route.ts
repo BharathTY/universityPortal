@@ -296,11 +296,11 @@ export async function POST(req: Request) {
     return created;
   });
 
-  const fullName = `${parsed.data.firstName} ${parsed.data.lastName}`.trim();
+  const fullName = parsed.data.fullName.trim();
   try {
     await sendAdmissionLeadWelcomeEmail({
       to: email,
-      name: fullName || parsed.data.firstName,
+      name: fullName || email,
       universityName: (await prisma.university.findUnique({ where: { id: universityId }, select: { name: true } }))
         ?.name ?? "the university",
       partnerLabel: assignedPartnerDisplayName,

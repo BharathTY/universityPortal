@@ -8,6 +8,7 @@ import { nextApplicationReferenceCode } from "@/lib/application-reference";
 import { prisma } from "@/lib/prisma";
 import { ROLES } from "@/lib/roles";
 import { sendStudentRegistrationEmail } from "@/lib/email";
+import { buildAccountActivationUrl, generateInviteToken } from "@/lib/student-invite";
 
 type EnsureStudentResult =
   | { ok: true; created: boolean; applicationId: string | null; userId: string | null }
@@ -101,8 +102,6 @@ export async function ensureStudentApplicationForLead(params: {
         phone: lead.mobile,
         universityId: lead.universityId,
         studentOfId: params.consultantUserId,
-        inviteToken: null,
-        inviteAcceptedAt: new Date(),
         accountStatus: "ACTIVE",
       },
     });
@@ -197,6 +196,8 @@ export async function ensureStudentApplicationForLead(params: {
           select: { id: true, title: true },
         });
 
+  const inviteToken = generateInviteToken();
+
   const result = await prisma.$transaction(async (tx) => {
     const referenceCode = await nextApplicationReferenceCode(tx, lead.universityId, lead.university.code);
 
@@ -207,8 +208,7 @@ export async function ensureStudentApplicationForLead(params: {
         phone: lead.mobile,
         universityId: lead.universityId,
         studentOfId: params.consultantUserId,
-        inviteToken: null,
-        inviteAcceptedAt: new Date(),
+        inviteToken,
         accountStatus: "ACTIVE",
         roles: { create: { roleId: studentRole.id } },
       },
@@ -237,6 +237,8 @@ export async function ensureStudentApplicationForLead(params: {
     return { student, application, batchTitle: batch?.title };
   });
 
+  const activationUrl = buildAccountActivationUrl(inviteToken);
+
   try {
     await sendStudentRegistrationEmail({
       to: email,
@@ -244,6 +246,7 @@ export async function ensureStudentApplicationForLead(params: {
       universityName: lead.university.name,
       academicBatchName: result.batchTitle?.trim() || "Academic batch",
       degreeName: lead.stream.name,
+      activationUrl,
     });
   } catch (e) {
     console.error("sendStudentRegistrationEmail", e);

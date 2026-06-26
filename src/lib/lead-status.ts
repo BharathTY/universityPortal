@@ -1,4 +1,5 @@
 import type { AdmissionLeadStatus } from "@prisma/client";
+import { hasAdvancedPastReadyToPay } from "@/lib/lead-status-workflow";
 
 /** Pre-payment statuses shown in the lead status dropdown before payment is collected. */
 export const PRE_PAYMENT_LEAD_STATUS_OPTIONS: { value: AdmissionLeadStatus; label: string }[] = [
@@ -56,6 +57,10 @@ export function isLeadStatusOptionVisible(
   option: AdmissionLeadStatus,
   currentStrict: number | null = strictIndex(current),
 ): boolean {
+  if (option === "READY_TO_PAY" && hasAdvancedPastReadyToPay(current)) {
+    return false;
+  }
+
   if (!POST_PAYMENT_SET.has(option)) return true;
 
   const optionStrict = strictIndex(option);

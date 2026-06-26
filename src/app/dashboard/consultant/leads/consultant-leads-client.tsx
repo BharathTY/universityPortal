@@ -25,6 +25,8 @@ import {
   validateConsultantLeadForm,
 } from "@/lib/consultant-lead-form-validation";
 import { newClientId } from "@/lib/client-id";
+import { joinStudentFullName } from "@/lib/student-full-name";
+import { correspondenceFromCurrentForm, loadCurrentAddressFields, permanentAddressFromForm } from "@/lib/student-address";
 import type { StudentPhotoUploadRef } from "@/components/student-photo-upload-field";
 
 type Stream = { id: string; name: string; programLevel?: "UG" | "PG" | null; degreeType?: string | null };
@@ -147,10 +149,6 @@ export function ConsultantLeadsClient(props: ConsultantLeadsClientProps) {
   const [admissionDegreeType, setAdmissionDegreeType] = React.useState(
     props.initialLead?.admissionDegreeType ?? "",
   );
-  const [refFn, setRefFn] = React.useState("");
-  const [refLn, setRefLn] = React.useState("");
-  const [refPhone, setRefPhone] = React.useState("");
-  const [refEmail, setRefEmail] = React.useState("");
   const photoUploadRef = React.useRef<StudentPhotoUploadRef | null>(null);
   const [sslcMarksCardFile, setSslcMarksCardFile] = React.useState<File | null>(null);
   const [qualMarksCardFile, setQualMarksCardFile] = React.useState<File | null>(null);
@@ -176,6 +174,10 @@ export function ConsultantLeadsClient(props: ConsultantLeadsClientProps) {
     setStudentForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function patchStudentForm(patch: Partial<ConsultantStudentFormValues>) {
+    setStudentForm((prev) => ({ ...prev, ...patch }));
+  }
+
   function clearStudentFieldError(key: string) {
     setFieldErrors((f) => {
       const n = { ...f };
@@ -190,10 +192,6 @@ export function ConsultantLeadsClient(props: ConsultantLeadsClientProps) {
     setSelectedUniversityId(l.universityId);
     setStreamId(l.streamId);
     setAcademicYearId(l.academicYearId);
-    setRefFn(l.referralFirstName ?? "");
-    setRefLn(l.referralLastName ?? "");
-    setRefPhone(l.referralPhone ?? "");
-    setRefEmail(l.referralEmail ?? "");
     setExistingPhotoUrl(l.photoUrl);
     setExistingSslcMarksCardUrl(l.sslcMarksCardUrl);
     setExistingQualMarksCardUrl(l.qualMarksCardUrl);
@@ -222,10 +220,19 @@ export function ConsultantLeadsClient(props: ConsultantLeadsClientProps) {
           }))
         : [],
     );
+    const permanent = permanentAddressFromForm({
+      addressLine1: l.addressLine1,
+      addressLine2: l.addressLine2 ?? "",
+      city: l.city ?? "",
+      district: l.district ?? "",
+      state: l.state ?? "",
+      country: l.country ?? "India",
+      pincode: l.pincode ?? "",
+    });
+    const currentFields = loadCurrentAddressFields(permanent, l.correspondenceAddress);
     setStudentForm({
       studentTitle: l.studentTitle ?? "",
-      firstName: l.firstName,
-      lastName: l.lastName,
+      fullName: joinStudentFullName(l.firstName, l.lastName),
       email: l.email,
       mobile: l.mobile,
       gender: l.gender ?? "",
@@ -246,7 +253,7 @@ export function ConsultantLeadsClient(props: ConsultantLeadsClientProps) {
       state: l.state ?? "",
       country: l.country ?? "India",
       pincode: l.pincode ?? "",
-      correspondenceAddress: l.correspondenceAddress ?? "",
+      ...currentFields,
       sslcSchool: l.sslcSchool ?? "",
       sslcBoard: l.sslcBoard ?? "",
       sslcYear: l.sslcYear != null ? String(l.sslcYear) : "",
@@ -336,8 +343,6 @@ export function ConsultantLeadsClient(props: ConsultantLeadsClientProps) {
       academicYearId,
       programType,
       admissionDegreeType,
-      refEmail,
-      refPhone,
       academicYearsCount: academicYears.length,
       streamsCount: activeStreams.length,
     });
@@ -358,8 +363,7 @@ export function ConsultantLeadsClient(props: ConsultantLeadsClientProps) {
       programType,
       admissionDegreeType,
       studentTitle: f.studentTitle || null,
-      firstName: f.firstName.trim(),
-      lastName: f.lastName.trim(),
+      fullName: f.fullName.trim(),
       email: f.email.trim(),
       mobile: f.mobile.trim(),
       gender: f.gender,
@@ -380,7 +384,7 @@ export function ConsultantLeadsClient(props: ConsultantLeadsClientProps) {
       state: f.state,
       country: f.country.trim(),
       pincode: f.pincode.trim(),
-      correspondenceAddress: f.correspondenceAddress.trim(),
+      correspondenceAddress: correspondenceFromCurrentForm(f),
       sslcSchool: f.sslcSchool.trim(),
       sslcBoard: f.sslcBoard,
       sslcYear: f.sslcYear.trim(),
@@ -404,16 +408,12 @@ export function ConsultantLeadsClient(props: ConsultantLeadsClientProps) {
       entranceExams: hasEntranceExams
         ? entranceExams.map((exam) => ({
             examName: exam.examName.trim(),
-            centreName: exam.centreName.trim(),
-            registrationNumber: exam.registrationNumber.trim() || null,
+            centreName: "",
+            registrationNumber: null,
             scoreRank: exam.scoreRank.trim(),
             examYear: exam.examYear.trim(),
           }))
         : [],
-      referralFirstName: refFn.trim() || null,
-      referralLastName: refLn.trim() || null,
-      referralPhone: refPhone.trim() || null,
-      referralEmail: refEmail.trim() || null,
       ...(isEdit && removePhoto && !photoFile ? { removePhoto: true } : {}),
     };
 
@@ -458,10 +458,6 @@ export function ConsultantLeadsClient(props: ConsultantLeadsClientProps) {
     setPriorDegree(createEmptyPriorDegreeValues());
     setHasEntranceExams(false);
     setEntranceExams([]);
-    setRefFn("");
-    setRefLn("");
-    setRefPhone("");
-    setRefEmail("");
     photoUploadRef.current?.clear();
     setSslcMarksCardFile(null);
     setQualMarksCardFile(null);
@@ -558,6 +554,7 @@ export function ConsultantLeadsClient(props: ConsultantLeadsClientProps) {
           <ConsultantStudentFormFields
             values={studentForm}
             onChange={updateStudentForm}
+            onPatch={patchStudentForm}
             fieldErrors={fieldErrors}
             borderFor={borderFor}
             clearError={clearStudentFieldError}
@@ -589,67 +586,6 @@ export function ConsultantLeadsClient(props: ConsultantLeadsClientProps) {
           />
         </>
       ) : null}
-
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-4">
-        <h3 className="text-sm font-semibold text-[var(--foreground)]">Referral (optional)</h3>
-        <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="text-sm font-medium">First name</label>
-            <input
-              value={refFn}
-              onChange={(e) => setRefFn(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Last name</label>
-            <input
-              value={refLn}
-              onChange={(e) => setRefLn(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Contact</label>
-            <input
-              value={refPhone}
-              onChange={(e) => {
-                setRefPhone(e.target.value);
-                setFieldErrors((f) => {
-                  const n = { ...f };
-                  delete n.referralPhone;
-                  return n;
-                });
-              }}
-              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("referralPhone")}`}
-              aria-invalid={Boolean(fieldErrors.referralPhone)}
-            />
-            {fieldErrors.referralPhone ? (
-              <p className="mt-1 text-xs text-red-600">{fieldErrors.referralPhone}</p>
-            ) : null}
-          </div>
-          <div>
-            <label className="text-sm font-medium">Email</label>
-            <input
-              type="email"
-              value={refEmail}
-              onChange={(e) => {
-                setRefEmail(e.target.value);
-                setFieldErrors((f) => {
-                  const n = { ...f };
-                  delete n.referralEmail;
-                  return n;
-                });
-              }}
-              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("referralEmail")}`}
-              aria-invalid={Boolean(fieldErrors.referralEmail)}
-            />
-            {fieldErrors.referralEmail ? (
-              <p className="mt-1 text-xs text-red-600">{fieldErrors.referralEmail}</p>
-            ) : null}
-          </div>
-        </div>
-      </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <button

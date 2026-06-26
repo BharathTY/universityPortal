@@ -74,7 +74,7 @@ export function isStudent(roles: string[]): boolean {
   return roles.includes(ROLES.student);
 }
 
-/** Student portal account without staff roles — signs in with email only. */
+/** Student portal account without staff roles. */
 export function isStudentOnly(roles: string[]): boolean {
   return (
     isStudent(roles) &&
@@ -150,10 +150,11 @@ export function formatTeamMemberRole(slug: string): string {
   return formatRoleLabel(slug);
 }
 
-/** Partner accounts must set a password when accepting an invite email link. */
+/** Accounts that must set a password when accepting an invite email link. */
 export function userNeedsPasswordOnActivation(roleSlugs: string[]): boolean {
   return roleSlugs.some(
     (slug) =>
+      slug === ROLES.student ||
       slug === ROLES.consultant ||
       slug === ROLES.consultantSpoc ||
       slug === ROLES.counsellor ||

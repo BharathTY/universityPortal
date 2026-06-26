@@ -3,6 +3,9 @@ import {
   higherQualificationShowsBoardField,
   SSLC_RESULT_TYPES,
 } from "@/lib/student-form-options";
+import { joinStudentFullName } from "@/lib/student-full-name";
+import { correspondenceFromCurrentForm, loadCurrentAddressFields, permanentAddressFromForm } from "@/lib/student-address";
+import { validateEducationScore } from "@/lib/education-score-validation";
 
 export type EntranceExamFormRow = {
   clientId: string;
@@ -15,8 +18,7 @@ export type EntranceExamFormRow = {
 
 export type StudentProfileFormValues = {
   studentTitle: string;
-  firstName: string;
-  lastName: string;
+  fullName: string;
   email: string;
   gender: string;
   dateOfBirth: string;
@@ -37,7 +39,14 @@ export type StudentProfileFormValues = {
   state: string;
   country: string;
   pincode: string;
-  correspondenceAddress: string;
+  currentSameAsPermanent: boolean;
+  currentAddressLine1: string;
+  currentAddressLine2: string;
+  currentCity: string;
+  currentDistrict: string;
+  currentState: string;
+  currentCountry: string;
+  currentPincode: string;
   sslcSchool: string;
   sslcBoard: string;
   sslcYear: string;
@@ -59,6 +68,10 @@ export type StudentProfileFormValues = {
   priorDegreeScore: string;
   hasEntranceExams: boolean;
   entranceExams: EntranceExamFormRow[];
+  referralFirstName: string;
+  referralLastName: string;
+  referralPhone: string;
+  referralEmail: string;
 };
 
 export type StudentProfilePrefill = StudentProfileFormValues & {
@@ -159,6 +172,10 @@ type LeadRow = {
   admissionDegreeType?: string | null;
   photoUrl?: string | null;
   hasEntranceExams?: boolean | null;
+  referralFirstName?: string | null;
+  referralLastName?: string | null;
+  referralPhone?: string | null;
+  referralEmail?: string | null;
   entranceExams?: {
     id: string;
     examName: string;
@@ -212,8 +229,10 @@ export function mergeStudentProfilePrefill(
 
   return {
     studentTitle: pickStr(lead?.studentTitle),
-    firstName: pickStr(lead?.firstName, nameFn),
-    lastName: pickStr(lead?.lastName, nameLn),
+    fullName: joinStudentFullName(
+      pickStr(lead?.firstName, nameFn),
+      pickStr(lead?.lastName, nameLn),
+    ),
     email: pickStr(user.email, lead?.email),
     gender: pickStr(user.gender, lead?.gender),
     dateOfBirth: isoToDateInput(user.dateOfBirth) || isoToDateInput(lead?.dateOfBirth),
@@ -234,7 +253,18 @@ export function mergeStudentProfilePrefill(
     state: pickStr(user.stateStudent, lead?.state),
     country: pickStr(lead?.country, "India"),
     pincode: pickStr(user.pincode, lead?.pincode),
-    correspondenceAddress: pickStr(lead?.correspondenceAddress),
+    ...loadCurrentAddressFields(
+      permanentAddressFromForm({
+        addressLine1: pickStr(lead?.addressLine1, lead?.address),
+        addressLine2: pickStr(lead?.addressLine2),
+        city: pickStr(lead?.city),
+        district: pickStr(user.districtStudent, lead?.district),
+        state: pickStr(user.stateStudent, lead?.state),
+        country: pickStr(lead?.country, "India"),
+        pincode: pickStr(user.pincode, lead?.pincode),
+      }),
+      lead?.correspondenceAddress,
+    ),
     sslcSchool: pickStr(user.sslcSchool, lead?.sslcSchool),
     sslcBoard: pickStr(user.sslcBoard, lead?.sslcBoard),
     sslcYear: lead?.sslcYear != null ? String(lead.sslcYear) : "",
@@ -255,6 +285,10 @@ export function mergeStudentProfilePrefill(
     priorDegreeResultType: pickStr(lead?.priorDegreeResultType),
     priorDegreeScore: decimalStr(user.degreePercent) || decimalStr(lead?.degreePercent),
     hasEntranceExams: Boolean(lead?.hasEntranceExams),
+    referralFirstName: pickStr(lead?.referralFirstName),
+    referralLastName: pickStr(lead?.referralLastName),
+    referralPhone: pickStr(lead?.referralPhone),
+    referralEmail: pickStr(lead?.referralEmail),
     entranceExams: (lead?.entranceExams ?? []).map((e) => ({
       clientId: e.id,
       examName: e.examName,
@@ -277,8 +311,7 @@ export function mergeStudentProfilePrefill(
 export function createEmptyStudentProfile(): StudentProfileFormValues {
   return {
     studentTitle: "",
-    firstName: "",
-    lastName: "",
+    fullName: "",
     email: "",
     gender: "",
     dateOfBirth: "",
@@ -299,7 +332,14 @@ export function createEmptyStudentProfile(): StudentProfileFormValues {
     state: "",
     country: "India",
     pincode: "",
-    correspondenceAddress: "",
+    currentSameAsPermanent: false,
+    currentAddressLine1: "",
+    currentAddressLine2: "",
+    currentCity: "",
+    currentDistrict: "",
+    currentState: "",
+    currentCountry: "India",
+    currentPincode: "",
     sslcSchool: "",
     sslcBoard: "",
     sslcYear: "",
@@ -321,6 +361,10 @@ export function createEmptyStudentProfile(): StudentProfileFormValues {
     priorDegreeScore: "",
     hasEntranceExams: false,
     entranceExams: [],
+    referralFirstName: "",
+    referralLastName: "",
+    referralPhone: "",
+    referralEmail: "",
   };
 }
 
@@ -330,11 +374,17 @@ export function validateStudentProfileSubmit(profile: StudentProfilePrefill): Re
 
   if (!profile.photoUrl) e.photoUrl = "Student photograph is required before submitting your profile";
 
+  if (!values.fullName.trim()) e.fullName = "Full name is required";
+
   if (!values.sslcSchool.trim()) e.sslcSchool = "School name is required";
   if (!values.sslcBoard.trim()) e.sslcBoard = "Board name is required";
   if (!values.sslcYear.trim()) e.sslcYear = "Year of passing is required";
   if (!values.sslcResultType) e.sslcResultType = "Result type is required";
   if (!values.sslcPercent.trim()) e.sslcPercent = "Score is required";
+  else {
+    const sslcScoreErr = validateEducationScore(values.sslcPercent, values.sslcResultType);
+    if (sslcScoreErr) e.sslcPercent = sslcScoreErr;
+  }
 
   if (!values.qualificationType) e.qualificationType = "Qualification type is required";
   if (!values.qualInstitution.trim()) e.qualInstitution = "Institution name is required";
@@ -347,6 +397,15 @@ export function validateStudentProfileSubmit(profile: StudentProfilePrefill): Re
   if (!values.qualYear.trim()) e.qualYear = "Year of passing is required";
   if (!values.qualResultType) e.qualResultType = "Result type is required";
   if (!values.qualScore.trim()) e.qualScore = "Score is required";
+  else {
+    const qualScoreErr = validateEducationScore(values.qualScore, values.qualResultType);
+    if (qualScoreErr) e.qualScore = qualScoreErr;
+  }
+
+  if (values.priorDegreeScore.trim() && values.priorDegreeResultType) {
+    const priorScoreErr = validateEducationScore(values.priorDegreeScore, values.priorDegreeResultType);
+    if (priorScoreErr) e.priorDegreeScore = priorScoreErr;
+  }
 
   if (!profile.programType) e.programType = "Program type is required";
   if (!profile.degreeType) e.degreeType = "Degree type is required";
@@ -355,10 +414,18 @@ export function validateStudentProfileSubmit(profile: StudentProfilePrefill): Re
   if (values.hasEntranceExams) {
     values.entranceExams.forEach((exam, i) => {
       if (!exam.examName.trim()) e[`entranceExams.${i}.examName`] = "Examination name is required";
-      if (!exam.centreName.trim()) e[`entranceExams.${i}.centreName`] = "Examination centre is required";
       if (!exam.scoreRank.trim()) e[`entranceExams.${i}.scoreRank`] = "Score / rank is required";
       if (!exam.examYear.trim()) e[`entranceExams.${i}.examYear`] = "Year of examination is required";
     });
+  }
+
+  const refEmail = values.referralEmail.trim();
+  if (refEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(refEmail)) {
+    e.referralEmail = "Enter a valid email address";
+  }
+  const refPhone = values.referralPhone.trim();
+  if (refPhone && refPhone.replace(/\D/g, "").length < 10) {
+    e.referralPhone = "Enter at least 10 digits for contact";
   }
 
   return e;

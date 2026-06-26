@@ -115,6 +115,10 @@ const applicationInclude = {
       degreeUniversity: true,
       degreePercent: true,
       hasEntranceExams: true,
+      referralFirstName: true,
+      referralLastName: true,
+      referralPhone: true,
+      referralEmail: true,
       entranceExams: {
         orderBy: { sortOrder: "asc" as const },
         select: {

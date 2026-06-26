@@ -275,30 +275,6 @@ export function ConsultantEntranceExamsSection({
                     className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor(`entranceExams.${index}.examName`)}`}
                   />
                 </Field>
-                <Field label="Examination centre name" required error={fieldErrors[`entranceExams.${index}.centreName`]}>
-                  <input
-                    value={exam.centreName}
-                    onChange={(e) => {
-                      updateExam(exam.clientId, { centreName: e.target.value });
-                      clearError(`entranceExams.${index}.centreName`);
-                      clearError("entranceExams");
-                    }}
-                    className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor(`entranceExams.${index}.centreName`)}`}
-                  />
-                </Field>
-                <Field
-                  label="Registration / hall ticket number"
-                  error={fieldErrors[`entranceExams.${index}.registrationNumber`]}
-                >
-                  <input
-                    value={exam.registrationNumber}
-                    onChange={(e) => {
-                      updateExam(exam.clientId, { registrationNumber: e.target.value });
-                      clearError(`entranceExams.${index}.registrationNumber`);
-                    }}
-                    className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor(`entranceExams.${index}.registrationNumber`)}`}
-                  />
-                </Field>
                 <Field label="Score / rank obtained" required error={fieldErrors[`entranceExams.${index}.scoreRank`]}>
                   <input
                     value={exam.scoreRank}

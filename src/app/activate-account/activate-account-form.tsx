@@ -85,7 +85,7 @@ export function ActivateAccountForm() {
     return (
       <div className="mt-10 space-y-6">
         <p className="text-sm text-red-600" role="alert">
-          This activation link is invalid. Open the link from your QSpiders Eduversity welcome email.
+          This activation link is invalid. Open the link from your QSpiders Eduversity welcome email to set your password.
         </p>
         <Link href="/login" className="auth-btn-primary block text-center">
           Go to sign in

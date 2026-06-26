@@ -170,12 +170,14 @@ async function runEmailContentTests(): Promise<{ passed: number; failed: number 
       universityName: "QSP University",
       academicBatchName: "2026",
       degreeName: "B.Tech CSE",
+      activationUrl: "http://localhost:7777/activate-account?token=test-token",
     });
     const m = sentMails[0]!;
     assertIncludes(m.subject ?? "", "Qspiders Eduversity", "subject");
     assertIncludes(m.text ?? "", "QSP University", "university");
     assertIncludes(m.text ?? "", "B.Tech CSE", "degree");
     assertIncludes(m.text ?? "", "2026", "batch");
+    assertIncludes(m.text ?? "", "activate-account?token=test-token", "activation link");
   });
 
   await run("sendPaymentSuccessEmail — amount and application id", async () => {

@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { isConsultant, ROLES } from "@/lib/roles";
 import { nextApplicationReferenceCode } from "@/lib/application-reference";
 import { sendStudentRegistrationEmail } from "@/lib/email";
+import { buildAccountActivationUrl, generateInviteToken } from "@/lib/student-invite";
 import { requireActiveUniversity } from "@/lib/require-active-university";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -84,6 +85,7 @@ export async function POST(_req: Request, ctx: Ctx) {
         });
 
   const fullName = `${lead.firstName} ${lead.lastName}`.trim();
+  const inviteToken = generateInviteToken();
 
   const result = await prisma.$transaction(async (tx) => {
     const referenceCode = await nextApplicationReferenceCode(tx, universityId, lead.university.code);
@@ -95,8 +97,7 @@ export async function POST(_req: Request, ctx: Ctx) {
         phone: lead.mobile,
         universityId,
         studentOfId: session.sub,
-        inviteToken: null,
-        inviteAcceptedAt: new Date(),
+        inviteToken,
         accountStatus: "ACTIVE",
         roles: { create: { roleId: studentRole.id } },
       },
@@ -123,6 +124,8 @@ export async function POST(_req: Request, ctx: Ctx) {
     return { student, application };
   });
 
+  const activationUrl = buildAccountActivationUrl(inviteToken);
+
   try {
     await sendStudentRegistrationEmail({
       to: email,
@@ -130,6 +133,7 @@ export async function POST(_req: Request, ctx: Ctx) {
       universityName: lead.university.name,
       academicBatchName: batch?.title?.trim() || "Academic batch",
       degreeName: lead.stream.name,
+      activationUrl,
     });
   } catch (e) {
     console.error("sendStudentRegistrationEmail", e);

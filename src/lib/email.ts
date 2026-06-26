@@ -200,6 +200,7 @@ export async function sendStudentRegistrationEmail(params: {
   universityName: string;
   academicBatchName: string;
   degreeName: string;
+  activationUrl: string;
 }): Promise<void> {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
@@ -207,28 +208,43 @@ export async function sendStudentRegistrationEmail(params: {
   const pass = process.env.SMTP_PASS;
   const from = resolveEmailFrom();
   const studentName = params.name.trim() || params.to;
+  const loginUrl = `${getPublicAppOrigin()}/login`;
 
-  const subject = "Welcome to Qspiders Eduversity – Access Your Account.";
+  const subject = "Welcome to Qspiders Eduversity – set your password";
   const text = `Hi ${studentName},
 
 Welcome to Qspiders Eduversity!
 
 Your admission application has been created successfully with ${params.universityName} (${params.academicBatchName}) for ${params.degreeName}.
 
-We're excited to have you on board let's get started on your learning journey!
+Set your password and activate your student account using the link below:
+
+${params.activationUrl}
+
+Registered email: ${params.to}
+
+After setting your password, sign in at ${loginUrl} with your email and the password you choose.
 
 Warm regards,
 Team Eduversity`;
 
   const html = `<p>Hi <strong>${escapeHtml(studentName)}</strong>,</p>
-<p>Welcome to <strong>Qspiders Eduversity</strong>! \u{1F389}</p>
+<p>Welcome to <strong>Qspiders Eduversity</strong>!</p>
 <p>Your admission application has been created successfully with <strong>${escapeHtml(params.universityName)}</strong> (<strong>${escapeHtml(params.academicBatchName)}</strong>) for <strong>${escapeHtml(params.degreeName)}</strong>.</p>
-<p>We're excited to have you on board let's get started on your learning journey!</p>
+<p>To access your student portal, please set your password using the button below.</p>
+<p style="margin:24px 0">
+  <a href="${escapeHtml(params.activationUrl)}" style="display:inline-block;padding:12px 24px;background:#c0392b;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600">Set your password</a>
+</p>
+<p><strong>Registered email:</strong> ${escapeHtml(params.to)}</p>
+<p>After activation, sign in with your email and password.</p>
+<p style="margin:24px 0">
+  <a href="${escapeHtml(loginUrl)}" style="display:inline-block;padding:12px 24px;background:#1e293b;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600">Sign in to QSpiders Eduversity</a>
+</p>
 <p>Warm regards,<br/>Team Eduversity</p>`;
 
   if (!host || !user || !pass) {
     if (process.env.NODE_ENV === "development") {
-      console.log(`[Application dev] To: ${params.to}\n${text}`);
+      console.log(`[Student account dev] To: ${params.to}\n${text}`);
     }
     return;
   }

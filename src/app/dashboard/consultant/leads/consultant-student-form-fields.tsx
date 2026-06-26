@@ -14,13 +14,13 @@ import {
   SSLC_RESULT_TYPES,
   STUDENT_CATEGORIES,
   STUDENT_GENDERS,
-  STUDENT_TITLES,
 } from "@/lib/student-form-options";
+import { STUDENT_FULL_NAME_AADHAAR_HINT } from "@/lib/student-full-name";
+import { permanentAddressFromForm, structuredAddressesEqual, type StructuredAddress } from "@/lib/student-address";
 
 export type ConsultantStudentFormValues = {
   studentTitle: string;
-  firstName: string;
-  lastName: string;
+  fullName: string;
   email: string;
   mobile: string;
   gender: string;
@@ -41,7 +41,14 @@ export type ConsultantStudentFormValues = {
   state: string;
   country: string;
   pincode: string;
-  correspondenceAddress: string;
+  currentSameAsPermanent: boolean;
+  currentAddressLine1: string;
+  currentAddressLine2: string;
+  currentCity: string;
+  currentDistrict: string;
+  currentState: string;
+  currentCountry: string;
+  currentPincode: string;
   sslcSchool: string;
   sslcBoard: string;
   sslcYear: string;
@@ -58,6 +65,7 @@ export type ConsultantStudentFormValues = {
 type Props = {
   values: ConsultantStudentFormValues;
   onChange: <K extends keyof ConsultantStudentFormValues>(key: K, value: ConsultantStudentFormValues[K]) => void;
+  onPatch?: (patch: Partial<ConsultantStudentFormValues>) => void;
   fieldErrors: Record<string, string>;
   borderFor: (key: string) => string;
   clearError: (key: string) => void;
@@ -122,8 +130,8 @@ export function ConsultantStudentFormFields({
   existingQualMarksCardUrl,
   onQualMarksCardChange,
   educationOptional = true,
+  onPatch,
 }: Props) {
-  const fullName = [v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(" ");
   const sslcScoreLabel = v.sslcResultType === "CGPA" ? "CGPA" : "Percentage (%)";
   const qualScoreLabel = v.qualResultType === "CGPA" ? "CGPA" : "Percentage (%)";
   const eduRequired = !educationOptional;
@@ -135,52 +143,169 @@ export function ConsultantStudentFormFields({
     : "Academic details — 12th / ITI / Diploma";
   const showQualBoardField = higherQualificationShowsBoardField(v.qualificationType);
 
+  const permanentAddress = React.useMemo(
+    () => permanentAddressFromForm(v),
+    [v.addressLine1, v.addressLine2, v.city, v.district, v.state, v.country, v.pincode],
+  );
+
+  function copyPermanentToCurrent() {
+    const patch: Partial<ConsultantStudentFormValues> = {
+      currentAddressLine1: v.addressLine1,
+      currentAddressLine2: v.addressLine2,
+      currentCity: v.city,
+      currentDistrict: v.district,
+      currentState: v.state,
+      currentCountry: v.country,
+      currentPincode: v.pincode,
+    };
+    if (onPatch) {
+      onPatch(patch);
+      return;
+    }
+    for (const [key, value] of Object.entries(patch) as [keyof ConsultantStudentFormValues, string][]) {
+      onChange(key, value);
+    }
+  }
+
+  React.useEffect(() => {
+    if (!v.currentSameAsPermanent) return;
+    const nextCurrent: StructuredAddress = {
+      addressLine1: v.currentAddressLine1,
+      addressLine2: v.currentAddressLine2,
+      city: v.currentCity,
+      district: v.currentDistrict,
+      state: v.currentState,
+      country: v.currentCountry,
+      pincode: v.currentPincode,
+    };
+    if (!structuredAddressesEqual(permanentAddress, nextCurrent)) {
+      copyPermanentToCurrent();
+    }
+  }, [v.currentSameAsPermanent, permanentAddress, v.currentAddressLine1, v.currentAddressLine2, v.currentCity, v.currentDistrict, v.currentState, v.currentCountry, v.currentPincode]);
+
+  function renderAddressFields(
+    prefix: "permanent" | "current",
+    disabled = false,
+  ) {
+    const isCurrent = prefix === "current";
+    const line1 = isCurrent ? v.currentAddressLine1 : v.addressLine1;
+    const line2 = isCurrent ? v.currentAddressLine2 : v.addressLine2;
+    const city = isCurrent ? v.currentCity : v.city;
+    const district = isCurrent ? v.currentDistrict : v.district;
+    const state = isCurrent ? v.currentState : v.state;
+    const country = isCurrent ? v.currentCountry : v.country;
+    const pincode = isCurrent ? v.currentPincode : v.pincode;
+    const key = (name: string) => (isCurrent ? `current${name.charAt(0).toUpperCase()}${name.slice(1)}` : name) as keyof ConsultantStudentFormValues;
+
+    return (
+      <>
+        <div className="sm:col-span-2">
+          <Field label="Address line 1" required={!isCurrent} error={isCurrent ? undefined : fieldErrors.addressLine1}>
+            <input
+              value={line1}
+              disabled={disabled}
+              onChange={(e) => {
+                const value = e.target.value;
+                onChange(key("addressLine1"), value);
+                if (!isCurrent) clearError("addressLine1");
+              }}
+              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${!isCurrent ? borderFor("addressLine1") : "border-[var(--border)]"} ${disabled ? "opacity-70" : ""}`}
+            />
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <Field label="Address line 2">
+            <input
+              value={line2}
+              disabled={disabled}
+              onChange={(e) => onChange(key("addressLine2"), e.target.value)}
+              className={`mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 ${disabled ? "opacity-70" : ""}`}
+            />
+          </Field>
+        </div>
+        <Field label="City" required={!isCurrent} error={isCurrent ? undefined : fieldErrors.city}>
+          <input
+            value={city}
+            disabled={disabled}
+            onChange={(e) => {
+              onChange(key("city"), e.target.value);
+              if (!isCurrent) clearError("city");
+            }}
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${!isCurrent ? borderFor("city") : "border-[var(--border)]"} ${disabled ? "opacity-70" : ""}`}
+          />
+        </Field>
+        <Field label="District" required={!isCurrent} error={isCurrent ? undefined : fieldErrors.district}>
+          <input
+            value={district}
+            disabled={disabled}
+            onChange={(e) => {
+              onChange(key("district"), e.target.value);
+              if (!isCurrent) clearError("district");
+            }}
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${!isCurrent ? borderFor("district") : "border-[var(--border)]"} ${disabled ? "opacity-70" : ""}`}
+          />
+        </Field>
+        <Field label="State" required={!isCurrent} error={isCurrent ? undefined : fieldErrors.state}>
+          <select
+            value={state}
+            disabled={disabled}
+            onChange={(e) => {
+              onChange(key("state"), e.target.value);
+              if (!isCurrent) clearError("state");
+            }}
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${!isCurrent ? borderFor("state") : "border-[var(--border)]"} ${disabled ? "opacity-70" : ""}`}
+          >
+            <option value="">Select state</option>
+            {INDIAN_STATES_AND_UT.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Country" required={!isCurrent} error={isCurrent ? undefined : fieldErrors.country}>
+          <input
+            value={country}
+            disabled={disabled}
+            onChange={(e) => {
+              onChange(key("country"), e.target.value);
+              if (!isCurrent) clearError("country");
+            }}
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${!isCurrent ? borderFor("country") : "border-[var(--border)]"} ${disabled ? "opacity-70" : ""}`}
+          />
+        </Field>
+        <Field label="PIN code" required={!isCurrent} error={isCurrent ? undefined : fieldErrors.pincode}>
+          <input
+            value={pincode}
+            disabled={disabled}
+            onChange={(e) => {
+              onChange(key("pincode"), e.target.value.replace(/\D/g, "").slice(0, 6));
+              if (!isCurrent) clearError("pincode");
+            }}
+            className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${!isCurrent ? borderFor("pincode") : "border-[var(--border)]"} ${disabled ? "opacity-70" : ""}`}
+          />
+        </Field>
+      </>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Section title="Student personal details">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Student title">
-            <select
-              value={v.studentTitle}
-              onChange={(e) => onChange("studentTitle", e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-            >
-              <option value="">Select</option>
-              {STUDENT_TITLES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Full name">
-            <input
-              readOnly
-              value={fullName}
-              placeholder="Auto-generated from first and last name"
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--muted)]/40 px-3 py-2 text-[var(--foreground-muted)]"
-            />
-          </Field>
-          <Field label="First name" required error={fieldErrors.firstName}>
-            <input
-              value={v.firstName}
-              onChange={(e) => {
-                onChange("firstName", e.target.value);
-                clearError("firstName");
-              }}
-              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("firstName")}`}
-            />
-          </Field>
-          <Field label="Last name" required error={fieldErrors.lastName}>
-            <input
-              value={v.lastName}
-              onChange={(e) => {
-                onChange("lastName", e.target.value);
-                clearError("lastName");
-              }}
-              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("lastName")}`}
-            />
-          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Full name" required error={fieldErrors.fullName}>
+              <input
+                value={v.fullName}
+                onChange={(e) => {
+                  onChange("fullName", e.target.value);
+                  clearError("fullName");
+                }}
+                className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("fullName")}`}
+              />
+              <p className="mt-1 text-xs text-[var(--foreground-muted)]">{STUDENT_FULL_NAME_AADHAAR_HINT}</p>
+            </Field>
+          </div>
           <Field label="Gender" required error={fieldErrors.gender}>
             <select
               value={v.gender}
@@ -248,7 +373,7 @@ export function ConsultantStudentFormFields({
               className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("nationality")}`}
             />
           </Field>
-          <Field label="Mobile number" required error={fieldErrors.mobile}>
+          <Field label="Student phone number" required error={fieldErrors.mobile}>
             <input
               type="tel"
               inputMode="numeric"
@@ -261,7 +386,7 @@ export function ConsultantStudentFormFields({
               className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("mobile")}`}
             />
           </Field>
-          <Field label="Parent / guardian name" required error={fieldErrors.guardianName}>
+          <Field label="Parent/guardian name" required error={fieldErrors.guardianName}>
             <input
               value={v.guardianName}
               onChange={(e) => {
@@ -271,7 +396,7 @@ export function ConsultantStudentFormFields({
               className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("guardianName")}`}
             />
           </Field>
-          <Field label="Parent / guardian mobile" required error={fieldErrors.guardianMobile}>
+          <Field label="Parent/guardian phone number" required error={fieldErrors.guardianMobile}>
             <input
               type="tel"
               inputMode="numeric"
@@ -284,7 +409,7 @@ export function ConsultantStudentFormFields({
               className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("guardianMobile")}`}
             />
           </Field>
-          <Field label="Email address" required error={fieldErrors.email}>
+          <Field label="Student email" required error={fieldErrors.email}>
             <input
               type="email"
               value={v.email}
@@ -293,24 +418,6 @@ export function ConsultantStudentFormFields({
                 clearError("email");
               }}
               className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("email")}`}
-            />
-          </Field>
-          <Field label="UIDAI number" error={fieldErrors.uidaiNumber}>
-            <input
-              value={v.uidaiNumber}
-              onChange={(e) => {
-                onChange("uidaiNumber", e.target.value.replace(/\D/g, "").slice(0, 12));
-                clearError("uidaiNumber");
-              }}
-              placeholder="12-digit Aadhaar (optional)"
-              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("uidaiNumber")}`}
-            />
-          </Field>
-          <Field label="ABC ID / APAAR ID">
-            <input
-              value={v.abcApaarId}
-              onChange={(e) => onChange("abcApaarId", e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
             />
           </Field>
           <Field label="State" required error={fieldErrors.admissionState}>
@@ -341,99 +448,31 @@ export function ConsultantStudentFormFields({
         </div>
       </Section>
 
-      <Section title="Address details">
+      <Section title="Permanent address">
+        <div className="grid gap-4 sm:grid-cols-2">{renderAddressFields("permanent")}</div>
+      </Section>
+
+      <Section title="Current address">
+        <label className="mb-4 flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={v.currentSameAsPermanent}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              if (onPatch) {
+                onPatch({ currentSameAsPermanent: checked });
+                if (checked) copyPermanentToCurrent();
+              } else {
+                onChange("currentSameAsPermanent", checked);
+                if (checked) copyPermanentToCurrent();
+              }
+            }}
+            className="rounded border-[var(--border)]"
+          />
+          Current Address is the same as Permanent Address.
+        </label>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <Field label="Address line 1" required error={fieldErrors.addressLine1}>
-              <input
-                value={v.addressLine1}
-                onChange={(e) => {
-                  onChange("addressLine1", e.target.value);
-                  clearError("addressLine1");
-                }}
-                className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("addressLine1")}`}
-              />
-            </Field>
-          </div>
-          <div className="sm:col-span-2">
-            <Field label="Address line 2">
-              <input
-                value={v.addressLine2}
-                onChange={(e) => onChange("addressLine2", e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-              />
-            </Field>
-          </div>
-          <Field label="City" required error={fieldErrors.city}>
-            <input
-              value={v.city}
-              onChange={(e) => {
-                onChange("city", e.target.value);
-                clearError("city");
-              }}
-              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("city")}`}
-            />
-          </Field>
-          <Field label="District" required error={fieldErrors.district}>
-            <input
-              value={v.district}
-              onChange={(e) => {
-                onChange("district", e.target.value);
-                clearError("district");
-              }}
-              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("district")}`}
-            />
-          </Field>
-          <Field label="State" required error={fieldErrors.state}>
-            <select
-              value={v.state}
-              onChange={(e) => {
-                onChange("state", e.target.value);
-                clearError("state");
-              }}
-              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("state")}`}
-            >
-              <option value="">Select state</option>
-              {INDIAN_STATES_AND_UT.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Country" required error={fieldErrors.country}>
-            <input
-              value={v.country}
-              onChange={(e) => {
-                onChange("country", e.target.value);
-                clearError("country");
-              }}
-              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("country")}`}
-            />
-          </Field>
-          <Field label="PIN code" required error={fieldErrors.pincode}>
-            <input
-              value={v.pincode}
-              onChange={(e) => {
-                onChange("pincode", e.target.value.replace(/\D/g, "").slice(0, 6));
-                clearError("pincode");
-              }}
-              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("pincode")}`}
-            />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="Correspondence address" required error={fieldErrors.correspondenceAddress}>
-              <textarea
-                rows={3}
-                value={v.correspondenceAddress}
-                onChange={(e) => {
-                  onChange("correspondenceAddress", e.target.value);
-                  clearError("correspondenceAddress");
-                }}
-                className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("correspondenceAddress")}`}
-              />
-            </Field>
-          </div>
+          {renderAddressFields("current", v.currentSameAsPermanent)}
         </div>
       </Section>
 
@@ -647,8 +686,7 @@ export function ConsultantStudentFormFields({
 export function createEmptyStudentFormValues(): ConsultantStudentFormValues {
   return {
     studentTitle: "",
-    firstName: "",
-    lastName: "",
+    fullName: "",
     email: "",
     mobile: "",
     gender: "",
@@ -669,7 +707,14 @@ export function createEmptyStudentFormValues(): ConsultantStudentFormValues {
     state: "",
     country: "India",
     pincode: "",
-    correspondenceAddress: "",
+    currentSameAsPermanent: false,
+    currentAddressLine1: "",
+    currentAddressLine2: "",
+    currentCity: "",
+    currentDistrict: "",
+    currentState: "",
+    currentCountry: "India",
+    currentPincode: "",
     sslcSchool: "",
     sslcBoard: "",
     sslcYear: "",
