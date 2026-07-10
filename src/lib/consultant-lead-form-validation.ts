@@ -35,6 +35,11 @@ function validateOptionalScoreField(
   errorKey: string,
   e: Record<string, string>,
 ) {
+  if (!scoreRaw.trim()) return;
+  if (!resultType) {
+    e[errorKey] = "Select a result type for the score";
+    return;
+  }
   const message = validateEducationScore(scoreRaw, resultType);
   if (message) e[errorKey] = message;
 }

@@ -78,7 +78,10 @@ export async function PATCH(req: Request, ctx: RouteContext) {
       await assertUniversityEmailAvailable(id, email, university.email);
     } catch (e) {
       if (e instanceof UniversityEmailInUseError) {
-        return NextResponse.json({ error: "Email is already in use" }, { status: 409 });
+        return NextResponse.json(
+          { error: "Email is already in use", fieldErrors: { email: ["Email is already in use"] } },
+          { status: 409 },
+        );
       }
       throw e;
     }

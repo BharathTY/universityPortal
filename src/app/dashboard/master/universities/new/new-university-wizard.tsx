@@ -139,8 +139,7 @@ export function NewUniversityWizard({
   const [programCatalog, setProgramCatalog] = React.useState<ProgramCatalogSnapshot | null>(null);
   const [programCatalogLoading, setProgramCatalogLoading] = React.useState(true);
   const [hostelDetails, setHostelDetails] = React.useState<HostelDetailsState>(() => emptyHostelDetailsState());
-  const [targetStudentsUg, setTargetStudentsUg] = React.useState("");
-  const [targetStudentsPg, setTargetStudentsPg] = React.useState("");
+  const [targetStudents, setTargetStudents] = React.useState("");
   const [scholarshipEntries, setScholarshipEntries] = React.useState<ScholarshipEntry[]>(() => [
     createEmptyScholarshipEntry(),
   ]);
@@ -197,8 +196,7 @@ export function NewUniversityWizard({
     setLogoPreview(data.logoUrl || null);
     setSpocRows(data.spocRows);
     setStreamEntries(data.streamEntries);
-    setTargetStudentsUg(data.targetStudentsUg);
-    setTargetStudentsPg(data.targetStudentsPg);
+    setTargetStudents(data.targetStudents);
     setHostelDetails(data.hostelDetails);
     setScholarshipEntries(data.scholarshipEntries);
     setMouSpocRows(data.mouSpocRows);
@@ -389,7 +387,7 @@ export function NewUniversityWizard({
     return e;
   }
 
-  function goToStep2() {
+  async function goToStep2() {
     setError(null);
     const e = validateStep1();
     if (Object.keys(e).length > 0) {
@@ -397,6 +395,34 @@ export function NewUniversityWizard({
       return;
     }
     setFieldErrors({});
+
+    const em = email.trim();
+    if (em) {
+      setBusy(true);
+      try {
+        const params = new URLSearchParams({ email: em });
+        if (universityId) params.set("excludeUniversityId", universityId);
+        const res = await fetch(`/api/master/universities/email-available?${params}`);
+        const data = (await res.json().catch(() => ({}))) as {
+          available?: boolean;
+          error?: string;
+          fieldErrors?: unknown;
+        };
+        if (!res.ok || data.available === false) {
+          const apiFe = mapApiFieldErrors(data.fieldErrors);
+          setFieldErrors({
+            email: apiFe.email ?? data.error ?? "Email is already in use",
+          });
+          return;
+        }
+      } catch {
+        setError("Could not verify email uniqueness. Please try again.");
+        return;
+      } finally {
+        setBusy(false);
+      }
+    }
+
     setStep(2);
   }
 
@@ -419,8 +445,7 @@ export function NewUniversityWizard({
         streamEntries,
         hostelEntriesToHostelFeesForm(hostelDetails.entries),
         {
-          targetStudentsUg,
-          targetStudentsPg,
+          targetStudents,
           foodFee: hostelEntriesFoodFee(hostelDetails.entries),
         },
       );
@@ -642,7 +667,15 @@ export function NewUniversityWizard({
             disabled={locked}
             onDetailsLoaded={applyDetailsLoaded}
             onDetailsCleared={clearDetailsState}
-            onEmailChange={setEmail}
+            onEmailChange={(value) => {
+              setEmail(value);
+              setFieldErrors((f) => {
+                if (!f.email) return f;
+                const next = { ...f };
+                delete next.email;
+                return next;
+              });
+            }}
             onPhoneChange={setPhone}
             pincode={pincode}
             onPincodeChange={(value) => {
@@ -665,15 +698,16 @@ export function NewUniversityWizard({
           {fieldErrors.details ? (
             <p className="text-sm text-red-600">{fieldErrors.details}</p>
           ) : null}
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
           <div className="flex gap-3 pt-2">
             <button
               type="button"
-              onClick={goToStep2}
-              disabled={locked}
+              onClick={() => void goToStep2()}
+              disabled={locked || busy}
               className="rounded-lg bg-[var(--accent-blue)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-blue-hover)] disabled:opacity-50"
             >
-              Continue to organisation details
+              {busy ? "Checking email…" : "Continue to organisation details"}
             </button>
           </div>
         </div>
@@ -698,10 +732,8 @@ export function NewUniversityWizard({
             onChange={setStreamEntries}
             catalog={programCatalog}
             catalogLoading={programCatalogLoading}
-            targetStudentsUg={targetStudentsUg}
-            targetStudentsPg={targetStudentsPg}
-            onTargetStudentsUgChange={setTargetStudentsUg}
-            onTargetStudentsPgChange={setTargetStudentsPg}
+            targetStudents={targetStudents}
+            onTargetStudentsChange={setTargetStudents}
             disabled={locked}
             fieldErrors={fieldErrors}
           />

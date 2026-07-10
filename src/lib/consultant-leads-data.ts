@@ -37,6 +37,8 @@ export type ConsultantLeadRow = {
   ageingDays: string;
   status: string;
   statusRaw: AdmissionLeadStatus;
+  /** True once payment succeeded or status reached Payment Done / later — locks Ready to Pay. */
+  paymentCompleted: boolean;
   createdAt: Date;
 };
 
@@ -73,6 +75,16 @@ const leadInclude = {
     },
   },
   application: { select: { id: true } },
+  payments: {
+    where: { status: "SUCCESS" },
+    take: 1,
+    select: { id: true },
+  },
+  statusHistory: {
+    where: { toStatus: "PAYMENT_DONE" },
+    take: 1,
+    select: { id: true },
+  },
 } satisfies Prisma.AdmissionLeadInclude;
 
 function parseDateStart(iso: string | undefined): Date | undefined {
@@ -154,8 +166,14 @@ function mapLeadRow(row: {
     applicationFee: Prisma.Decimal | null;
   };
   application: { id: string } | null;
+  payments?: { id: string }[];
+  statusHistory?: { id: string }[];
 }): ConsultantLeadRow {
   const fee = resolveLeadRegistrationFeeRupeesFromRow(row);
+  const paymentCompleted =
+    isPaidLeadStatus(row.admissionStatus) ||
+    (row.payments?.length ?? 0) > 0 ||
+    (row.statusHistory?.length ?? 0) > 0;
   return {
     id: row.id,
     firstName: row.firstName,
@@ -171,6 +189,7 @@ function mapLeadRow(row: {
     ageingDays: leadAgeingDays(row.createdAt),
     status: leadStatusLabel(row.admissionStatus),
     statusRaw: row.admissionStatus,
+    paymentCompleted,
     createdAt: row.createdAt,
   };
 }

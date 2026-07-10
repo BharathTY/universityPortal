@@ -9,6 +9,10 @@ import { prisma } from "@/lib/prisma";
 import { ROLES } from "@/lib/roles";
 import { generateUniqueUniversityCode } from "@/lib/university-code";
 import {
+  isUniversityEmailAvailable,
+  UNIVERSITY_EMAIL_IN_USE_MESSAGE,
+} from "@/lib/university-primary-user";
+import {
   formatAcademicYearLabel,
   isSelectableYopYear,
   parseAcademicYearStartYear,
@@ -607,15 +611,12 @@ export async function POST(req: Request) {
   const primarySpoc = spocInputs[0] ?? null;
 
   if (email) {
-    const [emailUser, emailUni] = await Promise.all([
-      prisma.user.findUnique({ where: { email } }),
-      prisma.university.findFirst({ where: { email } }),
-    ]);
-    if (emailUser || emailUni) {
+    const available = await isUniversityEmailAvailable(email);
+    if (!available) {
       return NextResponse.json(
         {
-          error: "Email already exists",
-          fieldErrors: { email: ["Email already exists"] },
+          error: UNIVERSITY_EMAIL_IN_USE_MESSAGE,
+          fieldErrors: { email: [UNIVERSITY_EMAIL_IN_USE_MESSAGE] },
         },
         { status: 409 },
       );

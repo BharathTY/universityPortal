@@ -1,5 +1,5 @@
 import type { AdmissionLeadStatus } from "@prisma/client";
-import { hasAdvancedPastReadyToPay } from "@/lib/lead-status-workflow";
+import { isReadyToPayLocked } from "@/lib/lead-status-workflow";
 
 /** Pre-payment statuses shown in the lead status dropdown before payment is collected. */
 export const PRE_PAYMENT_LEAD_STATUS_OPTIONS: { value: AdmissionLeadStatus; label: string }[] = [
@@ -46,9 +46,14 @@ function strictIndex(status: AdmissionLeadStatus): number | null {
 }
 
 /** Status options visible in the per-row status dropdown for the current lead state. */
-export function leadStatusOptionsForLead(current: AdmissionLeadStatus): typeof LEAD_STATUS_OPTIONS {
+export function leadStatusOptionsForLead(
+  current: AdmissionLeadStatus,
+  options?: { paymentCompleted?: boolean },
+): typeof LEAD_STATUS_OPTIONS {
   const currentStrict = strictIndex(current);
-  return LEAD_STATUS_OPTIONS.filter((opt) => isLeadStatusOptionVisible(current, opt.value, currentStrict));
+  return LEAD_STATUS_OPTIONS.filter((opt) =>
+    isLeadStatusOptionVisible(current, opt.value, currentStrict, options),
+  );
 }
 
 /** Post-payment statuses stay hidden until the lead has reached the matching workflow stage. */
@@ -56,8 +61,10 @@ export function isLeadStatusOptionVisible(
   current: AdmissionLeadStatus,
   option: AdmissionLeadStatus,
   currentStrict: number | null = strictIndex(current),
+  options?: { paymentCompleted?: boolean },
 ): boolean {
-  if (option === "READY_TO_PAY" && hasAdvancedPastReadyToPay(current)) {
+  // After Payment Done (or a successful payment), Ready to Pay is removed from the list.
+  if (option === "READY_TO_PAY" && isReadyToPayLocked(current, options)) {
     return false;
   }
 

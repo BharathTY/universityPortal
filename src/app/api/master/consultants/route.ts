@@ -4,6 +4,8 @@ import { z } from "zod";
 import { sendConsultantAccountCreatedEmail, sendCounsellorPortalInviteEmail } from "@/lib/email";
 import { storeUpload } from "@/lib/file-storage";
 import { requireMasterApi } from "@/lib/master-session";
+import { CONSULTANT_FORM_MESSAGES } from "@/lib/consultant-form-validation";
+import { isDistrictInState, isKnownIndianState } from "@/lib/indian-districts";
 import { validateGstNumber, validatePanNumber, normalizeGstNumber, normalizePanNumber } from "@/lib/indian-tax-ids";
 import { prisma } from "@/lib/prisma";
 import { replaceConsultantUniversityAssignments } from "@/lib/consultant-universities";
@@ -92,10 +94,36 @@ const createSchema = z.object({
   designation: optionalText(120),
   gstNumber: optionalText(20),
   panNumber: optionalText(20),
-  address: optionalText(2000),
+  address: z
+    .string()
+    .transform((raw) => raw.trim())
+    .superRefine((s, ctx) => {
+      if (s.length === 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: CONSULTANT_FORM_MESSAGES.addressRequired });
+      }
+    }),
+  /** @deprecated City removed from add-consultant UI; stored as null when omitted. */
   city: optionalText(120),
-  district: optionalText(120),
-  state: optionalText(120),
+  district: z
+    .string()
+    .transform((raw) => raw.trim())
+    .superRefine((s, ctx) => {
+      if (s.length === 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: CONSULTANT_FORM_MESSAGES.districtRequired });
+      }
+    }),
+  state: z
+    .string()
+    .transform((raw) => raw.trim())
+    .superRefine((s, ctx) => {
+      if (s.length === 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: CONSULTANT_FORM_MESSAGES.stateRequired });
+        return;
+      }
+      if (!isKnownIndianState(s)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: CONSULTANT_FORM_MESSAGES.stateRequired });
+      }
+    }),
   academicYear: optionalText(10),
   spocs: z.array(spocItemSchema).max(20).optional(),
   /** @deprecated use spocs */
@@ -105,6 +133,14 @@ const createSchema = z.object({
   if (gstErr) ctx.addIssue({ code: z.ZodIssueCode.custom, message: gstErr, path: ["gstNumber"] });
   const panErr = validatePanNumber(data.panNumber ?? "");
   if (panErr) ctx.addIssue({ code: z.ZodIssueCode.custom, message: panErr, path: ["panNumber"] });
+
+  if (data.state && data.district && !isDistrictInState(data.state, data.district)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: CONSULTANT_FORM_MESSAGES.districtRequired,
+      path: ["district"],
+    });
+  }
 });
 
 async function parseConsultantRequest(req: Request): Promise<{ data: unknown; mouFile?: File }> {
@@ -280,10 +316,10 @@ export async function POST(req: Request) {
       designation: parsed.data.designation ?? null,
       gstNumber: parsed.data.gstNumber ? normalizeGstNumber(parsed.data.gstNumber) : null,
       panNumber: parsed.data.panNumber ? normalizePanNumber(parsed.data.panNumber) : null,
-      address: parsed.data.address ?? null,
-      city: parsed.data.city ?? null,
-      district: parsed.data.district ?? null,
-      state: parsed.data.state ?? null,
+      address: parsed.data.address,
+      city: null,
+      district: parsed.data.district,
+      state: parsed.data.state,
       academicYear: parsed.data.academicYear ?? null,
       roles: {
         create: { roleId: roleRow.id },

@@ -18,11 +18,59 @@ export async function findUniversityPrimaryLoginUser(db: Db, universityId: strin
   });
 }
 
+export const UNIVERSITY_EMAIL_IN_USE_MESSAGE = "Email is already in use";
+
 export class UniversityEmailInUseError extends Error {
   constructor() {
     super("Email is already in use by another account");
     this.name = "UniversityEmailInUseError";
   }
+}
+
+/**
+ * Returns true when the email can be used for a university contact / primary login.
+ * Pass excludeUniversityId when editing so the university's own email is allowed.
+ */
+export async function isUniversityEmailAvailable(
+  email: string,
+  options?: {
+    excludeUniversityId?: string;
+    currentUniversityEmail?: string | null;
+  },
+): Promise<boolean> {
+  const normalized = email.toLowerCase().trim();
+  if (!normalized) return true;
+
+  if (
+    options?.excludeUniversityId &&
+    normalized === (options.currentUniversityEmail?.toLowerCase().trim() ?? null)
+  ) {
+    return true;
+  }
+
+  const [clashUser, clashUni] = await Promise.all([
+    prisma.user.findUnique({ where: { email: normalized } }),
+    prisma.university.findFirst({
+      where: {
+        email: normalized,
+        ...(options?.excludeUniversityId
+          ? { NOT: { id: options.excludeUniversityId } }
+          : {}),
+      },
+    }),
+  ]);
+
+  if (clashUni) return false;
+
+  if (clashUser) {
+    if (options?.excludeUniversityId) {
+      const primary = await findUniversityPrimaryLoginUser(prisma, options.excludeUniversityId);
+      if (primary && clashUser.id === primary.id) return true;
+    }
+    return false;
+  }
+
+  return true;
 }
 
 /** Sync name / phone / email to the primary university login user after university update. */
@@ -59,24 +107,11 @@ export async function assertUniversityEmailAvailable(
   email: string,
   currentUniversityEmail: string | null,
 ) {
-  const normalized = email.toLowerCase().trim();
-  if (!normalized || normalized === (currentUniversityEmail?.toLowerCase().trim() ?? null)) {
-    return;
-  }
-
-  const [clashUser, clashUni] = await Promise.all([
-    prisma.user.findUnique({ where: { email: normalized } }),
-    prisma.university.findFirst({ where: { email: normalized, NOT: { id: universityId } } }),
-  ]);
-
-  if (clashUni) {
+  const available = await isUniversityEmailAvailable(email, {
+    excludeUniversityId: universityId,
+    currentUniversityEmail,
+  });
+  if (!available) {
     throw new UniversityEmailInUseError();
-  }
-
-  if (clashUser) {
-    const primary = await findUniversityPrimaryLoginUser(prisma, universityId);
-    if (!primary || clashUser.id !== primary.id) {
-      throw new UniversityEmailInUseError();
-    }
   }
 }

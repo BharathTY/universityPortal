@@ -12,6 +12,7 @@ import {
   spocFieldKey,
   validateConsultantForm,
 } from "@/lib/consultant-form-validation";
+import { getDistrictsForState } from "@/lib/indian-districts";
 import { INDIAN_STATES_AND_UT } from "@/lib/indian-states";
 import { normalizeGstNumber, normalizePanNumber } from "@/lib/indian-tax-ids";
 
@@ -41,7 +42,6 @@ export function NewConsultantForm({ universities }: Props) {
   const [gstNumber, setGstNumber] = React.useState("");
   const [panNumber, setPanNumber] = React.useState("");
   const [address, setAddress] = React.useState("");
-  const [city, setCity] = React.useState("");
   const [district, setDistrict] = React.useState("");
   const [state, setState] = React.useState("");
   const [academicYear, setAcademicYear] = React.useState("");
@@ -109,6 +109,8 @@ export function NewConsultantForm({ universities }: Props) {
       spocRows,
     ],
   );
+
+  const districtOptions = React.useMemo(() => getDistrictsForState(state), [state]);
 
   const universityStates = React.useMemo(() => {
     const states = new Set<string>();
@@ -188,7 +190,6 @@ export function NewConsultantForm({ universities }: Props) {
         gstNumber: normalizeGstNumber(gstNumber) || undefined,
         panNumber: normalizePanNumber(panNumber) || undefined,
         address: address.trim() || undefined,
-        city: city.trim() || undefined,
         district: district.trim() || undefined,
         state: state.trim() || undefined,
         academicYear: academicYear.trim() || undefined,
@@ -500,40 +501,17 @@ export function NewConsultantForm({ universities }: Props) {
             />
             {fieldErrors.address ? <p className="mt-1 text-xs text-red-600">{fieldErrors.address}</p> : null}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)]">City</label>
-            <input
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[var(--foreground)]"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-[var(--foreground)]">District</label>
-            <input
-              value={district}
-              onChange={(e) => {
-                setDistrict(e.target.value);
-                setFieldErrors((f) => {
-                  const n = { ...f };
-                  delete n.district;
-                  return n;
-                });
-              }}
-              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[var(--foreground)] ${borderFor("district")}`}
-              aria-invalid={Boolean(fieldErrors.district)}
-            />
-            {fieldErrors.district ? <p className="mt-1 text-xs text-red-600">{fieldErrors.district}</p> : null}
-          </div>
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-[var(--foreground)]">State</label>
             <select
               value={state}
               onChange={(e) => {
                 setState(e.target.value);
+                setDistrict("");
                 setFieldErrors((f) => {
                   const n = { ...f };
                   delete n.state;
+                  delete n.district;
                   return n;
                 });
               }}
@@ -548,6 +526,31 @@ export function NewConsultantForm({ universities }: Props) {
               ))}
             </select>
             {fieldErrors.state ? <p className="mt-1 text-xs text-red-600">{fieldErrors.state}</p> : null}
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-[var(--foreground)]">District</label>
+            <select
+              value={district}
+              onChange={(e) => {
+                setDistrict(e.target.value);
+                setFieldErrors((f) => {
+                  const n = { ...f };
+                  delete n.district;
+                  return n;
+                });
+              }}
+              disabled={!state}
+              className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-60 ${borderFor("district")}`}
+              aria-invalid={Boolean(fieldErrors.district)}
+            >
+              <option value="">{state ? "Select district" : "Select state first"}</option>
+              {districtOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+            {fieldErrors.district ? <p className="mt-1 text-xs text-red-600">{fieldErrors.district}</p> : null}
           </div>
         </div>
       </section>

@@ -502,12 +502,21 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
 
 
-  async function onStatusChange(leadId: string, nextStatus: AdmissionLeadStatus, prevStatus: AdmissionLeadStatus) {
+  async function onStatusChange(
+    leadId: string,
+    nextStatus: AdmissionLeadStatus,
+    prevStatus: AdmissionLeadStatus,
+    paymentCompleted = false,
+  ) {
 
     if (nextStatus === prevStatus) return;
 
-    if (!canTransitionLeadStatus(prevStatus, nextStatus)) {
-      setStatusError(LEAD_STATUS_WORKFLOW_MESSAGE);
+    if (!canTransitionLeadStatus(prevStatus, nextStatus, { paymentCompleted })) {
+      setStatusError(
+        nextStatus === "READY_TO_PAY" && paymentCompleted
+          ? "Ready to Pay is no longer available after Payment Done."
+          : LEAD_STATUS_WORKFLOW_MESSAGE,
+      );
       return;
     }
 
@@ -1092,7 +1101,12 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
                         onChange={(e) =>
 
-                          void onStatusChange(l.id, e.target.value as AdmissionLeadStatus, l.statusRaw)
+                          void onStatusChange(
+                            l.id,
+                            e.target.value as AdmissionLeadStatus,
+                            l.statusRaw,
+                            Boolean(l.paymentCompleted),
+                          )
 
                         }
 
@@ -1100,9 +1114,19 @@ export function ConsultantStudentLeadsClient(props: Props) {
 
                       >
 
-                        {leadStatusOptionsForLead(l.statusRaw).map((opt) => (
+                        {leadStatusOptionsForLead(l.statusRaw, {
+                          paymentCompleted: Boolean(l.paymentCompleted),
+                        }).map((opt) => (
 
-                          <option key={opt.value} value={opt.value} disabled={!isLeadStatusOptionEnabled(l.statusRaw, opt.value)}>
+                          <option
+                            key={opt.value}
+                            value={opt.value}
+                            disabled={
+                              !isLeadStatusOptionEnabled(l.statusRaw, opt.value, {
+                                paymentCompleted: Boolean(l.paymentCompleted),
+                              })
+                            }
+                          >
 
                             {opt.label}
 

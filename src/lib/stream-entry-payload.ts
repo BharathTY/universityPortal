@@ -161,7 +161,10 @@ export function streamEntriesToCreatePayload(
   entries: StreamEntry[],
   hostelFees: HostelFeesForm,
   options?: {
+    targetStudents?: string;
+    /** @deprecated Use targetStudents */
     targetStudentsUg?: string;
+    /** @deprecated Use targetStudents */
     targetStudentsPg?: string;
     foodFee?: string;
   },
@@ -212,12 +215,22 @@ export function streamEntriesToCreatePayload(
       seatCount: s.cetAllocationMode === "SEATS" ? Math.round(s.cetAllocationValue) : 0,
     }));
 
-  const targetStudents = streamDetails.reduce((sum, s) => sum + (s.targetStudents ?? 0), 0);
-  const ugTarget = Number(options?.targetStudentsUg?.trim() ?? "");
-  const pgTarget = Number(options?.targetStudentsPg?.trim() ?? "");
-  const combinedTarget =
-    (Number.isFinite(ugTarget) && ugTarget > 0 ? ugTarget : 0) +
-    (Number.isFinite(pgTarget) && pgTarget > 0 ? pgTarget : 0);
+  const seatsSum = streamDetails.reduce((sum, s) => sum + (s.targetStudents ?? 0), 0);
+  const overallTargetRaw = options?.targetStudents?.trim() ?? "";
+  const overallTarget = Number(overallTargetRaw);
+  const legacyUg = Number(options?.targetStudentsUg?.trim() ?? "");
+  const legacyPg = Number(options?.targetStudentsPg?.trim() ?? "");
+  const legacyCombined =
+    (Number.isFinite(legacyUg) && legacyUg > 0 ? legacyUg : 0) +
+    (Number.isFinite(legacyPg) && legacyPg > 0 ? legacyPg : 0);
+  const resolvedTargetStudents =
+    Number.isFinite(overallTarget) && overallTarget > 0
+      ? overallTarget
+      : legacyCombined > 0
+        ? legacyCombined
+        : seatsSum > 0
+          ? seatsSum
+          : null;
   const foodFeeParsed = parseOptionalFee(options?.foodFee ?? "");
 
   const applicationFeeRaw = firstStreamFee(filled, "applicationFee");
@@ -233,7 +246,7 @@ export function streamEntriesToCreatePayload(
     ugStreams,
     pgStreams,
     streamDetails,
-    targetStudents: combinedTarget > 0 ? combinedTarget : targetStudents > 0 ? targetStudents : null,
+    targetStudents: resolvedTargetStudents,
     registrationFee: firstStreamFee(filled, "registrationFee"),
     applicationFee: applicationFeeRaw !== null ? applicationFeeRaw : undefined,
     messFee: foodFeeParsed ?? firstStreamFee(filled, "messFee"),

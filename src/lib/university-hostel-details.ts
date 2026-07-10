@@ -8,7 +8,7 @@ import {
 import { newClientId } from "@/lib/client-id";
 
 export type HostelAvailableChoice = "" | "YES" | "NO";
-export type HostelTypeChoice = "" | "BOYS" | "GIRLS" | "BOTH";
+export type HostelTypeChoice = "" | "BOYS" | "GIRLS";
 export type HostelAcChoice = "" | "AC" | "NON_AC";
 export type HostelSharingChoice = "" | "1" | "2" | "3" | "4";
 
@@ -107,8 +107,6 @@ export function formatHostelTypeLabel(type: Exclude<HostelTypeChoice, "">): stri
       return "Boys Hostel";
     case "GIRLS":
       return "Girls Hostel";
-    case "BOTH":
-      return "Both";
     default:
       return type;
   }
@@ -228,7 +226,6 @@ function acChoiceToEnum(choice: HostelAcChoice): HostelRoomType | null {
 function gendersForType(type: HostelTypeChoice): HostelGender[] {
   if (type === "BOYS") return [HostelGender.BOYS];
   if (type === "GIRLS") return [HostelGender.GIRLS];
-  if (type === "BOTH") return [HostelGender.BOYS, HostelGender.GIRLS];
   return [];
 }
 

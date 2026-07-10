@@ -3,7 +3,14 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { ListQueryToolbar, SORT_LEADS } from "@/components/list-controls";
-import { LEAD_STATUS_OPTIONS, leadStatusLabel } from "@/lib/lead-status";
+import { leadStatusLabel, leadStatusOptionsForLead } from "@/lib/lead-status";
+import {
+  canTransitionLeadStatus,
+  isLeadStatusOptionEnabled,
+  LEAD_STATUS_WORKFLOW_MESSAGE,
+  READY_TO_PAY_LOCKED_MESSAGE,
+} from "@/lib/lead-status-workflow";
+import type { AdmissionLeadStatus } from "@prisma/client";
 
 export type AdmissionsYearOption = { id: string; label: string };
 export type AdmissionsStreamOption = { id: string; name: string };
@@ -40,8 +47,6 @@ type AdmissionsDashboardProps = {
   /** When true, status is display-only (e.g. master oversight). */
   readOnlyLeadStatus?: boolean;
 };
-
-const LEAD_STATUS_VALUES = LEAD_STATUS_OPTIONS.map((o) => o.value);
 
 type HistoryEntry = {
   id: string;
@@ -113,6 +118,17 @@ export function AdmissionsDashboard({
 
   async function onStatusChange(leadId: string, nextStatus: string, prevStatus: string) {
     if (nextStatus === prevStatus) return;
+    const current = prevStatus as AdmissionLeadStatus;
+    const next = nextStatus as AdmissionLeadStatus;
+    const paymentCompleted = current === "PAYMENT_DONE" || current === "ENROLLED" || current === "CAMPUS_VISIT_DONE";
+    if (!canTransitionLeadStatus(current, next, { paymentCompleted })) {
+      setStatusError(
+        next === "READY_TO_PAY" && paymentCompleted
+          ? READY_TO_PAY_LOCKED_MESSAGE
+          : LEAD_STATUS_WORKFLOW_MESSAGE,
+      );
+      return;
+    }
     setStatusError(null);
     setBusyLeadId(leadId);
     try {
@@ -301,8 +317,28 @@ export function AdmissionsDashboard({
                             className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-xs font-medium text-[var(--foreground)] disabled:opacity-50"
                             aria-label={`Status for ${row.firstName} ${row.lastName}`}
                           >
-                            {LEAD_STATUS_OPTIONS.map((o) => (
-                              <option key={o.value} value={o.value}>
+                            {leadStatusOptionsForLead(row.admissionStatus as AdmissionLeadStatus, {
+                              paymentCompleted:
+                                row.admissionStatus === "PAYMENT_DONE" ||
+                                row.admissionStatus === "ENROLLED" ||
+                                row.admissionStatus === "CAMPUS_VISIT_DONE",
+                            }).map((o) => (
+                              <option
+                                key={o.value}
+                                value={o.value}
+                                disabled={
+                                  !isLeadStatusOptionEnabled(
+                                    row.admissionStatus as AdmissionLeadStatus,
+                                    o.value,
+                                    {
+                                      paymentCompleted:
+                                        row.admissionStatus === "PAYMENT_DONE" ||
+                                        row.admissionStatus === "ENROLLED" ||
+                                        row.admissionStatus === "CAMPUS_VISIT_DONE",
+                                    },
+                                  )
+                                }
+                              >
                                 {o.label}
                               </option>
                             ))}

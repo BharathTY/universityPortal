@@ -1,4 +1,5 @@
 import { validateGstNumber, validatePanNumber } from "@/lib/indian-tax-ids";
+import { isDistrictInState, isKnownIndianState } from "@/lib/indian-districts";
 import {
   createEmptyConsultantSpocDraft,
   filledConsultantSpocRows,
@@ -72,8 +73,12 @@ export function validateConsultantForm(input: ConsultantFormValidationInput): Re
   else if (p.length !== 10) e.phone = CONSULTANT_FORM_MESSAGES.phoneInvalid;
 
   if (!input.address.trim()) e.address = CONSULTANT_FORM_MESSAGES.addressRequired;
-  if (!input.district.trim()) e.district = CONSULTANT_FORM_MESSAGES.districtRequired;
-  if (!input.state.trim()) e.state = CONSULTANT_FORM_MESSAGES.stateRequired;
+  if (!input.state.trim() || !isKnownIndianState(input.state)) {
+    e.state = CONSULTANT_FORM_MESSAGES.stateRequired;
+  }
+  if (!input.district.trim() || !isDistrictInState(input.state, input.district)) {
+    e.district = CONSULTANT_FORM_MESSAGES.districtRequired;
+  }
 
   if (input.requireMouFile && !input.hasMouFile) {
     e.mouFile = CONSULTANT_FORM_MESSAGES.mouRequired;

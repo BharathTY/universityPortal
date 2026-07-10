@@ -8,6 +8,10 @@ import {
   INDIAN_MOBILE_DIGIT_LENGTH,
 } from "@/lib/consultant-lead-form-validation";
 import {
+  educationScoreInputAttrs,
+  sanitizeEducationScoreInput,
+} from "@/lib/education-score-validation";
+import {
   HIGHER_QUALIFICATION_TYPES,
   higherQualificationShowsBoardField,
   SSLC_BOARDS,
@@ -523,6 +527,7 @@ export function ConsultantStudentFormFields({
               onChange={(e) => {
                 onChange("sslcResultType", e.target.value);
                 clearError("sslcResultType");
+                clearError("sslcPercent");
               }}
               className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("sslcResultType")}`}
             >
@@ -536,11 +541,20 @@ export function ConsultantStudentFormFields({
           </Field>
           <Field label={sslcScoreLabel} required={eduRequired} error={fieldErrors.sslcPercent}>
             <input
+              type="text"
+              inputMode={educationScoreInputAttrs(v.sslcResultType).inputMode}
               value={v.sslcPercent}
               onChange={(e) => {
-                onChange("sslcPercent", e.target.value);
+                onChange("sslcPercent", sanitizeEducationScoreInput(e.target.value));
                 clearError("sslcPercent");
               }}
+              placeholder={
+                v.sslcResultType === "CGPA"
+                  ? "0 – 10"
+                  : v.sslcResultType === "PERCENTAGE"
+                    ? "35 – 100"
+                    : undefined
+              }
               className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("sslcPercent")}`}
             />
           </Field>
@@ -634,6 +648,7 @@ export function ConsultantStudentFormFields({
                   onChange={(e) => {
                     onChange("qualResultType", e.target.value);
                     clearError("qualResultType");
+                    clearError("qualScore");
                   }}
                   className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("qualResultType")}`}
                 >
@@ -647,11 +662,20 @@ export function ConsultantStudentFormFields({
               </Field>
               <Field label={qualScoreLabel} required={eduRequired} error={fieldErrors.qualScore}>
                 <input
+                  type="text"
+                  inputMode={educationScoreInputAttrs(v.qualResultType).inputMode}
                   value={v.qualScore}
                   onChange={(e) => {
-                    onChange("qualScore", e.target.value);
+                    onChange("qualScore", sanitizeEducationScoreInput(e.target.value));
                     clearError("qualScore");
                   }}
+                  placeholder={
+                    v.qualResultType === "CGPA"
+                      ? "0 – 10"
+                      : v.qualResultType === "PERCENTAGE"
+                        ? "35 – 100"
+                        : undefined
+                  }
                   className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("qualScore")}`}
                 />
               </Field>

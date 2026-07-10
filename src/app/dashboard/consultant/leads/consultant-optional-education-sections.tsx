@@ -3,6 +3,10 @@
 import * as React from "react";
 import { SSLC_RESULT_TYPES } from "@/lib/student-form-options";
 import { newClientId } from "@/lib/client-id";
+import {
+  educationScoreInputAttrs,
+  sanitizeEducationScoreInput,
+} from "@/lib/education-score-validation";
 
 export type PriorDegreeFormValues = {
   priorDegreeType: string;
@@ -162,6 +166,7 @@ export function ConsultantOtherEducationSection({
             onChange={(e) => {
               onChange("priorDegreeResultType", e.target.value);
               clearError("priorDegreeResultType");
+              clearError("priorDegreeScore");
             }}
             className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("priorDegreeResultType")}`}
           >
@@ -175,11 +180,20 @@ export function ConsultantOtherEducationSection({
         </Field>
         <Field label={scoreLabel} error={fieldErrors.priorDegreeScore}>
           <input
+            type="text"
+            inputMode={educationScoreInputAttrs(v.priorDegreeResultType).inputMode}
             value={v.priorDegreeScore}
             onChange={(e) => {
-              onChange("priorDegreeScore", e.target.value);
+              onChange("priorDegreeScore", sanitizeEducationScoreInput(e.target.value));
               clearError("priorDegreeScore");
             }}
+            placeholder={
+              v.priorDegreeResultType === "CGPA"
+                ? "0 – 10"
+                : v.priorDegreeResultType === "PERCENTAGE"
+                  ? "35 – 100"
+                  : undefined
+            }
             className={`mt-1 w-full rounded-lg border bg-[var(--background)] px-3 py-2 ${borderFor("priorDegreeScore")}`}
           />
         </Field>

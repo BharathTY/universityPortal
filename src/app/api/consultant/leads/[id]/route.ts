@@ -21,6 +21,7 @@ import { storeUpload } from "@/lib/file-storage";
 import {
   canTransitionLeadStatus,
   LEAD_STATUS_WORKFLOW_MESSAGE,
+  READY_TO_PAY_LOCKED_MESSAGE,
 } from "@/lib/lead-status-workflow";
 import { ensureStudentApplicationForLead } from "@/lib/ensure-student-for-lead";
 import { resolveLeadRegistrationFeeRupeesFromRow } from "@/lib/lead-registration-fee";
@@ -262,12 +263,30 @@ async function patchLeadStatus(
   const statusChanging =
     nextAdmissionStatus !== undefined && nextAdmissionStatus !== existing.admissionStatus;
 
-  if (
-    statusChanging &&
-    nextAdmissionStatus &&
-    !canTransitionLeadStatus(existing.admissionStatus, nextAdmissionStatus)
-  ) {
-    return NextResponse.json({ error: LEAD_STATUS_WORKFLOW_MESSAGE }, { status: 400 });
+  if (statusChanging && nextAdmissionStatus) {
+    const [successfulPayment, paymentDoneHistory] = await Promise.all([
+      prisma.leadPayment.findFirst({
+        where: { leadId: id, status: "SUCCESS" },
+        select: { id: true },
+      }),
+      prisma.admissionLeadStatusHistory.findFirst({
+        where: { leadId: id, toStatus: AdmissionLeadStatus.PAYMENT_DONE },
+        select: { id: true },
+      }),
+    ]);
+    const paymentCompleted = Boolean(successfulPayment || paymentDoneHistory);
+
+    if (
+      !canTransitionLeadStatus(existing.admissionStatus, nextAdmissionStatus, {
+        paymentCompleted,
+      })
+    ) {
+      const message =
+        nextAdmissionStatus === AdmissionLeadStatus.READY_TO_PAY && paymentCompleted
+          ? READY_TO_PAY_LOCKED_MESSAGE
+          : LEAD_STATUS_WORKFLOW_MESSAGE;
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
   }
 
   try {

@@ -35,8 +35,7 @@ export type UniversityEditWizardData = {
   logoUrl: string;
   spocRows: UniversitySpocDraft[];
   streamEntries: StreamEntry[];
-  targetStudentsUg: string;
-  targetStudentsPg: string;
+  targetStudents: string;
   hostelDetails: HostelDetailsState;
   scholarshipEntries: ScholarshipEntry[];
   mouSpocRows: UniversityMouSpocDraft[];
@@ -212,16 +211,13 @@ export function buildUniversityEditWizardData(input: {
         })
       : [createEmptyStreamEntry()];
 
-  let targetStudentsUg = "";
-  let targetStudentsPg = "";
-  for (const stream of u.streams) {
-    if (stream.programLevel === ProgramLevel.UG && !targetStudentsUg) {
-      targetStudentsUg = stream.totalSeats != null ? String(stream.totalSeats) : "";
-    }
-    if (stream.programLevel === ProgramLevel.PG && !targetStudentsPg) {
-      targetStudentsPg = stream.totalSeats != null ? String(stream.totalSeats) : "";
-    }
-  }
+  const targetStudents =
+    u.targetStudents != null && u.targetStudents > 0
+      ? String(u.targetStudents)
+      : (() => {
+          const seatsSum = u.streams.reduce((sum, stream) => sum + (stream.totalSeats ?? 0), 0);
+          return seatsSum > 0 ? String(seatsSum) : "";
+        })();
 
   const spocRows: UniversitySpocDraft[] =
     u.spocs.length > 0
@@ -291,8 +287,7 @@ export function buildUniversityEditWizardData(input: {
     logoUrl: u.logoUrl ?? "",
     spocRows,
     streamEntries,
-    targetStudentsUg,
-    targetStudentsPg,
+    targetStudents,
     hostelDetails: hostelDbRowsToDetailsState(u.hostelFees, decimalToString(u.messFee) || null),
     scholarshipEntries,
     mouSpocRows,

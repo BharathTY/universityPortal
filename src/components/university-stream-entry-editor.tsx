@@ -16,10 +16,8 @@ type UniversityStreamEntryEditorProps = {
   onChange: (entries: StreamEntry[]) => void;
   catalog: ProgramCatalogSnapshot | null;
   catalogLoading?: boolean;
-  targetStudentsUg: string;
-  targetStudentsPg: string;
-  onTargetStudentsUgChange: (value: string) => void;
-  onTargetStudentsPgChange: (value: string) => void;
+  targetStudents: string;
+  onTargetStudentsChange: (value: string) => void;
   disabled?: boolean;
   fieldErrors?: Record<string, string>;
 };
@@ -45,10 +43,8 @@ export function UniversityStreamEntryEditor({
   onChange,
   catalog,
   catalogLoading,
-  targetStudentsUg,
-  targetStudentsPg,
-  onTargetStudentsUgChange,
-  onTargetStudentsPgChange,
+  targetStudents,
+  onTargetStudentsChange,
   disabled,
   fieldErrors = {},
 }: UniversityStreamEntryEditorProps) {
@@ -118,29 +114,27 @@ export function UniversityStreamEntryEditor({
         </button>
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="block text-xs font-medium text-[var(--foreground-muted)]">Target students (UG)</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={targetStudentsUg}
-            onChange={(e) => onTargetStudentsUgChange(e.target.value.replace(/\D/g, ""))}
-            disabled={disabled}
-            className="mt-0.5 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm tabular-nums"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-[var(--foreground-muted)]">Target students (PG)</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={targetStudentsPg}
-            onChange={(e) => onTargetStudentsPgChange(e.target.value.replace(/\D/g, ""))}
-            disabled={disabled}
-            className="mt-0.5 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm tabular-nums"
-          />
-        </div>
+      <div className="mt-4 max-w-sm">
+        <label className="block text-xs font-medium text-[var(--foreground-muted)]">Target students</label>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={targetStudents}
+          onChange={(e) => onTargetStudentsChange(e.target.value.replace(/\D/g, ""))}
+          disabled={disabled}
+          placeholder="Applies to all programs"
+          aria-invalid={Boolean(fieldErrors.targetStudents)}
+          className={`mt-0.5 w-full rounded-md border bg-[var(--background)] px-2 py-1.5 text-sm tabular-nums ${
+            fieldErrors.targetStudents ? "border-red-500" : "border-[var(--border)]"
+          }`}
+        />
+        {fieldErrors.targetStudents ? (
+          <p className="mt-0.5 text-xs text-red-600">{fieldErrors.targetStudents}</p>
+        ) : (
+          <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+            Overall target student count for this university across all programs.
+          </p>
+        )}
       </div>
 
       <div className="mt-4 space-y-3">

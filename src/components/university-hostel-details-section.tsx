@@ -225,7 +225,6 @@ export function UniversityHostelDetailsSection({
                   [
                     ["BOYS", "Boys hostel"],
                     ["GIRLS", "Girls hostel"],
-                    ["BOTH", "Both"],
                   ] as const
                 ).map(([option, label]) => (
                   <RadioOption

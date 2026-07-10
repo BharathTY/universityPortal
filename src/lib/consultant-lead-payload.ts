@@ -37,13 +37,22 @@ const mobileSchema = z
 
 function validateOptionalScore(
   ctx: z.RefinementCtx,
-  resultType: string,
+  resultType: string | null | undefined,
   scoreRaw: number | string | null | undefined,
   path: string,
 ) {
-  const score = parseOptionalDecimal(scoreRaw);
-  if (score == null) return;
-  const message = validateEducationScore(Number(String(score)), resultType);
+  const hasScore =
+    scoreRaw != null && String(scoreRaw).trim() !== "";
+  if (!hasScore) return;
+  if (!resultType) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Select a result type for the score",
+      path: [path],
+    });
+    return;
+  }
+  const message = validateEducationScore(scoreRaw, resultType);
   if (message) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: [path] });
   }
@@ -133,7 +142,7 @@ export const consultantLeadBodySchema = z.object({
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Enter a valid year of passing", path: ["sslcYear"] });
     }
   }
-  if (data.sslcPercent != null && data.sslcPercent !== "" && data.sslcResultType) {
+  if (data.sslcPercent != null && data.sslcPercent !== "") {
     validateOptionalScore(ctx, data.sslcResultType, data.sslcPercent, "sslcPercent");
   }
 
@@ -143,7 +152,7 @@ export const consultantLeadBodySchema = z.object({
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Enter a valid year of passing", path: ["qualYear"] });
     }
   }
-  if (data.qualScore != null && data.qualScore !== "" && data.qualResultType) {
+  if (data.qualScore != null && data.qualScore !== "") {
     validateOptionalScore(ctx, data.qualResultType, data.qualScore, "qualScore");
   }
 
@@ -153,7 +162,7 @@ export const consultantLeadBodySchema = z.object({
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Enter a valid year of passing", path: ["priorDegreeYear"] });
     }
   }
-  if (data.priorDegreeScore != null && data.priorDegreeScore !== "" && data.priorDegreeResultType) {
+  if (data.priorDegreeScore != null && data.priorDegreeScore !== "") {
     validateOptionalScore(ctx, data.priorDegreeResultType, data.priorDegreeScore, "priorDegreeScore");
   }
 

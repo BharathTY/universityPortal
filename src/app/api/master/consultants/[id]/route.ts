@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { replaceConsultantUniversityAssignments } from "@/lib/consultant-universities";
 import { CONSULTANT_SPOC_ROLE_SLUGS } from "@/lib/consultant-spoc";
+import { CONSULTANT_FORM_MESSAGES } from "@/lib/consultant-form-validation";
 import { storeUpload } from "@/lib/file-storage";
+import { isDistrictInState, isKnownIndianState } from "@/lib/indian-districts";
 import { validateGstNumber, validatePanNumber, normalizeGstNumber, normalizePanNumber } from "@/lib/indian-tax-ids";
 import { requireMasterApi } from "@/lib/master-session";
 import { prisma } from "@/lib/prisma";
@@ -44,6 +46,7 @@ const patchSchema = z
     gstNumber: optionalText(20),
     panNumber: optionalText(20),
     address: optionalText(2000),
+    /** @deprecated City removed from add-consultant UI; ignore if sent. */
     city: optionalText(120),
     district: optionalText(120),
     state: optionalText(120),
@@ -54,6 +57,23 @@ const patchSchema = z
     if (gstErr) ctx.addIssue({ code: z.ZodIssueCode.custom, message: gstErr, path: ["gstNumber"] });
     const panErr = validatePanNumber(data.panNumber ?? "");
     if (panErr) ctx.addIssue({ code: z.ZodIssueCode.custom, message: panErr, path: ["panNumber"] });
+
+    if (data.state !== undefined && data.state && !isKnownIndianState(data.state)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: CONSULTANT_FORM_MESSAGES.stateRequired,
+        path: ["state"],
+      });
+    }
+
+    // When both are present in the patch, validate membership; otherwise checked after load.
+    if (data.state && data.district && !isDistrictInState(data.state, data.district)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: CONSULTANT_FORM_MESSAGES.districtRequired,
+        path: ["district"],
+      });
+    }
   });
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -182,6 +202,21 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const effectiveState = parsed.data.state ?? user.state;
+  if (
+    parsed.data.district &&
+    effectiveState &&
+    !isDistrictInState(effectiveState, parsed.data.district)
+  ) {
+    return NextResponse.json(
+      {
+        error: CONSULTANT_FORM_MESSAGES.districtRequired,
+        fieldErrors: { district: [CONSULTANT_FORM_MESSAGES.districtRequired] },
+      },
+      { status: 400 },
+    );
+  }
+
   if (mouFile && !parsed.data.academicYear) {
     return NextResponse.json(
       { error: "Academic year is required when uploading MOU", fieldErrors: { academicYear: ["Required for MOU"] } },
@@ -251,6 +286,7 @@ export async function PATCH(req: Request, ctx: RouteContext) {
         ? { panNumber: parsed.data.panNumber ? normalizePanNumber(parsed.data.panNumber) : null }
         : {}),
       ...(parsed.data.address !== undefined ? { address: parsed.data.address ?? null } : {}),
+      // City removed from add-consultant flow; keep existing value unless explicitly cleared via null/empty.
       ...(parsed.data.city !== undefined ? { city: parsed.data.city ?? null } : {}),
       ...(parsed.data.district !== undefined ? { district: parsed.data.district ?? null } : {}),
       ...(parsed.data.state !== undefined ? { state: parsed.data.state ?? null } : {}),

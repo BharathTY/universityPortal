@@ -15,6 +15,10 @@ import { STUDENT_FULL_NAME_AADHAAR_HINT } from "@/lib/student-full-name";
 import { permanentAddressFromForm, structuredAddressesEqual, type StructuredAddress } from "@/lib/student-address";
 import { createEmptyEntranceExamRow } from "@/app/dashboard/consultant/leads/consultant-optional-education-sections";
 import { inputClass } from "@/components/student/student-portal-ui";
+import {
+  educationScoreInputAttrs,
+  sanitizeEducationScoreInput,
+} from "@/lib/education-score-validation";
 
 type Props = {
   profile: StudentProfilePrefill;
@@ -317,7 +321,20 @@ export function StudentProfileForm({ profile: p, onChange, fieldErrors, onPhotoU
           </select>
         </Field>
         <Field label={p.sslcResultType === "CGPA" ? "CGPA" : "Percentage (%)"} required error={fieldErrors.sslcPercent}>
-          <input value={p.sslcPercent} onChange={(e) => onChange({ sslcPercent: e.target.value })} className={inputClass} />
+          <input
+            type="text"
+            inputMode={educationScoreInputAttrs(p.sslcResultType).inputMode}
+            value={p.sslcPercent}
+            onChange={(e) => onChange({ sslcPercent: sanitizeEducationScoreInput(e.target.value) })}
+            placeholder={
+              p.sslcResultType === "CGPA"
+                ? "0 – 10"
+                : p.sslcResultType === "PERCENTAGE"
+                  ? "35 – 100"
+                  : undefined
+            }
+            className={inputClass}
+          />
         </Field>
         {p.sslcMarksCardUrl ? (
           <div className="sm:col-span-2">
@@ -367,7 +384,20 @@ export function StudentProfileForm({ profile: p, onChange, fieldErrors, onPhotoU
           </select>
         </Field>
         <Field label={p.qualResultType === "CGPA" ? "CGPA" : "Percentage (%)"} required error={fieldErrors.qualScore}>
-          <input value={p.qualScore} onChange={(e) => onChange({ qualScore: e.target.value })} className={inputClass} />
+          <input
+            type="text"
+            inputMode={educationScoreInputAttrs(p.qualResultType).inputMode}
+            value={p.qualScore}
+            onChange={(e) => onChange({ qualScore: sanitizeEducationScoreInput(e.target.value) })}
+            placeholder={
+              p.qualResultType === "CGPA"
+                ? "0 – 10"
+                : p.qualResultType === "PERCENTAGE"
+                  ? "35 – 100"
+                  : undefined
+            }
+            className={inputClass}
+          />
         </Field>
         {p.qualMarksCardUrl ? (
           <div className="sm:col-span-2">
@@ -413,7 +443,22 @@ export function StudentProfileForm({ profile: p, onChange, fieldErrors, onPhotoU
               ))}
             </select>
           </Field>
-          <Field label="Percentage / CGPA"><input value={p.priorDegreeScore} onChange={(e) => onChange({ priorDegreeScore: e.target.value })} className={inputClass} /></Field>
+          <Field label={p.priorDegreeResultType === "CGPA" ? "CGPA" : "Percentage / CGPA"} error={fieldErrors.priorDegreeScore}>
+            <input
+              type="text"
+              inputMode={educationScoreInputAttrs(p.priorDegreeResultType).inputMode}
+              value={p.priorDegreeScore}
+              onChange={(e) => onChange({ priorDegreeScore: sanitizeEducationScoreInput(e.target.value) })}
+              placeholder={
+                p.priorDegreeResultType === "CGPA"
+                  ? "0 – 10"
+                  : p.priorDegreeResultType === "PERCENTAGE"
+                    ? "35 – 100"
+                    : undefined
+              }
+              className={inputClass}
+            />
+          </Field>
       </Section>
 
       <div className="border-t border-[var(--border)] pt-6">
